@@ -161,7 +161,7 @@ export const PROJECTS_ZH = [
       "支持 Quad / Hex / Octo 多种布局与单桨失效后的自动重配；默认参数针对百公斤级无人机，控制循环 250Hz 闭环；悬停倾斜方程 tan θ = a/g 将期望水平加速度解析映射为目标姿态，打通位置控制到姿态控制的桥梁。",
     references: [
       "GitHub 仓库：https://github.com/NiteFlightxx/AircraftLab",
-      "技术详解：四轴无人机飞控的数学与物理原理（知识库）",
+      "技术详解：[四轴无人机飞控的数学与物理原理（知识库）](/knowledge/quadcopter-flight-control-math/)",
     ],
     tech: ["UE5", "C++", "Chaos", "级联 PID"],
     metrics: [

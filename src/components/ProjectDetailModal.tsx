@@ -5,6 +5,9 @@ import type { Project } from "../types";
 import { projectCategoryZh } from "../lib/taxonomy";
 import { UI_TRANSLATIONS } from "../translations";
 
+// Site base path (GitHub Pages sub-path aware), same convention as KnowledgeView.
+const BASE_URL = import.meta.env.BASE_URL;
+
 interface ProjectDetailModalProps {
   project: Project;
   onClose: () => void;
@@ -164,33 +167,62 @@ export default function ProjectDetailModal({ project, onClose, lang }: ProjectDe
               <h3 className="font-mono text-[10px] text-brand-accent-orange uppercase tracking-widest">{t.references}</h3>
               <ul className="space-y-1">
                 {project.references.map((ref, idx) => {
-                  // Render any http(s):// URL inside a reference as a clickable link.
-                  const urlMatch = ref.match(/(https?:\/\/[^\s)]+)/);
-                  if (!urlMatch) {
+                  // Render links inside a reference as clickable anchors. Supports:
+                  //  - Markdown link [text](url) — displays the friendly text; internal
+                  //    paths (starting with "/") are prefixed with BASE_URL.
+                  //  - Bare http(s):// URL — displays the URL itself as the link text.
+                  const mdLink = ref.match(/\[([^\]]+)\]\(([^)]+)\)/);
+                  if (mdLink) {
+                    const [full, text, url] = mdLink;
+                    const [before, after] = ref.split(full);
+                    const isExternal = /^https?:\/\//.test(url);
+                    const href = isExternal
+                      ? url
+                      : `${BASE_URL}${url.replace(/^\/+/, "")}`;
                     return (
                       <li key={idx} className="text-xs text-gray-400 font-mono flex items-start gap-2">
                         <span className="text-gray-600 select-none">›</span>
-                        <span>{ref}</span>
+                        <span className="break-all">
+                          {before}
+                          <a
+                            href={href}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-brand-accent-lime hover:underline"
+                          >
+                            {text}
+                          </a>
+                          {after}
+                        </span>
                       </li>
                     );
                   }
-                  const url = urlMatch[1];
-                  const [before, after] = ref.split(url);
+                  const urlMatch = ref.match(/(https?:\/\/[^\s)]+)/);
+                  if (urlMatch) {
+                    const url = urlMatch[1];
+                    const [before, after] = ref.split(url);
+                    return (
+                      <li key={idx} className="text-xs text-gray-400 font-mono flex items-start gap-2">
+                        <span className="text-gray-600 select-none">›</span>
+                        <span className="break-all">
+                          {before}
+                          <a
+                            href={url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-brand-accent-lime hover:underline"
+                          >
+                            {url}
+                          </a>
+                          {after}
+                        </span>
+                      </li>
+                    );
+                  }
                   return (
                     <li key={idx} className="text-xs text-gray-400 font-mono flex items-start gap-2">
                       <span className="text-gray-600 select-none">›</span>
-                      <span className="break-all">
-                        {before}
-                        <a
-                          href={url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-brand-accent-lime hover:underline"
-                        >
-                          {url}
-                        </a>
-                        {after}
-                      </span>
+                      <span>{ref}</span>
                     </li>
                   );
                 })}
