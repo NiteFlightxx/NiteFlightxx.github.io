@@ -7,13 +7,13 @@ import { projectCategoryZh } from "../lib/taxonomy";
 import { UI_TRANSLATIONS } from "../translations";
 import BorderGlow from "./BorderGlow";
 
+const BASE_URL = import.meta.env.BASE_URL;
+
 interface HomeViewProps {
   projects: Project[];
   knowledgeArticles: ContentArticle[];
   labExperiments: ContentArticle[];
   onSelectProject: (project: Project) => void;
-  onSelectArticle: (article: ContentArticle) => void;
-  onSelectExperiment: (experiment: ContentArticle) => void;
   setActiveTab: (tab: string) => void;
   heroImageUrl: string;
   lang: "zh" | "en";
@@ -24,8 +24,6 @@ export default function HomeView({
   knowledgeArticles,
   labExperiments,
   onSelectProject,
-  onSelectArticle,
-  onSelectExperiment,
   setActiveTab,
   heroImageUrl,
   lang,
@@ -213,7 +211,7 @@ export default function HomeView({
               fillOpacity={0.15}
               className="group cursor-pointer"
             >
-              <div onClick={() => onSelectArticle(art)} className="p-6 flex flex-col justify-between gap-4">
+              <a href={`${BASE_URL}knowledge/${art.slug}`} target="_blank" rel="noopener noreferrer" className="block p-6 flex flex-col justify-between gap-4">
                 <div className="flex items-center justify-between text-xs font-mono">
                   <span className="text-brand-accent-lime">{art.category.toUpperCase()}</span>
                   <span className="text-gray-500">{art.date}</span>
@@ -229,7 +227,7 @@ export default function HomeView({
                     {art.readTime}
                   </div>
                 )}
-              </div>
+              </a>
             </BorderGlow>
           ))}
         </div>
@@ -265,7 +263,7 @@ export default function HomeView({
               fillOpacity={0.16}
               className="group cursor-pointer"
             >
-              <div onClick={() => onSelectExperiment(exp)} className="p-6 md:p-8 flex flex-col justify-between gap-4">
+              <a href={`${BASE_URL}lab/${exp.slug}`} target="_blank" rel="noopener noreferrer" className="block p-6 md:p-8 flex flex-col justify-between gap-4">
                 <div className="flex items-center justify-between text-xs font-mono">
                   <span className="text-brand-accent-lime">{exp.category.toUpperCase()}</span>
                   <span className="text-gray-500">{exp.date}</span>
@@ -279,7 +277,7 @@ export default function HomeView({
                 <span className="text-white opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center gap-1 font-mono text-[9px]">
                   {t.experiment} <ArrowRight className="w-3 h-3 text-brand-accent-lime" />
                 </span>
-              </div>
+              </a>
             </BorderGlow>
           ))}
         </div>
@@ -304,9 +302,14 @@ export default function HomeView({
                 <span>{exp.date}</span>
                 <span className="text-brand-accent-lime uppercase tracking-wider">{exp.category}</span>
               </div>
-              <h3 className="font-display font-bold text-sm text-white hover:text-brand-accent-lime transition-colors cursor-pointer" onClick={() => onSelectExperiment(exp)}>
+              <a
+                href={`${BASE_URL}lab/${exp.slug}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-display font-bold text-sm text-white hover:text-brand-accent-lime transition-colors block"
+              >
                 {exp.title}
-              </h3>
+              </a>
               {exp.excerpt && (
                 <p className="text-xs text-gray-400 leading-relaxed font-sans font-light line-clamp-1">{exp.excerpt}</p>
               )}

@@ -3,6 +3,7 @@ import react from '@astrojs/react';
 import tailwindcss from '@tailwindcss/vite';
 import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
+import rehypeSlug from 'rehype-slug';
 
 // GitHub Pages serves project sites under a sub-path (e.g. /my-repo/) and user
 // sites (/<username>.github.io) under root. Derive `base` from GITHUB_REPOSITORY
@@ -23,7 +24,7 @@ export default defineConfig({
   integrations: [react()],
   markdown: {
     remarkPlugins: [remarkMath],
-    rehypePlugins: [rehypeKatex],
+    rehypePlugins: [rehypeSlug, rehypeKatex],
   },
   vite: {
     plugins: [tailwindcss()],

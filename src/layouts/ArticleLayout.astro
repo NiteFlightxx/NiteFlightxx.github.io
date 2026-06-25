@@ -1,0 +1,145 @@
+---
+import 'katex/dist/katex.min.css';
+import '../index.css';
+import SideRays from '../components/SideRays';
+import DynamicLinesBg from '../components/DynamicLinesBg';
+import ArticleToc from '../components/ArticleToc';
+import { Calendar, Clock, ArrowLeft } from 'lucide-react';
+
+interface TocHeading {
+  depth: number;
+  slug: string;
+  text: string;
+}
+
+interface Props {
+  title: string;
+  excerpt?: string;
+  category: string; // localized label (e.g. "动画")
+  date: string; // localized display string
+  readTime?: string;
+  tags: string[];
+  headings: TocHeading[];
+  backHref: string; // absolute URL back to the feed tab, e.g. "/#knowledge"
+  backLabel: string; // e.g. "返回知识库"
+  lang: 'zh' | 'en';
+}
+
+const {
+  title,
+  excerpt,
+  category,
+  date,
+  readTime,
+  tags = [],
+  headings,
+  backHref,
+  backLabel,
+  lang = 'zh',
+} = Astro.props;
+---
+
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>{title} · Nite</title>
+    <meta name="description" content={excerpt ?? title} />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Noto+Sans+SC:wght@900&display=swap"
+    />
+  </head>
+  <body class="bg-brand-black text-gray-100">
+    {/* Fixed background layers — same cinematic stack as the SPA home */}
+    <div class="fixed inset-0 -z-20 bg-brand-black"></div>
+    <div class="fixed inset-0 -z-15 pointer-events-none opacity-90">
+      <SideRays
+        client:load
+        speed={2.5}
+        rayColor1="#EAB308"
+        rayColor2="#96c8ff"
+        intensity={2.0}
+        spread={2.0}
+        origin="top-right"
+        tilt={0}
+        saturation={1.5}
+        blend={0.75}
+        falloff={1.6}
+        opacity={1.0}
+      />
+    </div>
+    <DynamicLinesBg client:load theme="dark" />
+    <div class="grain-overlay" aria-hidden="true"></div>
+
+    {/* Sticky minimal top bar */}
+    <header class="sticky top-0 z-50 glass-panel border-b border-white/10 px-6 md:px-12 py-3.5 flex items-center justify-between select-none">
+      <div class="flex items-center gap-4">
+        <a href="/" class="font-display font-black text-base tracking-widest text-white hover:text-brand-accent-lime transition-colors">
+          NITE
+        </a>
+        <span class="hidden sm:block text-[10px] font-mono text-gray-600 tracking-widest">/ {category}</span>
+      </div>
+      <a
+        href={backHref}
+        class="flex items-center gap-2 text-xs font-mono text-gray-400 hover:text-white transition-colors group"
+      >
+        <ArrowLeft className="w-4 h-4 transition-transform group-hover:-translate-x-1" />
+        {backLabel}
+      </a>
+    </header>
+
+    {/* Main: TOC sidebar + article content.
+        TOC is pinned left; a wide gap separates it from the article so the
+        reading column breathes independently of the navigation rail. */}
+    <div class="relative mx-auto px-6 md:px-12 py-10 lg:grid lg:grid-cols-[240px_1fr] lg:gap-16 lg:max-w-6xl">
+      {/* Left TOC — sticky, hidden on small screens (no room) */}
+      <aside class="hidden lg:block">
+        <div class="sticky top-24">
+          <ArticleToc client:load headings={headings} lang={lang} />
+        </div>
+      </aside>
+
+      {/* Article body */}
+      <article class="article-body max-w-3xl mx-auto lg:mx-0 w-full">
+        {/* Header metadata */}
+        <div class="border-b border-white/5 pb-8 mb-10">
+          <div class="flex items-center gap-2 text-[10px] font-mono text-brand-accent-orange uppercase tracking-wider mb-3">
+            <span>{category}</span>
+          </div>
+          <h1 class="font-display font-medium text-2xl md:text-4xl text-white tracking-tight leading-tight mb-6">
+            {title}
+          </h1>
+          {excerpt && (
+            <p class="text-sm md:text-base text-gray-400 leading-relaxed mb-5">{excerpt}</p>
+          )}
+          <div class="flex flex-wrap items-center gap-x-6 gap-y-2 text-xs font-mono text-gray-500">
+            <span class="flex items-center gap-1.5">
+              <Calendar className="w-3.5 h-3.5 text-gray-600" />
+              {date}
+            </span>
+            {readTime && (
+              <span class="flex items-center gap-1.5">
+                <Clock className="w-3.5 h-3.5 text-gray-600" />
+                {readTime}
+              </span>
+            )}
+          </div>
+        </div>
+
+        {/* Rendered Markdown + KaTeX from <Content /> */}
+        <slot />
+
+        {/* Tag cloud */}
+        <div class="mt-12 pt-8 border-t border-white/5 flex flex-wrap gap-2">
+          {tags.map((tag) => (
+            <span class="px-2.5 py-1 text-[10px] font-mono bg-brand-gray-800 text-gray-400 border border-white/5 rounded">
+              #{tag.toUpperCase()}
+            </span>
+          ))}
+        </div>
+      </article>
+    </div>
+  </body>
+</html>

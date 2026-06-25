@@ -15,7 +15,6 @@ import KnowledgeView from "./components/KnowledgeView";
 import LabView from "./components/LabView";
 import ArchiveView from "./components/ArchiveView";
 import ProjectDetailModal from "./components/ProjectDetailModal";
-import ArticleViewer from "./components/ArticleViewer";
 import DynamicLinesBg from "./components/DynamicLinesBg";
 import SideRays from "./components/SideRays";
 
@@ -38,11 +37,17 @@ interface AppProps {
 }
 
 export default function App({ knowledgeArticles = [], labExperiments = [] }: AppProps) {
-  const [activeTab, setActiveTab] = useState<string>("home");
+  // Initial tab from the URL hash (e.g. "#knowledge") so article-page "back" links
+  // land on the originating feed tab. Falls back to "home" for unknown/empty hashes.
+  const validTabs = ["home", "projects", "knowledge", "lab", "archive"];
+  const hashTab = typeof window !== "undefined"
+    ? window.location.hash.replace(/^#/, "")
+    : "";
+  const [activeTab, setActiveTab] = useState<string>(
+    validTabs.includes(hashTab) ? hashTab : "home"
+  );
   const [theme, setTheme] = useState<"dark" | "light">("dark");
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
-  const [selectedArticleId, setSelectedArticleId] = useState<string | null>(null);
-  const [selectedExperimentId, setSelectedExperimentId] = useState<string | null>(null);
 
   // Fixed locale: the English datasets were removed during migration.
   const lang = "zh" as const;
@@ -54,8 +59,6 @@ export default function App({ knowledgeArticles = [], labExperiments = [] }: App
   const timeline = TIMELINE_ZH;
 
   const selectedProject = selectedProjectId ? projects.find(p => p.id === selectedProjectId) || null : null;
-  const selectedArticle = selectedArticleId ? knowledge.find(a => a.id === selectedArticleId) || null : null;
-  const selectedExperiment = selectedExperimentId ? experiments.find(e => e.id === selectedExperimentId) || null : null;
 
   // Smooth scroll to top on page switches
   useEffect(() => {
@@ -72,8 +75,6 @@ export default function App({ knowledgeArticles = [], labExperiments = [] }: App
             knowledgeArticles={knowledge}
             labExperiments={experiments}
             onSelectProject={(proj) => setSelectedProjectId(proj.id)}
-            onSelectArticle={(art) => setSelectedArticleId(art.id)}
-            onSelectExperiment={(exp) => setSelectedExperimentId(exp.id)}
             setActiveTab={setActiveTab}
             heroImageUrl={HERO_IMAGE_URL}
             lang={lang}
@@ -91,7 +92,6 @@ export default function App({ knowledgeArticles = [], labExperiments = [] }: App
         return (
           <KnowledgeView
             articles={knowledge}
-            onSelectArticle={(art) => setSelectedArticleId(art.id)}
             lang={lang}
           />
         );
@@ -99,7 +99,6 @@ export default function App({ knowledgeArticles = [], labExperiments = [] }: App
         return (
           <LabView
             experiments={experiments}
-            onSelectExperiment={(exp) => setSelectedExperimentId(exp.id)}
             lang={lang}
           />
         );
@@ -178,28 +177,6 @@ export default function App({ knowledgeArticles = [], labExperiments = [] }: App
           <ProjectDetailModal
             project={selectedProject}
             onClose={() => setSelectedProjectId(null)}
-            lang={lang}
-          />
-        )}
-      </AnimatePresence>
-
-      {/* Immersive Drawer: Knowledge articles */}
-      <AnimatePresence>
-        {selectedArticle && (
-          <ArticleViewer
-            article={selectedArticle}
-            onClose={() => setSelectedArticleId(null)}
-            lang={lang}
-          />
-        )}
-      </AnimatePresence>
-
-      {/* Immersive Drawer: Lab experiments (reuses ArticleViewer) */}
-      <AnimatePresence>
-        {selectedExperiment && (
-          <ArticleViewer
-            article={selectedExperiment}
-            onClose={() => setSelectedExperimentId(null)}
             lang={lang}
           />
         )}

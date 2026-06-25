@@ -7,13 +7,14 @@ import ResearchMap from "./ResearchMap";
 import BorderGlow from "./BorderGlow";
 import { UI_TRANSLATIONS } from "../translations";
 
+const BASE_URL = import.meta.env.BASE_URL;
+
 interface LabViewProps {
   experiments: ContentArticle[];
-  onSelectExperiment: (exp: ContentArticle) => void;
   lang: "zh" | "en";
 }
 
-export default function LabView({ experiments, onSelectExperiment, lang }: LabViewProps) {
+export default function LabView({ experiments, lang }: LabViewProps) {
   const t = UI_TRANSLATIONS[lang];
   const [filterTopic, setFilterTopic] = useState<LabTopic | null>(null);
 
@@ -49,12 +50,15 @@ export default function LabView({ experiments, onSelectExperiment, lang }: LabVi
       <div className="max-w-4xl mx-auto px-6 space-y-4">
         {filtered.length > 0 ? (
           filtered.map((exp) => (
-            <motion.div
+            <motion.a
+              href={`${BASE_URL}lab/${exp.slug}`}
+              target="_blank"
+              rel="noopener noreferrer"
               key={exp.id}
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.3 }}
-              className="group cursor-pointer"
+              className="group block"
             >
               <BorderGlow
                 edgeSensitivity={30}
@@ -68,7 +72,7 @@ export default function LabView({ experiments, onSelectExperiment, lang }: LabVi
                 fillOpacity={0.16}
                 className="w-full"
               >
-                <div onClick={() => onSelectExperiment(exp)} className="p-6 md:p-8 flex flex-col gap-4">
+                <div className="p-6 md:p-8 flex flex-col gap-4">
                   <div className="flex items-center justify-between text-[10px] font-mono">
                     <span className="text-brand-accent-lime uppercase tracking-wider font-semibold">
                       {exp.category}
@@ -104,7 +108,7 @@ export default function LabView({ experiments, onSelectExperiment, lang }: LabVi
                   </div>
                 </div>
               </BorderGlow>
-            </motion.div>
+            </motion.a>
           ))
         ) : (
           <div className="p-12 text-center border border-white/5 rounded-xl bg-brand-charcoal space-y-2">

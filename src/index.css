@@ -114,6 +114,31 @@ body {
 
 /* ---- Article body (rendered from Markdown + KaTeX at build time) ---- */
 /* Mirrors the look previously produced by ArticleViewer's hand-rolled parser. */
+
+/* Offset anchored headings below the sticky top bar so scroll-spy + hash links
+   don't tuck the heading under the header. */
+.article-body h2,
+.article-body h3,
+.article-body h4,
+.article-body h5,
+.article-body h6 {
+  scroll-margin-top: 6rem;
+}
+
+/* Section heading (## in Markdown) — the primary structural heading. */
+.article-body h2 {
+  font-family: var(--font-display);
+  font-weight: 900;
+  font-size: 1.375rem;
+  line-height: 1.9rem;
+  color: #fff;
+  margin-top: 3rem;
+  margin-bottom: 1.25rem;
+  letter-spacing: 0.02em;
+  padding-top: 0.5rem;
+  border-top: 1px solid rgba(188, 253, 73, 0.18);
+}
+
 .article-body h3 {
   font-family: var(--font-display);
   font-weight: 900;
@@ -135,6 +160,87 @@ body {
   margin-top: 1.5rem;
   margin-bottom: 0.75rem;
   letter-spacing: 0.025em;
+}
+
+.article-body h5,
+.article-body h6 {
+  font-family: var(--font-display);
+  font-weight: 900;
+  font-size: 0.875rem;
+  color: #9ca3af;
+  margin-top: 1.25rem;
+  margin-bottom: 0.5rem;
+  letter-spacing: 0.02em;
+}
+
+/* Blockquote: lime accent rail + muted text (used heavily for source notes). */
+.article-body blockquote {
+  margin: 1.5rem 0;
+  padding: 0.5rem 0 0.5rem 1rem;
+  border-left: 2px solid rgba(188, 253, 73, 0.4);
+  color: #9ca3af;
+  font-size: 0.875rem;
+  line-height: 1.7;
+}
+
+.article-body blockquote p {
+  margin: 0.5rem 0;
+}
+
+/* Links: lime, brighten on hover. */
+.article-body a {
+  color: #bcfd49;
+  text-decoration: none;
+  border-bottom: 1px solid rgba(188, 253, 73, 0.3);
+  transition: color 0.2s ease, border-color 0.2s ease;
+}
+
+.article-body a:hover {
+  color: #d9f99d;
+  border-bottom-color: #d9f99d;
+}
+
+/* Tables: dark panel with subtle borders, horizontal scroll on overflow. */
+.article-body table {
+  width: 100%;
+  margin: 1.5rem 0;
+  border-collapse: collapse;
+  font-size: 0.8rem;
+  display: block;
+  overflow-x: auto;
+}
+
+.article-body th,
+.article-body td {
+  padding: 0.6rem 0.85rem;
+  text-align: left;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  line-height: 1.6;
+}
+
+.article-body th {
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  color: #fff;
+  background: rgba(255, 255, 255, 0.03);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: 900;
+}
+
+.article-body td {
+  color: #d1d5db;
+}
+
+.article-body tr:nth-child(even) td {
+  background: rgba(255, 255, 255, 0.015);
+}
+
+/* Horizontal rule: thin lime-tinted divider. */
+.article-body hr {
+  margin: 2.5rem 0;
+  border: none;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
 }
 
 .article-body p {
@@ -186,11 +292,15 @@ body {
   font-size: 0.75rem;
 }
 
-/* KaTeX block math: center + breathing room */
+/* KaTeX block math: centered, with breathing room and graceful overflow.
+   The inner .katex is forced to text-align:center by KaTeX's own CSS; this
+   wrapper adds vertical spacing and lets wide formulas scroll horizontally
+   instead of breaking the column. */
 .article-body .katex-display {
-  margin: 1.5rem 0;
+  margin: 1.75rem 0;
   overflow-x: auto;
   overflow-y: hidden;
+  text-align: center;
 }
 
 /* Inline code */
