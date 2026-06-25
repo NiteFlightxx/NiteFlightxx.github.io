@@ -1,8 +1,8 @@
 @import "tailwindcss";
 
 @theme {
-  --font-sans: "Inter", "Source Han Sans CN", "Noto Sans SC", "Microsoft YaHei", ui-sans-serif, system-ui, sans-serif;
-  --font-display: "Source Han Sans CN Heavy", "Source Han Sans CN", "Noto Sans SC", "Space Grotesk", sans-serif;
+  --font-sans: "Source Han Sans CN", "Noto Sans SC", "Microsoft YaHei", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Source Han Sans CN Heavy", "Source Han Sans CN", "Noto Sans SC", sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
   
   --color-brand-black: #000000;
@@ -19,6 +19,23 @@
   --color-brand-accent-lime: #bcfd49;
   --color-brand-accent-indigo: #6366f1; /* Deep high-tech indigo */
   --color-brand-accent-silver: #e2e8f0; /* Apple/Vercel silver */
+}
+
+/* ---- Global font-weight override: Source Han Sans CN HEAVY (900) site-wide ----
+   All Tailwind weight utilities (font-light..font-black) collapse to 900.
+   KaTeX (math) and code blocks keep their own weights to avoid distorted
+   glyphs / fake-bold rendering — see protections below. */
+body,
+.font-light,
+.font-normal,
+.font-medium,
+.font-semibold,
+.font-bold,
+.font-extrabold,
+.font-black,
+.font-thin,
+.font-extralight {
+  font-weight: 900;
 }
 
 /* Custom Scrollbar */
@@ -99,7 +116,7 @@ body {
 /* Mirrors the look previously produced by ArticleViewer's hand-rolled parser. */
 .article-body h3 {
   font-family: var(--font-display);
-  font-weight: 500;
+  font-weight: 900;
   font-size: 1.125rem;
   line-height: 1.75rem;
   color: #fff;
@@ -112,7 +129,7 @@ body {
 
 .article-body h4 {
   font-family: var(--font-display);
-  font-weight: 500;
+  font-weight: 900;
   font-size: 1rem;
   color: #e5e7eb;
   margin-top: 1.5rem;
@@ -125,7 +142,7 @@ body {
   line-height: 1.7;
   color: #d1d5db;
   margin: 1.25rem 0;
-  font-weight: 400;
+  font-weight: 900;
   letter-spacing: 0.015em;
 }
 
@@ -203,6 +220,16 @@ body {
   padding: 0;
   color: #d1d5db;
   line-height: 1.6;
+}
+
+/* Protect monospace + math from the site-wide HEAVY (900) override:
+   fake-bold would distort KaTeX glyphs and blur code. */
+code,
+pre,
+pre code,
+.katex,
+.katex * {
+  font-weight: 400 !important;
 }
 
 
