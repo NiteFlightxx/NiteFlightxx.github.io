@@ -1,8 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { motion } from "motion/react";
 import { X, Clock, Calendar, ArrowLeft, Copy, Check, Share2 } from "lucide-react";
-import { BlogArticle } from "../types";
-import MathRenderer from "./MathRenderer";
+import type { BlogArticle } from "../types";
 
 interface ArticleViewerProps {
   article: BlogArticle;
@@ -36,123 +35,6 @@ export default function ArticleViewer({ article, onClose, lang }: ArticleViewerP
     navigator.clipboard.writeText(window.location.href);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
-  };
-
-  // Custom high-fidelity inline parser for structured rendering
-  const renderContent = (text: string) => {
-    const lines = text.split("\n");
-    let inCodeBlock = false;
-    let codeLines: string[] = [];
-    let codeLang = "";
-
-    return lines.map((line, idx) => {
-      // Code Blocks parsing
-      if (line.startsWith("```")) {
-        if (inCodeBlock) {
-          inCodeBlock = false;
-          const codeContent = codeLines.join("\n");
-          codeLines = [];
-          return (
-            <div key={idx} className="my-6 rounded-lg overflow-hidden border border-white/5 bg-brand-charcoal">
-              <div className="flex items-center justify-between px-4 py-2 bg-brand-black/50 border-b border-white/5 font-mono text-[10px] text-gray-500">
-                <span>{codeLang.toUpperCase() || "SOURCE"}</span>
-                <button
-                  onClick={() => {
-                    navigator.clipboard.writeText(codeContent);
-                  }}
-                  className="hover:text-white transition-colors cursor-pointer flex items-center gap-1"
-                >
-                  <Copy className="w-2.5 h-2.5" /> {lang === "zh" ? "复制" : "Copy"}
-                </button>
-              </div>
-              <pre className="p-4 overflow-x-auto text-xs font-mono text-gray-300 leading-relaxed bg-brand-black/20">
-                <code>{codeContent}</code>
-              </pre>
-            </div>
-          );
-        } else {
-          inCodeBlock = true;
-          codeLang = line.replace("```", "").trim();
-          return null;
-        }
-      }
-
-      if (inCodeBlock) {
-        codeLines.push(line);
-        return null;
-      }
-
-      // Headings
-      if (line.startsWith("### ")) {
-        return (
-          <h3 key={idx} className="font-display font-medium text-lg md:text-xl text-white mt-10 mb-4 tracking-wide border-b border-white/5 pb-2">
-            {line.substring(4)}
-          </h3>
-        );
-      }
-      if (line.startsWith("#### ")) {
-        return (
-          <h4 key={idx} className="font-display font-medium text-base text-gray-200 mt-6 mb-3 tracking-wide">
-            {line.substring(5)}
-          </h4>
-        );
-      }
-
-      // Ordered Lists
-      if (line.match(/^\d+\.\s/)) {
-        const itemText = line.replace(/^\d+\.\s/, "");
-        return (
-          <div key={idx} className="flex gap-2 pl-2 my-2 text-sm text-gray-300 leading-relaxed font-sans">
-            <span className="font-mono text-brand-accent-orange text-xs mt-0.5">•</span>
-            <span>{itemText}</span>
-          </div>
-        );
-      }
-
-      // Unordered Lists
-      if (line.startsWith("- ")) {
-        return (
-          <div key={idx} className="flex gap-2 pl-4 my-2 text-sm text-gray-300 leading-relaxed font-sans">
-            <span className="font-mono text-gray-500 text-xs mt-0.5">▪</span>
-            <span>{line.substring(2)}</span>
-          </div>
-        );
-      }
-
-      // Empty Lines
-      if (line.trim() === "") {
-        return <div key={idx} className="h-3" />;
-      }
-
-      // Math Equations
-      if (line.includes("$$")) {
-        const cleanLine = line.trim();
-        if (cleanLine.startsWith("$$") && cleanLine.endsWith("$$")) {
-          const formula = cleanLine.replaceAll("$$", "");
-          let formulaKey = "";
-          if (formula.includes("Rayleigh")) formulaKey = "rayleigh";
-          else if (formula.includes("HG")) formulaKey = "hg";
-          else if (formula.includes("Verlet") || formula.includes("x_")) formulaKey = "verlet";
-          else if (formula.includes("Poisson") || formula.includes("p_")) formulaKey = "gpu-poisson";
-          else if (formula.includes("H(x, y, z)")) formulaKey = "spatial_hash";
-          
-          if (formulaKey) {
-            return (
-              <div key={idx} className="my-6">
-                <MathRenderer formulaKey={formulaKey} />
-              </div>
-            );
-          }
-        }
-      }
-
-      // Default Paragraph
-      return (
-        <p key={idx} className="text-sm md:text-base text-gray-300 leading-relaxed my-5 font-normal tracking-wide">
-          {line}
-        </p>
-      );
-    });
   };
 
   return (
@@ -227,11 +109,11 @@ export default function ArticleViewer({ article, onClose, lang }: ArticleViewerP
           {/* Header Metadata */}
           <div className="border-b border-white/5 pb-8 mb-8">
             <div className="flex items-center gap-2 text-[10px] font-mono text-brand-accent-orange uppercase tracking-wider mb-3">
-              <span>{lang === "zh" ? article.category.replace("Physics Simulation", "物理模拟").replace("Real-time Rendering", "实时渲染").replace("Animation Technical Art", "动画技术美术").replace("Gameplay Systems", "游戏玩法系统") : article.category}</span>
+              <span>{article.category}</span>
               <span>•</span>
               <span>{lang === "zh" ? "深度研究日志" : "TECHNICAL LOG"}</span>
             </div>
-            
+
             <h1 className="font-display font-medium text-2xl md:text-4xl text-white tracking-tight leading-tight mb-6">
               {article.title}
             </h1>
@@ -248,10 +130,11 @@ export default function ArticleViewer({ article, onClose, lang }: ArticleViewerP
             </div>
           </div>
 
-          {/* Formatted Content */}
-          <div className="prose prose-invert max-w-none">
-            {renderContent(article.content)}
-          </div>
+          {/* Pre-rendered Markdown + KaTeX HTML from the build step */}
+          <div
+            className="article-body prose prose-invert max-w-none"
+            dangerouslySetInnerHTML={{ __html: article.html ?? "" }}
+          />
 
           {/* Tag Cloud */}
           <div className="mt-12 pt-8 border-t border-white/5 flex flex-wrap gap-2">

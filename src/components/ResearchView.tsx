@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { motion } from "motion/react";
 import { FileSpreadsheet, Copy, Check, FileCode, Landmark, Terminal, Zap } from "lucide-react";
-import { ResearchNote } from "../types";
+import type { ResearchNote } from "../types";
 import MathRenderer from "./MathRenderer";
 import BorderGlow from "./BorderGlow";
 

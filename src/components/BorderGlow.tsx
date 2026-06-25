@@ -1,4 +1,5 @@
-import React, { useRef, useCallback, useEffect, ReactNode } from "react";
+import React, { useRef, useCallback, useEffect } from "react";
+import type { ReactNode } from "react";
 import "./BorderGlow.css";
 
 interface BorderGlowProps {

@@ -19,41 +19,39 @@ import ArticleViewer from "./components/ArticleViewer";
 import DynamicLinesBg from "./components/DynamicLinesBg";
 import SideRays from "./components/SideRays";
 
-// Data records
+// Data records (Chinese-only after migration; English datasets removed)
 import {
-  PROJECTS_DATA,
-  BLOG_ARTICLES,
-  RESEARCH_NOTES,
-  SKILL_CATEGORIES,
-  CAREER_TIMELINE,
-} from "./data";
-import {
-  UI_TRANSLATIONS,
   PROJECTS_ZH,
-  BLOG_ZH,
   RESEARCH_ZH,
   SKILLS_ZH,
   TIMELINE_ZH,
 } from "./translations";
-import { Project, BlogArticle } from "./types";
+import type { Project, BlogArticle } from "./types";
 
 // Asset references
 import heroImage from "./assets/images/hero_cinematic_rendering_1782300621428.jpg";
-const HERO_IMAGE_URL = heroImage;
+const HERO_IMAGE_URL: string = heroImage.src;
 
-export default function App() {
+interface AppProps {
+  // Blog articles are pre-rendered at build time by Astro (Markdown + KaTeX -> HTML)
+  // and passed in from src/pages/index.astro. Other content still imports directly.
+  blogArticles?: BlogArticle[];
+}
+
+export default function App({ blogArticles = [] }: AppProps) {
   const [activeTab, setActiveTab] = useState<string>("home");
-  const [lang, setLang] = useState<"zh" | "en">("zh");
   const [theme, setTheme] = useState<"dark" | "light">("dark");
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
   const [selectedArticleId, setSelectedArticleId] = useState<string | null>(null);
 
-  // Map the datasets based on lang
-  const projects = lang === "zh" ? (PROJECTS_ZH as Project[]) : PROJECTS_DATA;
-  const articles = lang === "zh" ? BLOG_ZH : BLOG_ARTICLES;
-  const researchNotes = lang === "zh" ? RESEARCH_ZH : RESEARCH_NOTES;
-  const skills = lang === "zh" ? SKILLS_ZH : SKILL_CATEGORIES;
-  const timeline = lang === "zh" ? TIMELINE_ZH : CAREER_TIMELINE;
+  // Fixed locale: the English datasets were removed during migration.
+  const lang = "zh" as const;
+
+  const projects = PROJECTS_ZH as Project[];
+  const articles = blogArticles;
+  const researchNotes = RESEARCH_ZH;
+  const skills = SKILLS_ZH;
+  const timeline = TIMELINE_ZH;
 
   const selectedProject = selectedProjectId ? projects.find(p => p.id === selectedProjectId) || null : null;
   const selectedArticle = selectedArticleId ? articles.find(a => a.id === selectedArticleId) || null : null;
@@ -136,9 +134,6 @@ export default function App() {
         />
       </div>
 
-      {/* Cinematic Film Grain Overlay (Simulates real-time viewport grain) */}
-      <div className="grain-overlay" />
-
       {/* Cybernetic dynamic lines background */}
       <DynamicLinesBg theme={theme} />
 
@@ -146,8 +141,6 @@ export default function App() {
       <Header
         activeTab={activeTab}
         setActiveTab={setActiveTab}
-        lang={lang}
-        setLang={setLang}
         theme={theme}
         setTheme={setTheme}
       />

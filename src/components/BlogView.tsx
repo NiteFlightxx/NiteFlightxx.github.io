@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { motion } from "motion/react";
 import { Search, Calendar, Clock, ArrowRight, Tag } from "lucide-react";
-import { BlogArticle } from "../types";
+import type { BlogArticle } from "../types";
 import BorderGlow from "./BorderGlow";
 
 interface BlogViewProps {
@@ -21,7 +21,7 @@ export default function BlogView({ articles, onSelectArticle, lang }: BlogViewPr
     const matchesSearch =
       art.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
       art.excerpt.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      art.content.toLowerCase().includes(searchQuery.toLowerCase());
+      (art.searchText ?? "").includes(searchQuery.toLowerCase());
     
     const matchesTag = selectedTag ? art.tags.includes(selectedTag) : true;
     

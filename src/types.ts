@@ -15,7 +15,9 @@ export interface BlogArticle {
   id: string;
   title: string;
   excerpt: string;
-  content: string;
+  content?: string;        // legacy raw Markdown; unused now that bodies are pre-rendered
+  html?: string;           // pre-rendered HTML (Markdown + KaTeX) from the build step
+  searchText?: string;    // plain-text body for the BlogView search box
   date: string;
   readTime: string;
   category: string;

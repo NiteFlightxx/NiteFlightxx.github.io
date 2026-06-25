@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { Filter, Cpu, Sliders, ArrowUpRight } from "lucide-react";
-import { Project } from "../types";
+import type { Project } from "../types";
 import BorderGlow from "./BorderGlow";
 
 interface ProjectsViewProps {

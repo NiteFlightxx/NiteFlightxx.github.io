@@ -1,6 +1,0 @@
-{
-  "name": "Marcus Vance Portfolio",
-  "description": "Premium personal portfolio for Marcus Vance, an Unreal Engine Engineer specializing in physics, real-time rendering, gameplay systems, and tech art.",
-  "requestFramePermissions": [],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
-}

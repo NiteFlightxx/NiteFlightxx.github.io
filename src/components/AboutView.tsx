@@ -1,7 +1,7 @@
 import React from "react";
 import { motion } from "motion/react";
 import { ShieldCheck, Cpu, Award, Milestone, Calendar, ArrowUpRight } from "lucide-react";
-import { SkillCategory, TimelineEvent } from "../types";
+import type { SkillCategory, TimelineEvent } from "../types";
 import BorderGlow from "./BorderGlow";
 
 interface AboutViewProps {

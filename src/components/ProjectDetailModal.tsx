@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { X, Cpu, Activity, Database, Check, Copy, FileCode, Zap } from "lucide-react";
-import { Project } from "../types";
+import type { Project } from "../types";
 
 interface ProjectDetailModalProps {
   project: Project;

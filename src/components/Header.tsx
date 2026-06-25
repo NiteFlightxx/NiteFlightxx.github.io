@@ -1,35 +1,31 @@
 import React, { useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { Terminal, Menu, X, Github, Linkedin, Cpu, Sun, Moon, Globe } from "lucide-react";
+import { Terminal, Menu, X, Github, Linkedin, Cpu, Sun, Moon } from "lucide-react";
 import { UI_TRANSLATIONS } from "../translations";
 
 interface HeaderProps {
   activeTab: string;
   setActiveTab: (tab: string) => void;
-  lang: "zh" | "en";
-  setLang: (lang: "zh" | "en") => void;
   theme: "dark" | "light";
   setTheme: (theme: "dark" | "light") => void;
 }
 
 const NAV_ITEMS = [
-  { id: "home", labelZh: "首页", labelEn: "Home" },
-  { id: "projects", labelZh: "项目", labelEn: "Projects" },
-  { id: "blog", labelZh: "博客", labelEn: "Blog" },
-  { id: "research", labelZh: "研究", labelEn: "研究" },
-  { id: "about", labelZh: "档案", labelEn: "About" },
+  { id: "home", labelZh: "首页" },
+  { id: "projects", labelZh: "项目" },
+  { id: "blog", labelZh: "博客" },
+  { id: "research", labelZh: "研究" },
+  { id: "about", labelZh: "档案" },
 ];
 
 export default function Header({
   activeTab,
   setActiveTab,
-  lang,
-  setLang,
   theme,
   setTheme,
 }: HeaderProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const t = UI_TRANSLATIONS[lang];
+  const t = UI_TRANSLATIONS.zh;
 
   return (
     <header className="sticky top-0 z-50 w-full glass-panel border-b border-white/10 px-6 py-4.5 md:px-12 select-none shadow-[0_8px_30px_rgba(0,0,0,0.45)]">
@@ -49,7 +45,7 @@ export default function Header({
               MARCUS VANCE
             </span>
             <span className="text-[10px] font-mono text-gray-400 tracking-widest leading-none mt-0.5">
-              {lang === "zh" ? "实时系统架构师" : "REAL-TIME ARCHITECT"}
+              实时系统架构师
             </span>
           </div>
         </div>
@@ -76,7 +72,7 @@ export default function Header({
                     transition={{ type: "spring", stiffness: 380, damping: 30 }}
                   />
                 )}
-                {lang === "zh" ? item.labelZh : item.labelEn}
+                {item.labelZh}
               </button>
             );
           })}
@@ -113,16 +109,6 @@ export default function Header({
             id="theme-toggle"
           >
             {theme === "dark" ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
-          </button>
-
-          {/* Language switcher */}
-          <button
-            onClick={() => setLang(lang === "zh" ? "en" : "zh")}
-            className="px-2.5 py-1 text-[10px] font-mono border border-white/5 hover:border-white/10 bg-brand-black/20 hover:bg-white/5 rounded text-gray-400 hover:text-white transition-all duration-200 cursor-pointer flex items-center gap-1.5 font-medium"
-            id="lang-toggle"
-          >
-            <Globe className="w-3.5 h-3.5" />
-            <span>{lang === "zh" ? "EN" : "中文"}</span>
           </button>
 
           <span className="h-4 w-px bg-white/10" />
@@ -176,7 +162,7 @@ export default function Header({
                         : "text-gray-400 hover:text-white hover:bg-white/5"
                     }`}
                   >
-                    {lang === "zh" ? item.labelZh : item.labelEn}
+                    {item.labelZh}
                   </button>
                 );
               })}
@@ -184,17 +170,8 @@ export default function Header({
             
             <div className="h-px bg-white/5" />
             <div className="flex items-center justify-between px-3 text-xs text-gray-500">
-              <span className="font-mono">{lang === "zh" ? "系统设置" : "SETTINGS"}</span>
+              <span className="font-mono">系统设置</span>
               <div className="flex items-center gap-2">
-                {/* Language switcher */}
-                <button
-                  onClick={() => setLang(lang === "zh" ? "en" : "zh")}
-                  className="px-2 py-1 text-[10px] font-mono border border-white/10 hover:border-white/20 bg-brand-black/30 hover:bg-white/5 rounded text-gray-300 hover:text-white transition-all cursor-pointer flex items-center gap-1 font-medium"
-                  id="mobile-lang-toggle"
-                >
-                  <Globe className="w-3 h-3" />
-                  <span>{lang === "zh" ? "English" : "中文"}</span>
-                </button>
                 {/* Theme switcher */}
                 <button
                   onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
