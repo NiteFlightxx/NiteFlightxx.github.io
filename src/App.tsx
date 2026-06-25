@@ -38,7 +38,8 @@ import {
 import { Project, BlogArticle } from "./types";
 
 // Asset references
-const HERO_IMAGE_URL = "/src/assets/images/hero_cinematic_rendering_1782300621428.jpg";
+import heroImage from "./assets/images/hero_cinematic_rendering_1782300621428.jpg";
+const HERO_IMAGE_URL = heroImage;
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<string>("home");
