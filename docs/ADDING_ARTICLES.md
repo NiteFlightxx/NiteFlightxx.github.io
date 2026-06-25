@@ -10,13 +10,28 @@
 |---|---|---|
 | 目的 | 知识沉淀 / 技术分析 / 经验总结 / 教学内容 | 研究记录 / 数学推导 / 算法探索 / 原型开发 |
 | 目录 | `src/content/knowledge/*.md` | `src/content/lab/*.md` |
-| 分类字段 | `category` | `topic` |
+| 分类字段 | `category` + `subtopic` | `topic` |
 | 分类取值 | Engine / Physics / Animation / Rendering / Gameplay / AI / Mathematics | Simulation / Motion / Rendering / Gameplay / AI |
+| 子主题取值 | 见下方「知识库子主题词表」（受控枚举，与 category 配对） | — |
 | 路由 | `/knowledge/<slug>/` | `/lab/<slug>/` |
 | 返回链接 | `/#knowledge`（落到知识库 tab） | `/#lab`（落到实验室 tab） |
 | `readTime` 字段 | **必填** | 不需要 |
 
-分类的中文显示名由 `src/lib/taxonomy.ts` 的 `KNOWLEDGE_CATEGORIES` / `LAB_TOPICS` 单一映射，**不要**在前matter 里写中文，写英文枚举即可。
+分类的中文显示名由 `src/lib/taxonomy.ts` 的 `KNOWLEDGE_CATEGORIES` / `LAB_TOPICS` 单一映射，**不要**在前matter 里写中文，写英文枚举即可。知识库的 `subtopic` 同理，中文显示名由 `KNOWLEDGE_SUBTOPICS` 映射。
+
+### 知识库子主题词表（受控枚举）
+
+`subtopic` 必须从下表对应分类中选取，写英文枚举值。新增子主题需同步登记到 `src/content/config.ts` 的 `KNOWLEDGE_SUBTOPICS` 与 `src/lib/taxonomy.ts` 的 `KNOWLEDGE_SUBTOPICS`。
+
+| 分类 | 可用 subtopic |
+|---|---|
+| Engine | SourceArchitecture / ModuleSystem / MemoryManagement / JobSystem / AssetPipeline / ReflectionSerialization |
+| Physics | ConstraintSolver / ChaosPhysics / Collision / RigidBodyDynamics / VehicleDynamics / FlightController / Fluid |
+| Animation | AnimationNode / ControlRigIK / Retargeting / MotionMatching / PoseSearch / ProceduralAnimation |
+| Rendering | RDG / Shader / Nanite / Lumen / Material / PostProcess |
+| Gameplay | GAS / Combat / Interaction / StateMachine / Networking |
+| AI | Agent / BehaviorTree / Pathfinding / MCP / RAG |
+| Mathematics | LinearAlgebra / Calculus / Optimization / NumericalMethods / Probability / DifferentialEquations |
 
 ---
 
@@ -43,6 +58,7 @@ title: "UE FullBodyIK 插件数学原理详解"
 excerpt: "基于 UE 5.9 FullBodyIK 插件源码，梳理 Humanoid IK、Goal、Effectors、收敛迭代的数学原理与实现。"
 date: "2026-07-01"
 category: "Animation"
+subtopic: "ControlRigIK"
 tags: ["UE5", "IK", "FullBodyIK", "数学", "C++"]
 readTime: "阅读约35分钟"
 ---
@@ -68,6 +84,7 @@ tags: ["Chaos", "物理", "PBD", "数学"]
 | `excerpt` | 是 | 一句话摘要，用于卡片预览 + `<meta description>` |
 | `date` | 是 | ISO 日期 `YYYY-MM-DD`，发布日 |
 | `category` / `topic` | 是 | 必须是上方枚举值之一（区分大小写） |
+| `subtopic` | 知识库必填 / 实验室无 | 必须是对应 category 下的子主题枚举（见上表，区分大小写） |
 | `tags` | 是 | 字符串数组，3–6 个，混合中文标签可 |
 | `readTime` | 知识库必填 / 实验室无 | 显示串如 `"阅读约40分钟"` |
 | `draft` | 否 | `true` 则不生成路由、不出现在卡片列表（默认 `false`） |

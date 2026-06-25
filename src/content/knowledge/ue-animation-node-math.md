@@ -3,6 +3,7 @@ title: "UE 动画节点数学原理详解"
 excerpt: "基于 UE 5.9 源码，系统梳理 IK、混合、骨骼控制、动力学、惯性化等常用动画节点的数学原理、核心公式与实现代码。"
 date: "2026-06-25"
 category: "Animation"
+subtopic: "AnimationNode"
 tags: ["UE5", "动画", "IK"]
 readTime: "阅读约40分钟"
 ---

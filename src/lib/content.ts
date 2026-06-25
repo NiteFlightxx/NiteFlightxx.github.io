@@ -5,7 +5,7 @@ import remarkRehype from 'remark-rehype';
 import rehypeKatex from 'rehype-katex';
 import rehypeStringify from 'rehype-stringify';
 import matter from 'gray-matter';
-import { knowledgeCategoryZh, labTopicZh } from './taxonomy';
+import { knowledgeCategoryZh, knowledgeSubtopicZh, labTopicZh } from './taxonomy';
 import type { ContentArticle } from '../types';
 
 // Shared Markdown -> HTML pipeline (remark-math + rehype-katex at build time).
@@ -71,18 +71,24 @@ export async function loadKnowledge(): Promise<ContentArticle[]> {
     import: 'default',
   });
   const entries = sortByDateDesc(await loadRaw(modules));
-  return entries.map((e) => ({
-    id: e.slug,
-    slug: e.slug,
-    title: String(e.data.title ?? ''),
-    excerpt: String(e.data.excerpt ?? ''),
-    date: formatZhDate(e.isoDate),
-    category: knowledgeCategoryZh(String(e.data.category ?? '')),
-    tags: Array.isArray(e.data.tags) ? (e.data.tags as string[]) : [],
-    readTime: e.data.readTime ? String(e.data.readTime) : undefined,
-    html: e.html,
-    searchText: e.searchText,
-  }));
+  return entries.map((e) => {
+    const categoryKey = String(e.data.category ?? '');
+    const subtopicKey = e.data.subtopic ? String(e.data.subtopic) : '';
+    return {
+      id: e.slug,
+      slug: e.slug,
+      title: String(e.data.title ?? ''),
+      excerpt: String(e.data.excerpt ?? ''),
+      date: formatZhDate(e.isoDate),
+      category: knowledgeCategoryZh(categoryKey),
+      categoryKey, // 原始英文枚举值，供 subtopic 级联查询使用
+      subtopic: subtopicKey ? knowledgeSubtopicZh(categoryKey, subtopicKey) : undefined,
+      tags: Array.isArray(e.data.tags) ? (e.data.tags as string[]) : [],
+      readTime: e.data.readTime ? String(e.data.readTime) : undefined,
+      html: e.html,
+      searchText: e.searchText,
+    };
+  });
 }
 
 /** Load lab experiments (实验室). topic is mapped onto `category` for the shared shape. */

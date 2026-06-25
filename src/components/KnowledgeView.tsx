@@ -1,9 +1,10 @@
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import { motion } from "motion/react";
 import { Search, Calendar, Clock, ArrowRight, Tag } from "lucide-react";
 import type { ContentArticle } from "../types";
 import BorderGlow from "./BorderGlow";
 import { UI_TRANSLATIONS } from "../translations";
+import { KNOWLEDGE_CATEGORIES, knowledgeSubtopicsFor } from "../lib/taxonomy";
 
 const BASE_URL = import.meta.env.BASE_URL;
 
@@ -15,10 +16,20 @@ interface KnowledgeViewProps {
 export default function KnowledgeView({ articles, lang }: KnowledgeViewProps) {
   const t = UI_TRANSLATIONS[lang];
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedTag, setSelectedTag] = useState<string | null>(null);
+  const [selectedCategoryKey, setSelectedCategoryKey] = useState<string | null>(null);
+  const [selectedSubtopic, setSelectedSubtopic] = useState<string | null>(null);
 
-  // Derive unique tags from all articles
-  const allTags = Array.from(new Set(articles.flatMap((art) => art.tags)));
+  // Categories present in the data, in the canonical KNOWLEDGE_CATEGORIES order.
+  const availableCategories = useMemo(() => {
+    const present = new Set(articles.map((a) => a.categoryKey).filter(Boolean) as string[]);
+    return Object.entries(KNOWLEDGE_CATEGORIES).filter(([key]) => present.has(key));
+  }, [articles]);
+
+  // Cascading subtopics for the currently selected category.
+  const availableSubtopics = useMemo(() => {
+    if (!selectedCategoryKey) return [];
+    return Object.entries(knowledgeSubtopicsFor(selectedCategoryKey));
+  }, [selectedCategoryKey]);
 
   const filteredArticles = articles.filter((art) => {
     const q = searchQuery.toLowerCase();
@@ -27,10 +38,51 @@ export default function KnowledgeView({ articles, lang }: KnowledgeViewProps) {
       (art.excerpt ?? "").toLowerCase().includes(q) ||
       (art.searchText ?? "").includes(q);
 
-    const matchesTag = selectedTag ? art.tags.includes(selectedTag) : true;
+    const matchesCategory = selectedCategoryKey
+      ? art.categoryKey === selectedCategoryKey
+      : true;
 
-    return matchesSearch && matchesTag;
+    const matchesSubtopic = selectedSubtopic ? art.subtopic === selectedSubtopic : true;
+
+    return matchesSearch && matchesCategory && matchesSubtopic;
   });
+
+  const hasFilters = searchQuery || selectedCategoryKey || selectedSubtopic;
+
+  const resetFilters = () => {
+    setSearchQuery("");
+    setSelectedCategoryKey(null);
+    setSelectedSubtopic(null);
+  };
+
+  const selectCategory = (key: string | null) => {
+    setSelectedCategoryKey(key);
+    setSelectedSubtopic(null); // cascading reset
+  };
+
+  // Chip renderer shared by both filter rows.
+  const Chip = ({
+    active,
+    label,
+    onClick,
+    pulse,
+  }: {
+    active: boolean;
+    label: string;
+    onClick: () => void;
+    pulse?: boolean;
+  }) => (
+    <button
+      onClick={onClick}
+      className={`px-2.5 py-1 rounded text-[9px] font-mono uppercase transition-colors cursor-pointer ${
+        active
+          ? `bg-brand-gray-800 text-white border border-white/10 ${pulse ? "animate-pulse-slow" : ""}`
+          : "text-gray-500 hover:text-gray-300 hover:bg-white/5"
+      }`}
+    >
+      {label}
+    </button>
+  );
 
   return (
     <div className="space-y-12 pb-20 select-none" id="knowledge-view-container">
@@ -49,8 +101,8 @@ export default function KnowledgeView({ articles, lang }: KnowledgeViewProps) {
         </p>
       </div>
 
-      {/* Search & Tag Filter Bar */}
-      <div className="max-w-4xl mx-auto px-6 space-y-6">
+      {/* Search & Filter Bar */}
+      <div className="max-w-4xl mx-auto px-6 space-y-4">
         <div className="flex flex-col md:flex-row gap-4 items-stretch md:items-center justify-between">
           {/* Search Box */}
           <div className="relative flex-1">
@@ -66,9 +118,9 @@ export default function KnowledgeView({ articles, lang }: KnowledgeViewProps) {
           </div>
 
           {/* Clear controls */}
-          {(searchQuery || selectedTag) && (
+          {hasFilters && (
             <button
-              onClick={() => { setSearchQuery(""); setSelectedTag(null); }}
+              onClick={resetFilters}
               className="text-[10px] font-mono text-brand-accent-orange hover:text-white transition-colors cursor-pointer self-center border border-brand-accent-orange/20 bg-brand-accent-orange/5 px-3 py-2 rounded-lg"
               id="clear-filters-btn"
             >
@@ -77,35 +129,40 @@ export default function KnowledgeView({ articles, lang }: KnowledgeViewProps) {
           )}
         </div>
 
-        {/* Dynamic Tag list */}
+        {/* Row 1: Category (primary axis) */}
         <div className="flex flex-wrap items-center gap-1.5 border-t border-b border-white/5 py-4">
-          <span className="text-[10px] font-mono text-gray-500 uppercase tracking-widest mr-2 flex items-center gap-1">
-            <Tag className="w-3 h-3" /> {t.filterTag}
+          <span className="text-[10px] font-mono text-gray-500 uppercase tracking-widest mr-2">
+            {t.filterCategory}
           </span>
-          <button
-            onClick={() => setSelectedTag(null)}
-            className={`px-2.5 py-1 rounded text-[9px] font-mono uppercase transition-colors cursor-pointer ${
-              selectedTag === null
-                ? "bg-brand-gray-800 text-white border border-white/10"
-                : "text-gray-500 hover:text-gray-300 hover:bg-white/5"
-            }`}
-          >
-            {t.allArticles}
-          </button>
-          {allTags.map((tag) => (
-            <button
-              key={tag}
-              onClick={() => setSelectedTag(tag)}
-              className={`px-2.5 py-1 rounded text-[9px] font-mono uppercase transition-colors cursor-pointer ${
-                selectedTag === tag
-                  ? "bg-brand-gray-800 text-white border border-white/10 animate-pulse-slow"
-                  : "text-gray-500 hover:text-gray-300 hover:bg-white/5"
-              }`}
-            >
-              #{tag}
-            </button>
+          <Chip active={selectedCategoryKey === null} label={t.allArticles} onClick={() => selectCategory(null)} />
+          {availableCategories.map(([key, label]) => (
+            <Chip
+              key={key}
+              active={selectedCategoryKey === key}
+              label={label}
+              onClick={() => selectCategory(key)}
+              pulse
+            />
           ))}
         </div>
+
+        {/* Row 2: Subtopic (cascading, only when a category is selected) */}
+        {selectedCategoryKey && availableSubtopics.length > 0 && (
+          <div className="flex flex-wrap items-center gap-1.5 pb-4 -mt-1">
+            <span className="text-[10px] font-mono text-gray-500 uppercase tracking-widest mr-2 flex items-center gap-1">
+              <Tag className="w-3 h-3" /> {t.filterSubtopic}
+            </span>
+            <Chip active={selectedSubtopic === null} label={t.allSubtopics} onClick={() => setSelectedSubtopic(null)} />
+            {availableSubtopics.map(([key, label]) => (
+              <Chip
+                key={key}
+                active={selectedSubtopic === label}
+                label={label}
+                onClick={() => setSelectedSubtopic(label)}
+              />
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Article list */}
@@ -136,9 +193,16 @@ export default function KnowledgeView({ articles, lang }: KnowledgeViewProps) {
               >
                 <div className="p-6 md:p-8 flex flex-col gap-4">
                   <div className="flex items-center justify-between text-[10px] font-mono">
-                    <span className="text-brand-accent-lime uppercase tracking-wider font-semibold">
-                      {art.category}
-                    </span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-brand-accent-lime uppercase tracking-wider font-semibold">
+                        {art.category}
+                      </span>
+                      {art.subtopic && (
+                        <span className="text-gray-500 uppercase tracking-wider">
+                          / {art.subtopic}
+                        </span>
+                      )}
+                    </div>
                     <div className="flex items-center gap-3 text-gray-500">
                       <span className="flex items-center gap-1">
                         <Calendar className="w-3 h-3" /> {art.date}

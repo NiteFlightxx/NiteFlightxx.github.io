@@ -33,6 +33,8 @@ export interface ContentArticle {
   excerpt?: string;
   date: string; // localized display string, e.g. "2026年5月14日"
   category: string; // localized display label
+  categoryKey?: string; // raw enum key (e.g. "Physics"), for subtopic cascading lookup
+  subtopic?: string; // localized subtopic label (e.g. "飞控系统")
   tags: string[];
   readTime?: string; // Knowledge has it; Lab does not
   html: string; // pre-rendered HTML (Markdown + KaTeX)

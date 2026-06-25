@@ -3,6 +3,7 @@ title: "知识标题待填充"
 excerpt: "摘要待填充。用一两句话说明这篇知识沉淀的核心内容。"
 date: "2026-01-01"
 category: "Engine"
+subtopic: "SourceArchitecture"
 tags: ["UE5", "C++"]
 readTime: "阅读约5分钟"
 draft: true
