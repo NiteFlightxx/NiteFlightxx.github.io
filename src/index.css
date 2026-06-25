@@ -1,0 +1,98 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Space+Grotesk:wght@300;400;500;600;700&family=Noto+Sans+SC:wght@300;400;500;700;900&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", "Source Han Sans CN", "Noto Sans SC", "Microsoft YaHei", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Source Han Sans CN Heavy", "Source Han Sans CN", "Noto Sans SC", "Space Grotesk", sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+  
+  --color-brand-black: #000000;
+  --color-brand-charcoal: #080808;
+  --color-brand-gray-900: #0d0d0d;
+  --color-brand-gray-800: #141414;
+  --color-brand-gray-700: #1f1f1f;
+  --color-brand-gray-600: #2a2a2a;
+  --color-brand-gray-400: #a1a1a1;
+  
+  --color-brand-accent-orange: #bcfd49; /* High-fashion Cyber Lime */
+  --color-brand-accent-gold: #bcfd49;   /* High-fashion Cyber Lime */
+  --color-brand-accent-gold-light: #d9f99d; /* Soft youthful lime */
+  --color-brand-accent-lime: #bcfd49;
+  --color-brand-accent-indigo: #6366f1; /* Deep high-tech indigo */
+  --color-brand-accent-silver: #e2e8f0; /* Apple/Vercel silver */
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #000000;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #222222;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #333333;
+}
+
+/* Base Body Style */
+body {
+  background-color: #000000;
+  color: #f3f4f6;
+  font-family: var(--font-sans);
+  overflow-x: hidden;
+}
+
+/* Glassmorphism utility */
+.glass-panel {
+  background: rgba(8, 8, 8, 0.45);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.glass-panel-hover {
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.glass-panel-hover:hover {
+  background: rgba(14, 14, 14, 0.85);
+  border-color: rgba(255, 255, 255, 0.09);
+  box-shadow: 0 10px 35px -15px rgba(0, 0, 0, 0.8);
+}
+
+/* Code container formatting */
+.code-block {
+  font-family: var(--font-mono);
+  background: #040404;
+  border: 1px solid rgba(255, 255, 255, 0.03);
+}
+
+/* Cinematic subtle grain layer (simulating film grain in UE camera viewports) */
+.grain-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  content: "";
+  opacity: 0.015;
+  pointer-events: none;
+  z-index: 9999;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+}
+
+/* Glowing background textures */
+.glow-ambient {
+  filter: blur(140px);
+  opacity: 0.45;
+  pointer-events: none;
+  border-radius: 50%;
+}
+
