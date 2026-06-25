@@ -13,9 +13,9 @@ interface HeaderProps {
 const NAV_ITEMS = [
   { id: "home", labelZh: "首页" },
   { id: "projects", labelZh: "项目" },
-  { id: "blog", labelZh: "博客" },
-  { id: "research", labelZh: "研究" },
-  { id: "about", labelZh: "档案" },
+  { id: "knowledge", labelZh: "知识库" },
+  { id: "lab", labelZh: "实验室" },
+  { id: "archive", labelZh: "档案" },
 ];
 
 export default function Header({
@@ -42,7 +42,7 @@ export default function Header({
           </div>
           <div className="flex flex-col">
             <span className="font-display font-black text-base tracking-widest text-white group-hover:text-brand-accent-orange transition-colors duration-300">
-              MARCUS VANCE
+              NITE
             </span>
             <span className="text-[10px] font-mono text-gray-400 tracking-widest leading-none mt-0.5">
               实时系统架构师

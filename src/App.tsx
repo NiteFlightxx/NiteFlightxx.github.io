@@ -11,9 +11,9 @@ import Header from "./components/Header";
 import Footer from "./components/Footer";
 import HomeView from "./components/HomeView";
 import ProjectsView from "./components/ProjectsView";
-import BlogView from "./components/BlogView";
-import ResearchView from "./components/ResearchView";
-import AboutView from "./components/AboutView";
+import KnowledgeView from "./components/KnowledgeView";
+import LabView from "./components/LabView";
+import ArchiveView from "./components/ArchiveView";
 import ProjectDetailModal from "./components/ProjectDetailModal";
 import ArticleViewer from "./components/ArticleViewer";
 import DynamicLinesBg from "./components/DynamicLinesBg";
@@ -22,39 +22,40 @@ import SideRays from "./components/SideRays";
 // Data records (Chinese-only after migration; English datasets removed)
 import {
   PROJECTS_ZH,
-  RESEARCH_ZH,
   SKILLS_ZH,
   TIMELINE_ZH,
 } from "./translations";
-import type { Project, BlogArticle } from "./types";
+import type { Project, ContentArticle } from "./types";
 
 // Asset references
 import heroImage from "./assets/images/hero_cinematic_rendering_1782300621428.jpg";
 const HERO_IMAGE_URL: string = heroImage.src;
 
 interface AppProps {
-  // Blog articles are pre-rendered at build time by Astro (Markdown + KaTeX -> HTML)
-  // and passed in from src/pages/index.astro. Other content still imports directly.
-  blogArticles?: BlogArticle[];
+  // Markdown-backed content (pre-rendered HTML + KaTeX at build time by Astro)
+  knowledgeArticles?: ContentArticle[];
+  labExperiments?: ContentArticle[];
 }
 
-export default function App({ blogArticles = [] }: AppProps) {
+export default function App({ knowledgeArticles = [], labExperiments = [] }: AppProps) {
   const [activeTab, setActiveTab] = useState<string>("home");
   const [theme, setTheme] = useState<"dark" | "light">("dark");
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
   const [selectedArticleId, setSelectedArticleId] = useState<string | null>(null);
+  const [selectedExperimentId, setSelectedExperimentId] = useState<string | null>(null);
 
   // Fixed locale: the English datasets were removed during migration.
   const lang = "zh" as const;
 
   const projects = PROJECTS_ZH as Project[];
-  const articles = blogArticles;
-  const researchNotes = RESEARCH_ZH;
+  const knowledge = knowledgeArticles;
+  const experiments = labExperiments;
   const skills = SKILLS_ZH;
   const timeline = TIMELINE_ZH;
 
   const selectedProject = selectedProjectId ? projects.find(p => p.id === selectedProjectId) || null : null;
-  const selectedArticle = selectedArticleId ? articles.find(a => a.id === selectedArticleId) || null : null;
+  const selectedArticle = selectedArticleId ? knowledge.find(a => a.id === selectedArticleId) || null : null;
+  const selectedExperiment = selectedExperimentId ? experiments.find(e => e.id === selectedExperimentId) || null : null;
 
   // Smooth scroll to top on page switches
   useEffect(() => {
@@ -68,10 +69,11 @@ export default function App({ blogArticles = [] }: AppProps) {
         return (
           <HomeView
             projects={projects}
-            articles={articles}
-            researchNotes={researchNotes}
+            knowledgeArticles={knowledge}
+            labExperiments={experiments}
             onSelectProject={(proj) => setSelectedProjectId(proj.id)}
             onSelectArticle={(art) => setSelectedArticleId(art.id)}
+            onSelectExperiment={(exp) => setSelectedExperimentId(exp.id)}
             setActiveTab={setActiveTab}
             heroImageUrl={HERO_IMAGE_URL}
             lang={lang}
@@ -85,19 +87,25 @@ export default function App({ blogArticles = [] }: AppProps) {
             lang={lang}
           />
         );
-      case "blog":
+      case "knowledge":
         return (
-          <BlogView
-            articles={articles}
+          <KnowledgeView
+            articles={knowledge}
             onSelectArticle={(art) => setSelectedArticleId(art.id)}
             lang={lang}
           />
         );
-      case "research":
-        return <ResearchView researchNotes={researchNotes} lang={lang} />;
-      case "about":
+      case "lab":
         return (
-          <AboutView
+          <LabView
+            experiments={experiments}
+            onSelectExperiment={(exp) => setSelectedExperimentId(exp.id)}
+            lang={lang}
+          />
+        );
+      case "archive":
+        return (
+          <ArchiveView
             skills={skills}
             timeline={timeline}
             lang={lang}
@@ -175,12 +183,23 @@ export default function App({ blogArticles = [] }: AppProps) {
         )}
       </AnimatePresence>
 
-      {/* Immersive Drawer: Technical Blog Logs */}
+      {/* Immersive Drawer: Knowledge articles */}
       <AnimatePresence>
         {selectedArticle && (
           <ArticleViewer
             article={selectedArticle}
             onClose={() => setSelectedArticleId(null)}
+            lang={lang}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* Immersive Drawer: Lab experiments (reuses ArticleViewer) */}
+      <AnimatePresence>
+        {selectedExperiment && (
+          <ArticleViewer
+            article={selectedExperiment}
+            onClose={() => setSelectedExperimentId(null)}
             lang={lang}
           />
         )}

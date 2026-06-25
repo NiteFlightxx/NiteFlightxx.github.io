@@ -1,0 +1,57 @@
+{
+  "$ref": "#/definitions/knowledge",
+  "definitions": {
+    "knowledge": {
+      "type": "object",
+      "properties": {
+        "title": {
+          "type": "string"
+        },
+        "excerpt": {
+          "type": "string"
+        },
+        "date": {
+          "type": "string"
+        },
+        "category": {
+          "type": "string",
+          "enum": [
+            "Engine",
+            "Physics",
+            "Animation",
+            "Rendering",
+            "Gameplay",
+            "AI",
+            "Mathematics"
+          ]
+        },
+        "tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "readTime": {
+          "type": "string"
+        },
+        "draft": {
+          "type": "boolean",
+          "default": false
+        },
+        "$schema": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "title",
+        "excerpt",
+        "date",
+        "category",
+        "tags",
+        "readTime"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "$schema": "http://json-schema.org/draft-07/schema#"
+}

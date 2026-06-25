@@ -35,7 +35,7 @@ export default function Footer({ lang, theme }: FooterProps) {
           <div className="flex items-center gap-2">
             <Cpu className="w-4 h-4 text-brand-accent-orange" />
             <span className="font-display font-medium text-xs tracking-wider text-white">
-              VANCE SYSTEMS INC.
+              NITE SYSTEMS INC.
             </span>
           </div>
           <p className="text-xs text-gray-500 leading-relaxed font-sans">
@@ -44,7 +44,7 @@ export default function Footer({ lang, theme }: FooterProps) {
               : "Specializing in high-performance C++ solutions, GPU computing, and custom skeletal animation graphs for Unreal Engine. Focused on pushing the boundaries of real-time interactive media."}
           </p>
           <span className="text-[10px] font-mono text-gray-600">
-            © {new Date().getFullYear()} {lang === "zh" ? "马库斯 · 范斯。保留所有计算权利。" : "Marcus Vance. All computational rights reserved."}
+            © {new Date().getFullYear()} {lang === "zh" ? "Nite。保留所有计算权利。" : "Nite. All computational rights reserved."}
           </span>
         </div>
 
@@ -73,7 +73,7 @@ export default function Footer({ lang, theme }: FooterProps) {
           {/* Social Nav */}
           <div className="flex items-center flex-wrap gap-4 text-xs font-mono text-gray-400">
             <a
-              href="mailto:contact@marcusvance.tech"
+              href="mailto:contact@nite.tech"
               className="flex items-center gap-0.5 hover:text-white transition-colors duration-200 group"
             >
               Email <ArrowUpRight className="w-3 h-3 text-gray-500 group-hover:text-brand-accent-orange transition-colors" />

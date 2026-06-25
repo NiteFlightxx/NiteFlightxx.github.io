@@ -1,11 +1,12 @@
 ---
 import Layout from '../layouts/Layout.astro';
 import App from '../App.tsx';
-import { loadBlogArticles } from '../lib/blog';
+import { loadKnowledge, loadLab } from '../lib/content';
 
-const blogArticles = await loadBlogArticles();
+const knowledgeArticles = await loadKnowledge();
+const labExperiments = await loadLab();
 ---
 
 <Layout>
-  <App client:only="react" blogArticles={blogArticles} />
+  <App client:only="react" knowledgeArticles={knowledgeArticles} labExperiments={labExperiments} />
 </Layout>

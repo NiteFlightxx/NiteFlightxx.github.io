@@ -1,445 +1,218 @@
+/**
+ * Content data for the Personal R&D Lab site.
+ * Skeleton/placeholder content — to be filled in during content redesign.
+ * Blog and research data have been migrated to Markdown collections
+ * (src/content/knowledge + src/content/lab); only projects/skills/timeline
+ * remain as data objects here.
+ */
+
 export const UI_TRANSLATIONS = {
   zh: {
-    role: "引擎级系统开发工程师",
-    title: "物理模拟 & 实时渲染系统架构师",
-    statement: "“构建技术与运动交汇的系统。”",
+    // Hero
+    role: "Unreal Engine 工程师",
+    title: "个人研发实验室",
+    statement: "工程能力 · 研究能力 · 系统设计能力",
     exploreWork: "探索项目",
-    viewProfile: "查看简历",
-    disciplineMatrix: "专业领域矩阵",
-    coreCompetencies: "核心专业能力",
-    selectedLogs: "精选日志",
-    featuredSystems: "特色系统",
+    viewProfile: "查看档案",
+    // Home sections
+    featuredSystems: "精选系统",
+    recentKnowledge: "最新知识",
+    currentExperiments: "当前实验",
+    researchTimeline: "研究时间线",
     viewAllProjects: "查看全部项目",
-    knowledgeSharing: "技术分享",
-    technicalLogs: "技术日志",
-    viewAllLogs: "查看全部日志",
-    academics: "学术推导",
-    activeResearch: "活跃研究",
-    explore: "探索",
-    examineFullDerivation: "阅读完整推导",
-    systemDiagnostics: "系统诊断数据",
-    diagnosticsDriver: "驱动:",
-    diagnosticsSolver: "求解器:",
-    diagnosticsTimer: "计时器:",
-    allRightsReserved: "马库斯 · 范斯。保留所有计算权利。",
+    viewAllKnowledge: "查看全部知识",
+    viewAllExperiments: "查看全部实验",
+    // Projects
+    filterSpecialization: "筛选分类:",
+    all: "全部",
+    examine: "分析",
+    metricsTitle: "性能指标",
+    engineeringLog: "工程日志",
+    // Project detail sections
+    overview: "项目概述",
+    architecture: "技术架构",
+    challenges: "核心难点",
+    solution: "解决方案",
+    outcomes: "项目成果",
+    references: "参考资料",
+    techStack: "技术栈",
+    // Knowledge / Lab
+    searchPlaceholder: "搜索引擎、物理、动画、C++ 代码...",
+    resetFilters: "重置筛选",
+    filterTag: "标签筛选:",
+    allArticles: "全部",
+    noArticlesFound: "未找到匹配内容",
+    refineSearch: "请优化搜索关键词或选择其他标签。",
+    researchMap: "研究地图",
+    experiment: "实验",
+    // Article viewer
     backToFeed: "返回列表",
     share: "分享",
     copied: "已复制",
     copyCode: "复制代码",
-    viewportMetadata: "电影级光追视口元数据",
-    postProcess: "后处理: 电影胶片颗粒 [0.15]",
-    sampling: "采样: DLSS_3.7_预设_G",
-    renderer: "渲染器: SUB_LUMEN_ACTIVE",
-    engineeringLog: "工程日志",
-    metricsTitle: "关键求解器指标",
-    closeStream: "关闭流",
-    filterSpecialization: "过滤专业方向:",
-    all: "全部",
-    examine: "分析",
-    searchPlaceholder: "搜索着色器、物理模拟、C++ 网卡代码...",
-    resetFilters: "重置过滤器",
-    filterTag: "标签过滤:",
-    allLogs: "全部日志",
-    readLog: "阅读日志",
-    noLogsFound: "未找到对应的技术日志",
-    refineSearch: "请优化搜索关键词或选择其他标签。",
-    memorandum: "备忘录",
-    problem: "计算难题:",
-    solution: "工程解决方案:",
-    methodology: "实现方法论",
-    copySource: "复制源码",
+    closeStream: "关闭",
+    // Archive
     profileOverview: "档案概览",
-    narrativeHeadline: "在大规模场景中构建交互式物理与渲染系统。",
-    experience: "工作经验:",
-    language: "核心语言:",
-    platforms: "目标平台:",
-    location: "工作地点:",
-    systemProficiencies: "系统精通度",
+    narrativeHeadline: "构建技术与运动交汇的系统。",
+    techDirection: "技术方向",
+    researchInterest: "研究兴趣",
+    expertise: "专业领域",
+    experience: "经验:",
+    language: "语言:",
+    platforms: "平台:",
+    location: "地点:",
+    systemProficiencies: "技能矩阵",
     techStackProfile: "技术栈画像",
     professionalTimeline: "职业发展时间线",
-    careerChronology: "职业生涯年表",
+    careerChronology: "成长轨迹",
+    // Footer / diagnostics
+    allRightsReserved: "Nite。保留所有计算权利。",
+    systemDiagnostics: "系统诊断数据",
+    diagnosticsDriver: "驱动:",
+    diagnosticsSolver: "求解器:",
+    diagnosticsTimer: "计时器:",
     compileStatus: "UE5.5 编译",
-    compileActive: "UE5.5 编译就绪"
+    compileActive: "编译就绪"
   },
   en: {
-    role: "ENGINE LEVEL SYSTEM DEVELOPER",
-    title: "PHYSICS SIMULATION & RENDER SYSTEMS ARCHITECT",
-    statement: "\"Building systems where technology and motion meet.\"",
-    exploreWork: "EXPLORE WORK",
-    viewProfile: "VIEW PROFILE",
-    disciplineMatrix: "DISCIPLINE MATRIX",
-    coreCompetencies: "Core Competencies",
-    selectedLogs: "SELECTED LOGS",
+    // Hero
+    role: "Unreal Engine Engineer",
+    title: "Personal R&D Lab",
+    statement: "Engineering · Research · System Design",
+    exploreWork: "Explore Projects",
+    viewProfile: "View Archive",
+    // Home sections
     featuredSystems: "Featured Systems",
-    viewAllProjects: "VIEW ALL PROJECTS",
-    knowledgeSharing: "KNOWLEDGE SHARING",
-    technicalLogs: "Technical Logs",
-    viewAllLogs: "VIEW ALL LOGS",
-    academics: "ACADEMICS",
-    activeResearch: "Active Research",
-    explore: "EXPLORE",
-    examineFullDerivation: "EXAMINE FULL DERIVATION",
-    systemDiagnostics: "SYSTEM DIAGNOSTICS",
-    diagnosticsDriver: "DRIVER:",
-    diagnosticsSolver: "SOLVER:",
-    diagnosticsTimer: "TIMER:",
-    allRightsReserved: "Marcus Vance. All computational rights reserved.",
-    backToFeed: "BACK TO FEED",
-    share: "SHARE",
-    copied: "COPIED",
-    copyCode: "COPY CODE",
-    viewportMetadata: "CINEMATIC RAYTRACED VIEWPORT METADATA",
-    postProcess: "POST_PROCESS: FILM_GRAIN [0.15]",
-    sampling: "SAMPLING: DLSS_3.7_PRESET_G",
-    renderer: "RENDERER: SUB_LUMEN_ACTIVE",
-    engineeringLog: "ENGINEERING LOG",
-    metricsTitle: "CRITICAL SOLVER METRICS",
-    closeStream: "CLOSE STREAM",
-    filterSpecialization: "FILTER SPECIALIZATION:",
+    recentKnowledge: "Recent Knowledge",
+    currentExperiments: "Current Experiments",
+    researchTimeline: "Research Timeline",
+    viewAllProjects: "View All Projects",
+    viewAllKnowledge: "View All Knowledge",
+    viewAllExperiments: "View All Experiments",
+    // Projects
+    filterSpecialization: "Filter Category:",
     all: "All",
-    examine: "EXAMINE",
-    searchPlaceholder: "Search shaders, physics, C++ netcode...",
-    resetFilters: "RESET FILTERS",
+    examine: "Examine",
+    metricsTitle: "Performance Metrics",
+    engineeringLog: "Engineering Log",
+    // Project detail sections
+    overview: "Overview",
+    architecture: "Architecture",
+    challenges: "Key Challenges",
+    solution: "Solution",
+    outcomes: "Outcomes",
+    references: "References",
+    techStack: "Tech Stack",
+    // Knowledge / Lab
+    searchPlaceholder: "Search engine, physics, animation, C++...",
+    resetFilters: "Reset Filters",
     filterTag: "Filter Tag:",
-    allLogs: "All Logs",
-    readLog: "READ LOG",
-    noLogsFound: "NO CORRESPONDING TECHNICAL LOGS FOUND",
-    refineSearch: "Please refine your search parameters or select a different tag.",
-    memorandum: "MEMORANDUM",
-    problem: "The Computational Problem:",
-    solution: "The Engineering Solution:",
-    methodology: "IMPLEMENTATION METHODOLOGY",
-    copySource: "COPY SOURCE",
-    profileOverview: "PROFILE OVERVIEW",
-    narrativeHeadline: "Architecting interactive physics and rendering at scale.",
-    experience: "EXPERIENCE:",
-    language: "LANGUAGE:",
-    platforms: "PLATFORMS:",
-    location: "LOCATION:",
-    systemProficiencies: "SYSTEM PROFICIENCIES",
-    techStackProfile: "Technical Stack Profile",
-    professionalTimeline: "PROFESSIONAL TIMELINE",
-    careerChronology: "Career Chronology",
-    compileStatus: "UE5.5 COMPILE",
-    compileActive: "UE5.5 COMPILE ACTIVE"
+    allArticles: "All",
+    noArticlesFound: "No matching content found",
+    refineSearch: "Refine your search or select a different tag.",
+    researchMap: "Research Map",
+    experiment: "Experiment",
+    // Article viewer
+    backToFeed: "Back to List",
+    share: "Share",
+    copied: "Copied",
+    copyCode: "Copy Code",
+    closeStream: "Close",
+    // Archive
+    profileOverview: "Profile Overview",
+    narrativeHeadline: "Building systems where technology and motion meet.",
+    techDirection: "Tech Direction",
+    researchInterest: "Research Interest",
+    expertise: "Expertise",
+    experience: "Experience:",
+    language: "Language:",
+    platforms: "Platforms:",
+    location: "Location:",
+    systemProficiencies: "Skill Matrix",
+    techStackProfile: "Tech Stack Profile",
+    professionalTimeline: "Professional Timeline",
+    careerChronology: "Growth Trajectory",
+    // Footer / diagnostics
+    allRightsReserved: "Nite. All computational rights reserved.",
+    systemDiagnostics: "System Diagnostics",
+    diagnosticsDriver: "Driver:",
+    diagnosticsSolver: "Solver:",
+    diagnosticsTimer: "Timer:",
+    compileStatus: "UE5.5 Compile",
+    compileActive: "Compile Ready"
   }
 };
 
+// ---- Projects: 已完成或具有工程价值的系统（骨架占位） ----
 export const PROJECTS_ZH = [
   {
-    id: "aetherflow",
-    title: "AetherFlow: GPU 欧拉流体求解器",
-    category: "Physics Simulation",
-    description: "通过 Niagara 和 HLSL 计算着色器，将自定义构建的欧拉流体求解器深度集成于虚幻引擎 5 中，实现高度交互式的物理烟雾与迷雾效果。",
-    extendedDetails: "AetherFlow 是一个完全在 GPU 上运行的基于网格（欧拉）的流体力学求解器。它通过绕过标准 CPU 限制的粒子求解器，在 Niagara HLSL 脚本中直接计算速度平流、压力投影和密度传播。系统采用打包成 3D 体积贴图的 3D 网格布局。通过距离场（Distance Fields）动态检测角色和障碍物碰撞，实时向模拟网格中注入速度向量。该求解器采用雅可比迭代（Jacobi iteration）多步子步（Sub-stepping）进行极限优化，在每一帧渲染中仅消耗不到 1.18 毫秒的 GPU 渲染预算。",
-    tech: ["UE5", "C++", "HLSL", "Niagara", "Compute Shaders"],
+    id: "placeholder-system",
+    title: "占位项目：待填充",
+    category: "Simulation" as const,
+    overview: "项目概述待填充。说明项目的目标、背景与工程价值。",
+    architecture: "技术架构待填充。描述系统设计、模块划分与数据流。",
+    challenges: "核心难点待填充。列出该系统解决的关键技术难题。",
+    solution: "解决方案待填充。说明针对核心难点采用的工程方法。",
+    outcomes: "项目成果待填充。量化或定性描述最终交付效果。",
+    references: ["参考链接待填充"],
+    tech: ["UE5", "C++"],
     metrics: [
-      { label: "执行耗时", value: "1.18 毫秒" },
-      { label: "网格分辨率", value: "128 × 128 × 128" },
-      { label: "体素总数", value: "210 万" },
-      { label: "帧率表现", value: "120+ 稳定运行" }
+      { label: "执行耗时", value: "— 毫秒" },
+      { label: "内存占用", value: "— MB" },
     ],
-    visualPrompt: "灰色气态烟雾围绕着金属手臂流畅缠绕的高保真电影级模拟，采用带有动态微涡流的向量场网格在柔和的聚光灯下计算。",
-    codeSnippet: `// Niagara HLSL Scratchpad - 压力投影雅可比迭代步
-void SolveJacobi(
-    in float3 ThreadId,
-    in Texture3D<float> PressureTex,
-    in Texture3D<float> DivergenceTex,
-    out float OutPressure
-) {
-    float3 uv = (ThreadId + 0.5) / GridDimensions;
-    float dx = 1.0 / GridDimensions.x;
-    
-    // 采样6个空间邻近体素
-    float pL = PressureTex.SampleLevel(LinearClamp, uv - float3(dx,0,0), 0).r;
-    float pR = PressureTex.SampleLevel(LinearClamp, uv + float3(dx,0,0), 0).r;
-    float pB = PressureTex.SampleLevel(LinearClamp, uv - float3(0,dx,0), 0).r;
-    float pT = PressureTex.SampleLevel(LinearClamp, uv + float3(0,dx,0), 0).r;
-    float pD = PressureTex.SampleLevel(LinearClamp, uv - float3(0,0,dx), 0).r;
-    float pU = PressureTex.SampleLevel(LinearClamp, uv + float3(0,0,dx), 0).r;
-    
-    float div = DivergenceTex.SampleLevel(LinearClamp, uv, 0).r;
-    
-    // 求解压力的泊松方程 (Poisson Equation for Pressure)
-    OutPressure = (pL + pR + pB + pT + pD + pU - (dx * dx) * div) / 6.0;
-}`
+    visualPrompt: "占位视觉描述待填充。",
   },
-  {
-    id: "helios",
-    title: "Helios: 大气多重散射体积渲染系统",
-    category: "Real-time Rendering",
-    description: "基于物理的多重散射大气模型，用于渲染高度真实的动态天空盒、体积云以及星球级别的动态光轴（耶稣光）。",
-    extendedDetails: "Helios 是瑞利（Rayleigh）和米氏（Mie）大气散射的完整实时实现。该系统采用 C++ 写成引擎拓展，完全绕过虚幻引擎默认的天空组件，并在底层的渲染管线中执行自定义的穿过大气层的射线步进（Raymarcher）。系统通过在多个大气层上对光线传输方程进行积分来动态计算天空亮度，精准计算透射率和光深度。体积云使用 3D 旋度噪声（Curl-Noise）体积贴图以获得超写实的风切变和形变。单通道深度阴影图则通过基于球面谐波（Spherical Harmonics）的天光投影处理动态云的自阴影及光轴。",
-    tech: ["UE5", "C++", "HLSL", "Volumetric Raymarching", "Shader Model 6"],
-    metrics: [
-      { label: "散射采样数", value: "32次主采样, 8次辅助采样" },
-      { label: "分辨率规格", value: "原生 4K (采用四分之一分辨率步进)" },
-      { label: "显存占用", value: "32MB GPU 显存" },
-      { label: "图形接口", value: "DirectX 12 / Vulkan" }
-    ],
-    visualPrompt: "一个宏大的星球地平线电影级轨道特写镜头，展示了在极高清晰度的星空下，多层大气散射出深邃的靛蓝、温暖的琥珀橙和朦胧的烟灰蓝，极具《星际穿越》的科幻写实风格。",
-    codeSnippet: `// 体积大气瑞利/米氏散射透射率计算
-float3 ComputeOpticalDepth(float3 RayStart, float3 RayDir, float RayLength) {
-    float3 OpticalDepthSum = 0.0;
-    float StepSize = RayLength / float(SAMPLES_COUNT);
-    
-    for (int i = 0; i < SAMPLES_COUNT; i++) {
-        float3 SamplePos = RayStart + RayDir * (float(i) + 0.5) * StepSize;
-        float Height = length(SamplePos) - EarthRadius;
-        
-        if (Height < 0.0 || Height > AtmosphereHeight) continue;
-        
-        float DensityRayleigh = exp(-Height / ScaleHeightRayleigh);
-        float DensityMie = exp(-Height / ScaleHeightMie);
-        
-        OpticalDepthSum += float3(DensityRayleigh, DensityMie, 0.0) * StepSize;
-    }
-    return OpticalDepthSum;
-}`
-  },
-  {
-    id: "apexmotion",
-    title: "ApexMotion: 运动匹配与程序化动力学动画骨骼系统",
-    category: "Animation Technical Art",
-    description: "前沿的程序化运动运行管线，将高精度的多骨骼 IK 物理与多方向运动匹配（Motion Matching）数据库深度融合。",
-    extendedDetails: "ApexMotion 是一套打破物理模拟与传统关键帧动画界限的定制化动画管线。它基于自定义的 C++ AnimNode 编写，能读取角色碰撞体的实时物理状态并动态修正和重建骨骼朝向。系统采用全身反向动力学（Full Body IK）使角色的双脚、膝盖、臀部和手臂与复杂的地形完美贴合，并整合了解析弹簧阻尼器（Spring-Damper）关节求解器，为角色武器动作、重力下坠感及肌肉震颤增加二次物理惯性。当角色受到强力冲击时，专用的物理动画节点能在每根骨骼层级上无缝混合活跃的布娃娃（Ragdoll）物理与骨骼关键帧动作。",
-    tech: ["UE5", "C++", "Control Rig", "AnimGraphs", "IK-Rig", "Motion Matching"],
-    metrics: [
-      { label: "实时求值骨骼数", value: "86 根骨骼实时计算" },
-      { label: "混合延迟", value: "小于 0.05 毫秒" },
-      { label: "物理布娃娃过渡", value: "埃尔米特样条曲线插值" },
-      { label: "内存消耗", value: "1.4MB 动画预存" }
-    ],
-    visualPrompt: "一个精致而极简的机器人人形骨骼渲染，其站在水泥地面上，全身发光的关节节点和橙色线条展示了实时的受力向量计算过程。",
-    codeSnippet: `// 自定义 C++ 动画节点片段：角速度弹簧阻尼关节追踪
-void FAnimNode_ApexSpringJoint::Evaluate_AnyThread(FPoseContext& Output) {
-    float DeltaTime = Output.CurveValueCache.GetDeltaTime();
-    FCompactPose& OutPose = Output.Pose;
-    
-    FTransform CurrentTransform = OutPose[TargetBone];
-    FQuat CurrentRot = CurrentTransform.GetRotation();
-    
-    // 临界阻尼四元数弹簧阻尼器
-    FQuat Difference = TargetRotation * CurrentRot.Inverse();
-    FVector Torque = Difference.ToRotationVector() * SpringConstant;
-    
-    AngularVelocity += (Torque - DampingConstant * AngularVelocity) * DeltaTime;
-    FQuat DeltaRot = FQuat::MakeFromRotationVector(AngularVelocity * DeltaTime);
-    
-    FTransform OutTransform = CurrentTransform;
-    OutTransform.SetRotation(DeltaRot * CurrentRot);
-    OutPose[TargetBone] = OutTransform;
-}`
-  },
-  {
-    id: "chronos",
-    title: "Chronos: 竞技级战斗物理网络同步引擎",
-    category: "Gameplay Systems",
-    description: "高度优化的服务器授权（Server-Authoritative）网络同步框架，支持亚毫秒级的客户端预测、回滚与状态和解。",
-    extendedDetails: "Chronos 是一个尖端的玩法和战斗网络子系统，旨在处理高精度的物理复制以及快节奏的近战与射击动作判定。该系统完全在 C++ 中基于虚幻引擎的 Gameplay 技能系统（GAS）构建，它实现了一个完全确定性的时间线缓冲区，能存储长达 300 毫秒的玩家输入、变换历史及物理求解器状态。当服务器检测到技能动作时，它将游戏状态倒回至客户端执行的精确时间戳进行物理扫掠判定，解决冲突并同步修正后的数据。客户端能立即进行预测和解（Reconciliation），消除视觉拉回（Rubber-banding）并提供极佳的零延迟判定体验。",
-    tech: ["UE5", "C++", "Netcode", "GAS", "Deterministic Prediction", "Replication"],
-    metrics: [
-      { label: "状态回滚窗口", value: "300 毫秒滑动窗口" },
-      { label: "网络状态和解延迟", value: "亚毫秒级" },
-      { label: "带宽开销缩减", value: "比默认虚幻RPC减少40%" },
-      { label: "模拟重算性能", value: "在0.2ms内重算多达32帧" }
-    ],
-    visualPrompt: "一个高科技的服务器与客户端同步时间线示意图，表现为发光的、半透明的蓝色和橙色重叠网格走廊，背景是墨黑色的石墨板。",
-    codeSnippet: `// 服务器授权的客户端输入回滚与延迟补偿判定
-void UChronosCombatComponent::ReconcileClientInput(
-    float ClientTimestamp, 
-    FVector TargetLocation, 
-    FHitResult& OutHitResult
-) {
-    // 1. 获取历史状态链表节点
-    TDoubleLinkedList<FChronosHistoryState>::TDoubleLinkedListNode* Node = HistoryBuffer.GetTail();
-    while (Node) {
-        if (Node->GetValue().Timestamp <= ClientTimestamp) {
-            break;
-        }
-        Node = Node->GetPrev();
-    }
-    
-    if (Node) {
-        const FChronosHistoryState& HistoryState = Node->GetValue();
-        // 临时将场景物理碰撞体定位到客户端当时的历史位置
-        FRollbackSceneContext Rollback(GetWorld(), HistoryState);
-        
-        // 执行历史物理空间中的单次扫掠碰撞检测
-        GetWorld()->SweepSingleByChannel(
-            OutHitResult, 
-            HistoryState.SourceOrigin, 
-            TargetLocation, 
-            FQuat::Identity, 
-            ECC_GameTraceChannel1, 
-            FCollisionQueryParams::DefaultQueryParam
-        );
-    }
-}`
-  }
 ];
 
-export const RESEARCH_ZH = [
-  {
-    id: "quaternion-damper",
-    title: "四元数非线性超空间中的临界阻尼角弹簧推导",
-    mathFormula: "J \\ddot{\\theta} + C \\dot{\\theta} + K \\theta = 0 \\implies q_{next} = \\text{Slerp}(q_{current}, q_{target}, \\alpha)",
-    mathLabel: "紧凑四元数空间下的二阶旋转弹簧阻尼物理系统方程",
-    date: "2026年6月",
-    problem: "将传统线性弹簧阻尼器映射到欧拉角进行旋转插值时，由于欧拉角本身的奇点限制，极易引发万向锁（Gimbal Lock），且在大角度差过渡时，旋转角速度会产生极其不自然的突变和系统振荡。",
-    solution: "直接在 SO(3) 四元数流形超球面上推导出解析形式的非线性角弹簧求解器。由于始终沿着最短大圆路径进给，可在确保系统不发生万向锁的前提下，实现扭矩驱动的、完全临界阻尼的平滑逼近。",
-    implementationDetails: "该 C++ 物理求解器实时计算当前旋转与目标旋转的最短路径偏置（通过四元数点积对半球朝向进行投影锁定），提取出等效的旋转位移扭矩向量，进而动态反算角加速度。目前，这一高阶节点被广泛部署于我们的 Control Rig 骨骼重定向算法中，驱动高频战斗中的武器挥舞惯性、动态角色视线注视追踪（Look-At）以及臀部受力倾斜的逼近。",
-    cppCode: `// 物理解析临界阻尼四元数角弹簧求解器
-FQuat SolveQuaternionSpring(
-    const FQuat& CurrentRot,
-    const FQuat& TargetRot,
-    FVector& AngularVel, // 跨帧维持的物理角速度状态
-    float SpringConstant, // 弹簧系数 K
-    float DampingConstant, // 阻尼系数 C (通常设为 2 * sqrt(K) 以达到临界阻尼)
-    float DeltaTime
-) {
-    // 投影检测：确保选择半球面上最短路径进行过渡
-    FQuat ClampedTarget = TargetRot;
-    float DotVal = CurrentRot | ClampedTarget;
-    if (DotVal < 0.0f) {
-        ClampedTarget = -ClampedTarget;
-        DotVal = -DotVal;
-    }
-    
-    // 计算旋转误差向量 (作为扭矩发生源)
-    FQuat RotationDiff = ClampedTarget * CurrentRot.Inverse();
-    FVector ErrorVector;
-    float Angle;
-    RotationDiff.ToAxisAndAngle(ErrorVector, Angle);
-    ErrorVector = ErrorVector * FMath::UnwindRadians(Angle);
-    
-    // 旋转角弹簧经典力学方程: T = K * Error - C * Velocity
-    FVector SpringTorque = ErrorVector * SpringConstant;
-    FVector DampingTorque = AngularVel * DampingConstant;
-    FVector Acceleration = SpringTorque - DampingTorque;
-    
-    // 数值积分：更新角速度与朝向四元数
-    AngularVel += Acceleration * DeltaTime;
-    FVector DeltaAngle = AngularVel * DeltaTime;
-    float DeltaAngleLen = DeltaAngle.Size();
-    
-    if (DeltaAngleLen > 1e-5f) {
-        FQuat DeltaQuat(DeltaAngle.GetUnsafeNormal(), DeltaAngleLen);
-        return DeltaQuat * CurrentRot;
-    }
-    
-    return CurrentRot;
-}`
-  },
-  {
-    id: "gpu-poisson",
-    title: "流体计算中压力泊松方程的 GPU 迭代求解器研究",
-    mathFormula: "\\nabla^2 p = \\frac{\\rho}{\\Delta t} \\nabla \\cdot \\mathbf{u}^* \\implies p_{i,j,k}^{k+1} = \\frac{1}{6} \\left( p_{i+1,j,k} + p_{i-1,j,k} + p_{i,j+1,k} + p_{i,j-1,k} + p_{i,j,k+1} + p_{i,j,k-1} - d^2 D_{i,j,k} \\right)",
-    mathLabel: "用于三维流体网格不可压缩约束条件下的离散泊松-压力求解方程",
-    date: "2026年4月",
-    problem: "在基于网格的欧拉流体求解器中，为了满足质量守恒以及流速场散度为零（Divergence-free）的不可压缩约束，每一帧都必须在全局求解一个庞大而极其稀疏的对称线性方程组。若在 CPU 上求解，极易引发严重卡顿。",
-    solution: "利用 HLSL 编写了基于红黑高斯-赛德尔（Red-Black Gauss-Seidel）或双缓冲雅可比（Jacobi）迭代的 GPU 并行求解内核，利用现代显卡的一级缓存空间关联度以及 LDS (本地共享内存) 优化线程组间的数据交换，将计算延迟压缩至亚毫秒。",
-    implementationDetails: "将 3D 流体网格剖分为 8×8×8 的独立计算线程组。通过将当前计算栅格的物理邻近体素一并载入到 LDS (Local Data Share) 中，消除了高延迟的全局显存寻址交互。散度值作为单通道浮点纹理传入，压力场则在两个乒乓贴图（Ping-Pong Texture）之间轮流迭代刷新。",
-    hlslCode: `// HLSL Compute Shader: GPU 多线程压力投影雅可比迭代单步内核
-#define THREAD_GROUP_SIZE 8
-
-Texture3D<float> InPressure : register(t0);
-Texture3D<float> InDivergence : register(t1);
-RWTexture3D<float> OutPressure : register(u0);
-
-cbuffer GridParams : register(b0) {
-    float3 GridDim;
-    float CellSize;
-    int CurrentPass; // 0代表红，1代表黑 (用于红黑块分区多线程同步)
-};
-
-[numthreads(THREAD_GROUP_SIZE, THREAD_GROUP_SIZE, THREAD_GROUP_SIZE)]
-void CS_PressureProjection(uint3 DTid : SV_DispatchThreadID) {
-    if (any(DTid >= (uint3)GridDim - 1) || any(DTid <= 0)) return;
-    
-    // 红黑交替分区校验，保证迭代计算的并行确定性与收敛速度
-    if (((DTid.x + DTid.y + DTid.z) % 2) != (uint3)CurrentPass) return;
-    
-    // 从底层显卡的纹理高速缓存采样相邻的6个体素
-    float pL = InPressure[DTid + uint3(-1, 0, 0)];
-    float pR = InPressure[DTid + uint3(1, 0, 0)];
-    float pB = InPressure[DTid + uint3(0, -1, 0)];
-    float pT = InPressure[DTid + uint3(0, 1, 0)];
-    float pD = InPressure[DTid + uint3(0, 0, -1)];
-    float pU = InPressure[DTid + uint3(0, 0, 1)];
-    
-    float divergence = InDivergence[DTid];
-    
-    // 雅可比泊松迭代公式
-    float d2 = CellSize * CellSize;
-    float solvedPressure = (pL + pR + pB + pT + pD + pU - d2 * divergence) / 6.0;
-    
-    OutPressure[DTid] = solvedPressure;
-}`
-  }
-];
-
+// ---- Skill matrix: 档案技能矩阵（6 类骨架） ----
 export const SKILLS_ZH = [
   {
-    name: "核心编程与系统设计",
+    name: "引擎编程",
     skills: [
-      { name: "C++ (现代标准与虚幻规范)", proficiency: 98, details: "高频指针内存管理、多线程多路并发设计、自定义底层引擎架构、高性能内联汇编级代码调优。" },
-      { name: "HLSL / GLSL 着色器编程", proficiency: 95, details: "计算着色器(Compute Shaders)、体积射线步进、高保真光线追踪与自定义渲染器、渲染管线指令最优化。" },
-      { name: "物理求解器与高等数学", proficiency: 92, details: "高级线性代数、微分方程数值解法、经典动力学、流体力学 Navier-Stokes 方程数值离散化。" },
-      { name: "面向数据设计 (DOD / ECS)", proficiency: 88, details: "CPU 缓存命中最优化、海量实体(Massive scale)高并发数据对齐、虚幻 Mass Framework 深度二次开发。" }
-    ]
+      { name: "C++ 引擎子系统开发", proficiency: 0, details: "待填充。" },
+    ],
   },
   {
-    name: "虚幻引擎深层开发",
+    name: "物理模拟",
     skills: [
-      { name: "Niagara 粒子特效核心", proficiency: 96, details: "基于原生 HLSL 深度定制 Niagara Scratchpad、多维动态数据通道耦合、复杂流体场与粒子集群力学绑定。" },
-      { name: "Gameplay 技能系统 (GAS)", proficiency: 94, details: "服务器绝对授权、复杂的客户端输入预测、状态回滚冲突判定以及多路网络 RPC 序列化裁剪。" },
-      { name: "骨骼动画工程与重定向", proficiency: 95, details: "Control Rig 程序化控制、底层 C++ AnimGraph 自定义节点开发、超大规模运动匹配 (Motion Matching) 库优化。" },
-      { name: "Chaos 物理与刚体解算", proficiency: 90, details: "物理多子步(Sub-stepping)力学钩子注入、动态物理动画融合(Physical Animation)、复杂柔性组织力学模拟。" }
-    ]
+      { name: "Chaos 物理与约束求解", proficiency: 0, details: "待填充。" },
+    ],
   },
   {
-    name: "性能分析与硬件开发",
+    name: "动画系统",
     skills: [
-      { name: "图形管线诊断与性能调优", proficiency: 94, details: "熟练运用 RenderDoc、Pix 抓帧、Unreal Insights 分析瓶颈，精准消除 Quad-Overdraw、缩减过高 Shader 指令。" },
-      { name: "网络同步回滚与平滑纠偏", proficiency: 92, details: "高吞吐状态滑动窗口、输入确定性回放、历史碰撞体矩阵倒带及埃尔米特样条曲线高精度渲染纠偏。" },
-      { name: "Vulkan / DirectX 12 核心API", proficiency: 85, details: "显卡底层流水线状态、显卡描述符表装配(Descriptor Tables)、GPU 屏障同步(Barrier)及多命令队列组装。" }
-    ]
-  }
+      { name: "Motion Matching 与 Control Rig", proficiency: 0, details: "待填充。" },
+    ],
+  },
+  {
+    name: "渲染",
+    skills: [
+      { name: "HLSL 计算着色器与渲染管线", proficiency: 0, details: "待填充。" },
+    ],
+  },
+  {
+    name: "玩法架构",
+    skills: [
+      { name: "GAS 与网络同步", proficiency: 0, details: "待填充。" },
+    ],
+  },
+  {
+    name: "AI 工具链",
+    skills: [
+      { name: "Agent 与 MCP 实践", proficiency: 0, details: "待填充。" },
+    ],
+  },
 ];
 
+// ---- Career timeline: 成长轨迹（骨架占位） ----
 export const TIMELINE_ZH = [
   {
     year: "2024 — 至今",
-    role: "首席物理与技术美术工程师",
-    company: "Hexaverse 互动娱乐",
-    description: "主导并构建未公开 AAA 级电影级多人竞技沙盒游戏的实时物理沙盒以及高阶环境反应系统架构。",
-    highlights: [
-      "设计并上线了完全运行于 GPU 的 Niagara 复杂流体与爆破碎片交互算法，使得气象效果可对玩家动作做出即时响应，且完美达成 0% CPU 占用。",
-      "基于 C++ 与 GAS 重构了核心战斗的网络同步底层，将多端近战及投掷物碰撞的同步偏差率缩减了 85%。",
-      "研发了兼顾全身 IK 阻尼关节与运动匹配的混合骨骼解决方案，使其自适应渲染于 12 套截然不同的物理人形及异形骨骼。"
-    ]
+    role: "占位职位待填充",
+    company: "占位公司待填充",
+    project: "占位项目待填充",
+    description: "职责描述待填充。",
+    outcomes: ["成果待填充"],
+    highlights: ["亮点待填充"],
   },
-  {
-    year: "2021 — 2024",
-    role: "资深实时渲染工程师",
-    company: "Singularity 虚拟科技",
-    description: "开发虚幻引擎底层 C++ 管线拓展、自研体积材质，并为大型虚拟制片和高品质主机端产品交付高效渲染模板。",
-    highlights: [
-      "在 HLSL 中自主研发了基于物理的大气散射光线步进算法(Raymarched Atmosphere)，并稳定应用于多套影视虚拟制片场景中。",
-      "针对主流次世代主机进行显卡底层优化，优化后着色器关键循环指令周期减少 30%，整体帧耗时削减了 3 毫秒。",
-      "深度开发 Chaos 物理破碎子系统，利用服务器端物理状态轻量打包技术，实现在复杂网络延迟下大量刚体建筑残骸的确定性网络复现。"
-    ]
-  },
-  {
-    year: "2018 — 2021",
-    role: "玩法系统与技术美术开发工程师",
-    company: "Ironbound 重工业娱乐",
-    description: "设计与开发核心玩法，打造高拟真肌肉运动等物理骨骼节点，并负责制定整体性能调优模板。",
-    highlights: [
-      "自主编写了用于模拟肢体及肌肉微小惯性的动画求值节点(AnimNode)，显著改善了硬核近战游戏中物理打击反馈的视觉爆发力。",
-      "编写了自动化性能分析脚本并在持续集成(CI)流水线中利用 Unreal Insights 监测核心热点，让 CPU 线程阻塞瓶颈无处遁形。",
-      "利用虚幻引擎全局距离场(Distance Fields)编写了高阶动态顶点偏置的交互式大洋海水模拟着色器，达成写实的波浪浪花反应。"
-    ]
-  }
 ];

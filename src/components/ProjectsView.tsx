@@ -1,7 +1,9 @@
 import React, { useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { Filter, Cpu, Sliders, ArrowUpRight } from "lucide-react";
+import { Sliders, ArrowUpRight } from "lucide-react";
 import type { Project } from "../types";
+import { PROJECT_CATEGORIES, projectCategoryZh } from "../lib/taxonomy";
+import { UI_TRANSLATIONS } from "../translations";
 import BorderGlow from "./BorderGlow";
 
 interface ProjectsViewProps {
@@ -10,16 +12,11 @@ interface ProjectsViewProps {
   lang: "zh" | "en";
 }
 
-const CATEGORIES_MAPPING = [
-  { id: "All", labelZh: "全部项目", labelEn: "All Systems" },
-  { id: "Physics Simulation", labelZh: "物理模拟", labelEn: "Physics Simulation" },
-  { id: "Animation Technical Art", labelZh: "动画技术美术", labelEn: "Anim Tech Art" },
-  { id: "Gameplay Systems", labelZh: "游戏玩法系统", labelEn: "Gameplay Systems" },
-  { id: "Real-time Rendering", labelZh: "实时渲染", labelEn: "Real-time Rendering" },
-];
-
 export default function ProjectsView({ projects, onSelectProject, lang }: ProjectsViewProps) {
-  const [selectedCategory, setSelectedCategory] = useState("All");
+  const t = UI_TRANSLATIONS[lang];
+  const [selectedCategory, setSelectedCategory] = useState<string>("All");
+
+  const categoryEntries = Object.entries(PROJECT_CATEGORIES);
 
   const filteredProjects = selectedCategory === "All"
     ? projects
@@ -30,41 +27,52 @@ export default function ProjectsView({ projects, onSelectProject, lang }: Projec
       {/* Intro Header */}
       <div className="max-w-4xl mx-auto text-center space-y-4 px-6">
         <span className="font-mono text-xs text-brand-accent-lime uppercase tracking-widest">
-          {lang === "zh" ? "计算工程项目档案库" : "COMPUTATIONAL ARCHIVES"}
+          {lang === "zh" ? "已完成 · 具有工程价值的系统" : "ENGINEERED SYSTEMS"}
         </span>
         <h1 className="font-display font-black text-4xl md:text-6xl text-white tracking-tighter">
-          {lang === "zh" ? "工程系统列表" : "Engineered Systems"}
+          {lang === "zh" ? "项目" : "Projects"}
         </h1>
         <p className="font-sans text-base md:text-lg text-gray-300 max-w-2xl mx-auto font-light leading-relaxed">
           {lang === "zh"
-            ? "自主研发的虚幻引擎组件、高度定制的流体/骨骼动画求解器、渲染管线着色器以及网络复制框架的详细规格说明与技术分析。"
-            : "Detailed logs and specifications of custom solvers, graphics shaders, rendering pipelines, and networking frameworks built for Unreal Engine."}
+            ? "强调工程能力、系统架构与技术实现的系统集合，而非作品展示。"
+            : "Systems emphasizing engineering capability, architecture, and technical implementation."}
         </p>
       </div>
 
-      {/* Categories Toolbar Filter (Linear & Vercel Style) */}
+      {/* Categories Toolbar Filter */}
       <div className="max-w-5xl mx-auto px-6">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-white/5 pb-4">
           <div className="flex items-center gap-2 text-sm font-mono text-gray-300">
             <Sliders className="w-4.5 h-4.5 text-brand-accent-lime" />
-            <span>{lang === "zh" ? "选择 specialization 特化方向:" : "FILTER SPECIALIZATION:"}</span>
+            <span>{t.filterSpecialization}</span>
           </div>
 
           <div className="flex flex-wrap items-center gap-1.5 bg-brand-charcoal/40 p-1.5 border border-white/5 rounded-lg">
-            {CATEGORIES_MAPPING.map((cat) => {
-              const isActive = selectedCategory === cat.id;
+            <button
+              onClick={() => setSelectedCategory("All")}
+              className={`px-4 py-2 text-xs font-mono tracking-wider uppercase rounded-md cursor-pointer transition-all duration-200 ${
+                selectedCategory === "All"
+                  ? "bg-brand-gray-800 text-brand-accent-lime border border-brand-accent-lime/30 shadow-lg"
+                  : "text-gray-400 hover:text-gray-200 hover:bg-white/5"
+              }`}
+              id="filter-btn-all"
+            >
+              {t.all}
+            </button>
+            {categoryEntries.map(([id, labelZh]) => {
+              const isActive = selectedCategory === id;
               return (
                 <button
-                  key={cat.id}
-                  onClick={() => setSelectedCategory(cat.id)}
+                  key={id}
+                  onClick={() => setSelectedCategory(id)}
                   className={`px-4 py-2 text-xs font-mono tracking-wider uppercase rounded-md cursor-pointer transition-all duration-200 ${
                     isActive
                       ? "bg-brand-gray-800 text-brand-accent-lime border border-brand-accent-lime/30 shadow-lg"
                       : "text-gray-400 hover:text-gray-200 hover:bg-white/5"
                   }`}
-                  id={`filter-btn-${cat.id.toLowerCase().replace(" ", "-")}`}
+                  id={`filter-btn-${id.toLowerCase()}`}
                 >
-                  {lang === "zh" ? cat.labelZh : cat.labelEn}
+                  {lang === "zh" ? labelZh : id}
                 </button>
               );
             })}
@@ -108,10 +116,10 @@ export default function ProjectsView({ projects, onSelectProject, lang }: Projec
                       <div className="space-y-4">
                         <div className="flex items-center justify-between text-xs font-mono">
                           <span className="text-brand-accent-lime uppercase tracking-wider font-semibold">
-                            {lang === "zh" ? proj.category.replace("Physics Simulation", "物理模拟").replace("Real-time Rendering", "实时渲染").replace("Animation Technical Art", "动画技术美术").replace("Gameplay Systems", "游戏玩法系统") : proj.category}
+                            {lang === "zh" ? projectCategoryZh(proj.category) : proj.category}
                           </span>
                           <span className="text-gray-400 group-hover:text-white transition-colors flex items-center gap-1">
-                            {lang === "zh" ? "技术性能指标" : "EXAMINE"} <ArrowUpRight className="w-3.5 h-3.5 text-brand-accent-lime" />
+                            {t.examine} <ArrowUpRight className="w-3.5 h-3.5 text-brand-accent-lime" />
                           </span>
                         </div>
 
@@ -120,7 +128,7 @@ export default function ProjectsView({ projects, onSelectProject, lang }: Projec
                         </h3>
 
                         <p className="text-sm text-gray-300 leading-relaxed font-sans line-clamp-3">
-                          {proj.description}
+                          {proj.overview}
                         </p>
 
                         {/* Visual Prompt Quote block */}

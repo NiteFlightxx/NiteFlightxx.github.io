@@ -1,7 +1,9 @@
 import React, { useState } from "react";
-import { motion, AnimatePresence } from "motion/react";
-import { X, Cpu, Activity, Database, Check, Copy, FileCode, Zap } from "lucide-react";
+import { motion } from "motion/react";
+import { X, Check, Copy, FileCode } from "lucide-react";
 import type { Project } from "../types";
+import { projectCategoryZh } from "../lib/taxonomy";
+import { UI_TRANSLATIONS } from "../translations";
 
 interface ProjectDetailModalProps {
   project: Project;
@@ -10,6 +12,7 @@ interface ProjectDetailModalProps {
 }
 
 export default function ProjectDetailModal({ project, onClose, lang }: ProjectDetailModalProps) {
+  const t = UI_TRANSLATIONS[lang];
   const [copied, setCopied] = useState(false);
 
   const copyCode = () => {
@@ -19,6 +22,9 @@ export default function ProjectDetailModal({ project, onClose, lang }: ProjectDe
       setTimeout(() => setCopied(false), 2000);
     }
   };
+
+  const zh = lang === "zh";
+  const catLabel = zh ? projectCategoryZh(project.category) : project.category;
 
   return (
     <motion.div
@@ -45,7 +51,7 @@ export default function ProjectDetailModal({ project, onClose, lang }: ProjectDe
           <div className="flex items-center gap-2">
             <span className="w-2 h-2 rounded-full bg-brand-accent-orange animate-pulse" />
             <span className="font-mono text-[10px] text-gray-400 tracking-widest uppercase">
-              {lang === "zh" ? "系统核心工程日志 // " : "ENGINEERING LOG // "}{project.category.replace(" ", "_").toUpperCase()}
+              {t.engineeringLog} // {catLabel.toUpperCase()}
             </span>
           </div>
           <button
@@ -58,75 +64,82 @@ export default function ProjectDetailModal({ project, onClose, lang }: ProjectDe
           </button>
         </div>
 
-        {/* Modal content body */}
+        {/* Modal content body — 8-section structure */}
         <div className="flex-1 overflow-y-auto p-6 md:p-8 space-y-8">
-          {/* Top Title and Summary Section */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            <div className="lg:col-span-2 space-y-4">
-              <h2 className="font-display font-medium text-xl md:text-3xl text-white tracking-tight">
-                {project.title}
-              </h2>
-              <p className="text-sm md:text-base text-gray-300 leading-relaxed font-sans font-light">
-                {project.extendedDetails}
-              </p>
-              
-              <div className="flex flex-wrap gap-1.5 pt-2">
-                {project.tech.map((techItem) => (
-                  <span
-                    key={techItem}
-                    className="px-2 py-0.5 text-[9px] font-mono bg-brand-black text-gray-400 border border-white/5 rounded"
-                  >
-                    {techItem}
-                  </span>
-                ))}
-              </div>
-            </div>
-
-            {/* Performance KPI Cards (Linear style) */}
-            <div className="space-y-3">
-              <span className="font-mono text-[9px] text-gray-500 tracking-wider block uppercase">
-                {lang === "zh" ? "物理求解器核心性能指标" : "CRITICAL SOLVER METRICS"}
-              </span>
-              
-              <div className="grid grid-cols-2 lg:grid-cols-1 gap-3">
-                {project.metrics.map((metric, idx) => (
-                  <div
-                    key={metric.label}
-                    className="p-4 rounded-xl bg-brand-gray-900 border border-white/5 flex flex-col justify-between"
-                  >
-                    <span className="text-[10px] font-mono text-gray-500 uppercase">
-                      {metric.label}
-                    </span>
-                    <span className="text-base md:text-lg font-display font-medium text-white tracking-wide mt-1">
-                      {metric.value}
-                    </span>
-                  </div>
-                ))}
-              </div>
+          {/* Title + category */}
+          <div className="space-y-3 border-b border-white/5 pb-6">
+            <span className="text-[10px] font-mono text-brand-accent-lime uppercase tracking-widest">
+              {catLabel}
+            </span>
+            <h2 className="font-display font-medium text-xl md:text-3xl text-white tracking-tight">
+              {project.title}
+            </h2>
+            {/* Tech stack */}
+            <div className="flex flex-wrap gap-1.5 pt-1">
+              {project.tech.map((techItem) => (
+                <span
+                  key={techItem}
+                  className="px-2 py-0.5 text-[9px] font-mono bg-brand-black text-gray-400 border border-white/5 rounded"
+                >
+                  {techItem}
+                </span>
+              ))}
             </div>
           </div>
 
-          {/* Code block & Visual Prompt Split Section */}
+          {/* 1. Overview */}
+          <div className="space-y-2">
+            <h3 className="font-mono text-[10px] text-brand-accent-orange uppercase tracking-widest">{t.overview}</h3>
+            <p className="text-sm text-gray-300 leading-relaxed font-sans font-light">{project.overview}</p>
+          </div>
+
+          {/* 2. Architecture */}
+          <div className="space-y-2">
+            <h3 className="font-mono text-[10px] text-brand-accent-orange uppercase tracking-widest">{t.architecture}</h3>
+            <p className="text-sm text-gray-300 leading-relaxed font-sans font-light">{project.architecture}</p>
+          </div>
+
+          {/* 3. Challenges & 4. Solution split */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="space-y-2">
+              <h3 className="font-mono text-[10px] text-brand-accent-orange uppercase tracking-widest">{t.challenges}</h3>
+              <p className="text-sm text-gray-300 leading-relaxed font-sans font-light">{project.challenges}</p>
+            </div>
+            <div className="space-y-2">
+              <h3 className="font-mono text-[10px] text-brand-accent-lime uppercase tracking-widest">{t.solution}</h3>
+              <p className="text-sm text-gray-300 leading-relaxed font-sans font-light">{project.solution}</p>
+            </div>
+          </div>
+
+          {/* 5. Performance metrics */}
+          <div className="space-y-3">
+            <span className="font-mono text-[9px] text-gray-500 tracking-wider block uppercase">{t.metricsTitle}</span>
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+              {project.metrics.map((metric) => (
+                <div key={metric.label} className="p-4 rounded-xl bg-brand-gray-900 border border-white/5 flex flex-col justify-between">
+                  <span className="text-[10px] font-mono text-gray-500 uppercase">{metric.label}</span>
+                  <span className="text-base md:text-lg font-display font-medium text-white tracking-wide mt-1">{metric.value}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* 6. Code snippet */}
           {project.codeSnippet && (
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <span className="font-mono text-[9px] text-gray-500 tracking-wider uppercase flex items-center gap-1.5">
                   <FileCode className="w-3 h-3 text-brand-accent-orange" />
-                  {lang === "zh" ? "核心算法控制与数值推导实现" : "CORE ALGORITHMIC IMPLEMENTATION"}
+                  {lang === "zh" ? "核心代码实现" : "CORE IMPLEMENTATION"}
                 </span>
-                
                 <button
                   onClick={copyCode}
                   className="px-2.5 py-1 text-[10px] font-mono border border-white/5 hover:border-white/10 bg-brand-black hover:bg-white/5 rounded text-gray-400 hover:text-white transition-all cursor-pointer flex items-center gap-1"
                 >
                   {copied ? (
-                    <>
-                      <Check className="w-3 h-3 text-emerald-500" /> {lang === "zh" ? "已复制" : "COPIED"}
-                    </>
+                    <><Check className="w-3 h-3 text-emerald-500" /> {t.copied}</>
                   ) : (
-                    <>
-                      <Copy className="w-3 h-3" /> {lang === "zh" ? "复制代码" : "COPY CODE"}
-                    </>
+                    <><Copy className="w-3 h-3" /> {t.copyCode}</>
                   )}
                 </button>
               </div>
@@ -145,32 +158,36 @@ export default function ProjectDetailModal({ project, onClose, lang }: ProjectDe
             </div>
           )}
 
-          {/* Simulated Cinematic Viewport prompt */}
-          <div className="p-5 rounded-xl bg-brand-gray-900 border border-white/5 space-y-3">
-            <div className="flex items-center gap-2 text-gray-400 font-mono text-[10px]">
-              <Zap className="w-3.5 h-3.5 text-brand-accent-orange" />
-              <span>{lang === "zh" ? "电影级光线追踪视口仿真元数据" : "CINEMATIC RAYTRACED VIEWPORT METADATA"}</span>
+          {/* 7. References */}
+          {project.references.length > 0 && (
+            <div className="space-y-2">
+              <h3 className="font-mono text-[10px] text-brand-accent-orange uppercase tracking-widest">{t.references}</h3>
+              <ul className="space-y-1">
+                {project.references.map((ref, idx) => (
+                  <li key={idx} className="text-xs text-gray-400 font-mono flex items-start gap-2">
+                    <span className="text-gray-600 select-none">›</span>
+                    <span>{ref}</span>
+                  </li>
+                ))}
+              </ul>
             </div>
-            <p className="text-xs text-gray-400 leading-relaxed italic font-serif">
-              "{project.visualPrompt}"
-            </p>
-            <div className="h-px bg-white/5" />
-            <div className="flex justify-between items-center text-[9px] font-mono text-gray-500">
-              <span>POST_PROCESS: FILM_GRAIN [0.15]</span>
-              <span>SAMPLING: DLSS_3.7_PRESET_G</span>
-              <span>RENDERER: SUB_LUMEN_ACTIVE</span>
-            </div>
+          )}
+
+          {/* 8. Outcomes */}
+          <div className="space-y-2">
+            <h3 className="font-mono text-[10px] text-brand-accent-lime uppercase tracking-widest">{t.outcomes}</h3>
+            <p className="text-sm text-gray-300 leading-relaxed font-sans font-light">{project.outcomes}</p>
           </div>
         </div>
 
         {/* Footer toolbar */}
         <div className="glass-panel border-t border-white/5 py-4 px-6 md:px-8 flex items-center justify-between text-[10px] font-mono text-gray-500">
-          <span>VANCE ENGINE EXTENSION PROTOCOL // 0x7FBA</span>
+          <span>NITE ENGINE EXTENSION PROTOCOL // 0x7FBA</span>
           <button
             onClick={onClose}
             className="text-white hover:text-brand-accent-orange transition-colors cursor-pointer uppercase"
           >
-            {lang === "zh" ? "关闭流视窗" : "CLOSE STREAM"}
+            {t.closeStream}
           </button>
         </div>
       </motion.div>

@@ -1,0 +1,51 @@
+{
+  "$ref": "#/definitions/lab",
+  "definitions": {
+    "lab": {
+      "type": "object",
+      "properties": {
+        "title": {
+          "type": "string"
+        },
+        "excerpt": {
+          "type": "string"
+        },
+        "date": {
+          "type": "string"
+        },
+        "topic": {
+          "type": "string",
+          "enum": [
+            "Simulation",
+            "Motion",
+            "Rendering",
+            "Gameplay",
+            "AI"
+          ]
+        },
+        "tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "draft": {
+          "type": "boolean",
+          "default": false
+        },
+        "$schema": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "title",
+        "excerpt",
+        "date",
+        "topic",
+        "tags"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "$schema": "http://json-schema.org/draft-07/schema#"
+}

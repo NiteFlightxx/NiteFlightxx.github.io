@@ -1,15 +1,17 @@
 import React, { useEffect, useRef, useState } from "react";
 import { motion } from "motion/react";
-import { X, Clock, Calendar, ArrowLeft, Copy, Check, Share2 } from "lucide-react";
-import type { BlogArticle } from "../types";
+import { X, Clock, Calendar, ArrowLeft, Check, Share2 } from "lucide-react";
+import type { ContentArticle } from "../types";
+import { UI_TRANSLATIONS } from "../translations";
 
 interface ArticleViewerProps {
-  article: BlogArticle;
+  article: ContentArticle;
   onClose: () => void;
   lang: "zh" | "en";
 }
 
 export default function ArticleViewer({ article, onClose, lang }: ArticleViewerProps) {
+  const t = UI_TRANSLATIONS[lang];
   const [copied, setCopied] = useState(false);
   const [scrollProgress, setScrollProgress] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -71,7 +73,7 @@ export default function ArticleViewer({ article, onClose, lang }: ArticleViewerP
             id="article-back-btn"
           >
             <ArrowLeft className="w-4 h-4 transition-transform group-hover:-translate-x-1" />
-            {lang === "zh" ? "返回技术列表" : "BACK TO FEED"}
+            {t.backToFeed}
           </button>
 
           <div className="flex items-center gap-3">
@@ -84,12 +86,12 @@ export default function ArticleViewer({ article, onClose, lang }: ArticleViewerP
               {copied ? (
                 <>
                   <Check className="w-3.5 h-3.5 text-emerald-500" />
-                  {lang === "zh" ? "链接已复制" : "COPIED"}
+                  {t.copied}
                 </>
               ) : (
                 <>
                   <Share2 className="w-3.5 h-3.5" />
-                  {lang === "zh" ? "分享链接" : "SHARE"}
+                  {t.share}
                 </>
               )}
             </button>
@@ -110,8 +112,6 @@ export default function ArticleViewer({ article, onClose, lang }: ArticleViewerP
           <div className="border-b border-white/5 pb-8 mb-8">
             <div className="flex items-center gap-2 text-[10px] font-mono text-brand-accent-orange uppercase tracking-wider mb-3">
               <span>{article.category}</span>
-              <span>•</span>
-              <span>{lang === "zh" ? "深度研究日志" : "TECHNICAL LOG"}</span>
             </div>
 
             <h1 className="font-display font-medium text-2xl md:text-4xl text-white tracking-tight leading-tight mb-6">
@@ -123,10 +123,12 @@ export default function ArticleViewer({ article, onClose, lang }: ArticleViewerP
                 <Calendar className="w-3.5 h-3.5 text-gray-600" />
                 {article.date}
               </span>
-              <span className="flex items-center gap-1.5">
-                <Clock className="w-3.5 h-3.5 text-gray-600" />
-                {lang === "zh" ? "预计阅读时长: " + article.readTime : article.readTime}
-              </span>
+              {article.readTime && (
+                <span className="flex items-center gap-1.5">
+                  <Clock className="w-3.5 h-3.5 text-gray-600" />
+                  {article.readTime}
+                </span>
+              )}
             </div>
           </div>
 
