@@ -90,19 +90,18 @@ const {
       </a>
     </header>
 
-    {/* Main: TOC sidebar + article content.
-        TOC is pinned left; a wide gap separates it from the article so the
-        reading column breathes independently of the navigation rail. */}
-    <div class="relative mx-auto px-6 md:px-12 py-10 lg:grid lg:grid-cols-[240px_1fr] lg:gap-16 lg:max-w-6xl">
-      {/* Left TOC — sticky, hidden on small screens (no room) */}
-      <aside class="hidden lg:block">
-        <div class="sticky top-24">
-          <ArticleToc client:load headings={headings} lang={lang} />
-        </div>
+    {/* Main: the TOC rail is pinned to the viewport's left edge as a fixed
+        sidebar; the article is a centered, fixed-width reading column that
+        ignores the rail — so it stays visually centered regardless of TOC. */}
+    <div class="relative w-full py-10">
+      {/* Left TOC — fixed to the left edge, sticky-feeling via position:fixed.
+          Hidden on small screens (no room). */}
+      <aside class="hidden lg:block fixed left-0 top-24 w-[300px] px-8 max-h-[calc(100vh-8rem)] overflow-y-auto z-30">
+        <ArticleToc client:load headings={headings} lang={lang} />
       </aside>
 
-      {/* Article body */}
-      <article class="article-body max-w-3xl mx-auto lg:mx-0 w-full">
+      {/* Article body — centered reading column */}
+      <article class="article-body w-full max-w-3xl mx-auto px-6 md:px-8">
         {/* Header metadata */}
         <div class="border-b border-white/5 pb-8 mb-10">
           <div class="flex items-center gap-2 text-[10px] font-mono text-brand-accent-orange uppercase tracking-wider mb-3">
