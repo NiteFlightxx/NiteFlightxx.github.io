@@ -146,21 +146,31 @@ export const UI_TRANSLATIONS = {
 // ---- Projects: 已完成或具有工程价值的系统（骨架占位） ----
 export const PROJECTS_ZH = [
   {
-    id: "placeholder-system",
-    title: "占位项目：待填充",
+    id: "aircraftlab",
+    title: "AircraftLab — 四旋翼无人机飞控系统",
     category: "Simulation" as const,
-    overview: "项目概述待填充。说明项目的目标、背景与工程价值。",
-    architecture: "技术架构待填充。描述系统设计、模块划分与数据流。",
-    challenges: "核心难点待填充。列出该系统解决的关键技术难题。",
-    solution: "解决方案待填充。说明针对核心难点采用的工程方法。",
-    outcomes: "项目成果待填充。量化或定性描述最终交付效果。",
-    references: ["参考链接待填充"],
-    tech: ["UE5", "C++"],
-    metrics: [
-      { label: "执行耗时", value: "— 毫秒" },
-      { label: "内存占用", value: "— MB" },
+    overview:
+      "基于 Unreal Engine 5 与 Chaos 物理引擎的四旋翼无人机飞控实验系统。从飞行员摇杆输入到四个电机转速指令，完整实现位置—速度—姿态—角速率的级联 PID 控制链，以及阻尼伪逆加活动集的控制分配（混控）算法，可在物理子步下闭环仿真真实飞行。",
+    architecture:
+      "采用级联控制架构：位置外环 → 速度内环 → 姿态角外环 → 角速率内环 → 混控 → 电机。状态估计融合 IMU/气压计/GPS/磁力计；控制器输出期望合力与合力矩，经 4×4 控制效率矩阵（Jacobian）与阻尼最小二乘伪逆分配到各旋翼；电机模型含指令 slew 限幅与一阶转速响应。所有飞控逻辑集中在一个 FlightControllerComponent 中（实验性实现，未做框架拆分）。",
+    challenges:
+      "四旋翼欠驱动（6 自由度仅 4 个独立输入）、强耦合（水平位移只能靠倾斜机身实现）、本质不稳定；控制分配需在 [0,1] 约束下求解，且电机一阶响应与传感器噪声共同限制了内环控制带宽。",
+    solution:
+      "用时间尺度分离的级联 PID 逐级收窄目标；内环采用测量微分（Derivative on Measurement）避免设定值突变冲击，条件积分法（Clamping）抗积分饱和，微分项串联一阶低通滤波抑制噪声；混控用阻尼伪逆（岭回归正则）抑制奇异与噪声放大，迭代活动集把解投影到可行域并尽量保持合力/力矩平衡。",
+    outcomes:
+      "支持 Quad / Hex / Octo 多种布局与单桨失效后的自动重配；默认参数针对百公斤级无人机，控制循环 250Hz 闭环；悬停倾斜方程 tan θ = a/g 将期望水平加速度解析映射为目标姿态，打通位置控制到姿态控制的桥梁。",
+    references: [
+      "GitHub 仓库：https://github.com/NiteFlightxx/AircraftLab",
+      "技术详解：四轴无人机飞控的数学与物理原理（知识库）",
     ],
-    visualPrompt: "占位视觉描述待填充。",
+    tech: ["UE5", "C++", "Chaos", "级联 PID"],
+    metrics: [
+      { label: "控制循环频率", value: "250 Hz" },
+      { label: "最大倾斜角", value: "35°" },
+      { label: "电机最大转速", value: "12000 RPM" },
+      { label: "支持布局", value: "Quad/Hex/Octo" },
+    ],
+    visualPrompt: "从牛顿-欧拉方程到电机指令，一条可推导、可验证的飞控翻译链。",
   },
 ];
 

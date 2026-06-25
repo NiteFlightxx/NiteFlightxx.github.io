@@ -10,6 +10,8 @@ readTime: "阅读约35分钟"
 > 本文基于 Unreal Engine 5 项目的 `AircraftLab` 插件源码（`FlightControllerComponent.cpp`、`AirscrewComponent.cpp`、`DroneTypes.h`）整理。该插件是实验性实现——所有飞控逻辑都集中在一个 `FlightControllerComponent` 里，刻意没有做框架拆分。因此本文不过多讨论工程结构，而是聚焦于**数学与物理原理本身**：每个公式从何而来、核心代码如何落地、各环节为何这样设计。
 >
 > 对象机型：四旋翼无人机（Quad X 布局）。四旋翼没有固定翼产生的升力，全部升力与控制力矩都来自四个旋翼的差速，因此对飞控的实时性与分配精度要求极高，是理解"控制理论如何变成可飞代码"的极佳样本。
+>
+> 📦 源码仓库（GitHub）：<https://github.com/NiteFlightxx/AircraftLab>
 
 ---
 
