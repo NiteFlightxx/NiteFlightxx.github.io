@@ -193,6 +193,7 @@ $$\vec P_{joint}^{new} = \vec P_{root} + \text{proj}\cdot\vec d_{des}$$
 - **代码块**：` ```cpp ` 等围栏代码块，自动暗色面板 + mono 字体。
 - **引用**：`>` 块引用，左侧绿色竖线 + 灰色文字，用于源码路径说明、版本说明等。
 - **分割线**：`---`，细绿色分隔线。
+- **图片 / GIF / 视频**：见 [`MEDIA_EMBEDDING.md`](MEDIA_EMBEDDING.md)。静态图片和 GIF 用标准 `![alt](/images/x.png)` 语法（文件放 `public/`，非 `src/assets/`）；MP4 需先开管线，详见该文档 §4。
 
 ## 4. 本地验证（必做）
 

@@ -332,6 +332,16 @@ body {
   line-height: 1.6;
 }
 
+/* Images (static + GIF): responsive baseline — never overflow the column,
+   center block-level, subtle rounded corners matching code panels. */
+.article-body img {
+  max-width: 100%;
+  height: auto;
+  display: block;
+  margin: 1.5rem auto;
+  border-radius: 0.5rem;
+}
+
 /* Protect monospace + math from the site-wide HEAVY (900) override:
    fake-bold would distort KaTeX glyphs and blur code. */
 code,

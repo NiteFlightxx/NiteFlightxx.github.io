@@ -68,7 +68,8 @@ scripts/
 └── fence-math.py              # 把单行 $$...$$ 批量转为围栏式（修正旧文档用）
 
 docs/
-└── ADDING_ARTICLES.md         # 添加新文章的标准工作流（必读）
+├── ADDING_ARTICLES.md         # 添加新文章的标准工作流（必读）
+└── MEDIA_EMBEDDING.md         # 图片 / GIF / MP4 嵌入标准
 ```
 
 ---
