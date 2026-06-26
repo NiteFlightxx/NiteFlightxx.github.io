@@ -317,78 +317,11 @@ $$
 
 5 次即收敛，比雅可比（10 次）快一倍。
 
-<svg class="inline-chart" viewBox="0 0 640 400" role="img" aria-labelledby="conv-title conv-desc" xmlns="http://www.w3.org/2000/svg">
-  <title id="conv-title">雅可比与高斯-赛德尔迭代收敛曲线对比</title>
-  <desc id="conv-desc">对数纵坐标下的误差随迭代次数衰减。高斯-赛德尔（青柠色）第 5 次收敛，雅可比（靛蓝色）约第 10 次收敛；二者起始误差相同。</desc>
+> 🧮 **交互画板（Desmos）**：下面嵌入一个 Desmos 交互图，可拖动滑块、缩放坐标轴实时观察曲线变化。
 
-  <!-- 底色 -->
-  <rect width="640" height="400" fill="#0d0d0d"/>
+<iframe class="calc-embed" loading="lazy" src="https://www.desmos.com/calculator/3l8c9bttav?embed"></iframe>
 
-  <!-- 标题 -->
-  <text x="320" y="26" text-anchor="middle" fill="#e2e8f0" font-family="'Source Han Sans CN','Noto Sans SC',system-ui,sans-serif" font-size="15" font-weight="600">误差随迭代次数衰减（对数纵坐标）</text>
-
-  <!-- 横向网格线（对数刻度） -->
-  <g stroke="#1f1f1f" stroke-width="1" stroke-dasharray="3 4">
-    <line x1="80" y1="40" x2="600" y2="40"/>
-    <line x1="80" y1="102" x2="600" y2="102"/>
-    <line x1="80" y1="164" x2="600" y2="164"/>
-    <line x1="80" y1="226" x2="600" y2="226"/>
-    <line x1="80" y1="288" x2="600" y2="288"/>
-  </g>
-
-  <!-- 坐标轴 -->
-  <line x1="80" y1="40" x2="80" y2="350" stroke="#2a2a2a" stroke-width="1.5"/>
-  <line x1="80" y1="350" x2="600" y2="350" stroke="#2a2a2a" stroke-width="1.5"/>
-
-  <!-- Y 轴刻度标签 -->
-  <g fill="#a1a1a1" font-family="'Source Han Sans CN','Noto Sans SC',system-ui,sans-serif" font-size="12" font-weight="400" text-anchor="end">
-    <text x="72" y="44">10¹</text>
-    <text x="72" y="106">10⁰</text>
-    <text x="72" y="168">10⁻¹</text>
-    <text x="72" y="230">10⁻²</text>
-    <text x="72" y="292">10⁻³</text>
-    <text x="72" y="354">10⁻⁴</text>
-  </g>
-
-  <!-- X 轴刻度标签 -->
-  <g fill="#a1a1a1" font-family="'Source Han Sans CN','Noto Sans SC',system-ui,sans-serif" font-size="12" font-weight="400" text-anchor="middle">
-    <text x="80" y="370">0</text>
-    <text x="184" y="370">2</text>
-    <text x="288" y="370">4</text>
-    <text x="392" y="370">6</text>
-    <text x="496" y="370">8</text>
-    <text x="600" y="370">10</text>
-  </g>
-
-  <!-- 轴标题 -->
-  <text x="340" y="392" text-anchor="middle" fill="#a1a1a1" font-family="'Source Han Sans CN','Noto Sans SC',system-ui,sans-serif" font-size="12" font-weight="400">迭代次数 k</text>
-  <text x="22" y="195" text-anchor="middle" fill="#a1a1a1" font-family="'Source Han Sans CN','Noto Sans SC',system-ui,sans-serif" font-size="12" font-weight="400" transform="rotate(-90 22 195)">误差（对数）</text>
-
-  <!-- 雅可比：实线 k0–5（实测），虚线 k5–10（趋势外推） -->
-  <polyline points="80,74 132,111 184,125 236,138 288,169 340,204" fill="none" stroke="#6366f1" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>
-  <polyline points="340,204 392,223 444,242 496,260 548,279 600,298" fill="none" stroke="#6366f1" stroke-width="2.5" stroke-dasharray="5 5" stroke-linejoin="round" opacity="0.6"/>
-
-  <!-- 高斯-赛德尔：实线 k0–4 -->
-  <polyline points="80,74 132,138 184,141 236,207 288,269" fill="none" stroke="#bcfd49" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>
-
-  <!-- 数据点 -->
-  <g fill="#6366f1"><circle cx="80" cy="74" r="3.5"/><circle cx="132" cy="111" r="3.5"/><circle cx="184" cy="125" r="3.5"/><circle cx="236" cy="138" r="3.5"/><circle cx="288" cy="169" r="3.5"/><circle cx="340" cy="204" r="3.5"/></g>
-  <g fill="#bcfd49"><circle cx="80" cy="74" r="3.5"/><circle cx="132" cy="138" r="3.5"/><circle cx="184" cy="141" r="3.5"/><circle cx="236" cy="207" r="3.5"/><circle cx="288" cy="269" r="3.5"/></g>
-
-  <!-- 收敛标注 -->
-  <text x="300" y="310" text-anchor="middle" fill="#bcfd49" font-family="'Source Han Sans CN','Noto Sans SC',system-ui,sans-serif" font-size="12" font-weight="600">GS 第5次 ✓</text>
-  <text x="596" y="316" text-anchor="end" fill="#6366f1" font-family="'Source Han Sans CN','Noto Sans SC',system-ui,sans-serif" font-size="12" font-weight="600">雅可比 ≈第10次</text>
-
-  <!-- 图例 -->
-  <g font-family="'Source Han Sans CN','Noto Sans SC',system-ui,sans-serif" font-size="13" font-weight="400">
-    <line x1="96" y1="316" x2="126" y2="316" stroke="#bcfd49" stroke-width="2.5"/>
-    <text x="132" y="320" fill="#e2e8f0">高斯-赛德尔</text>
-    <line x1="96" y1="334" x2="126" y2="334" stroke="#6366f1" stroke-width="2.5"/>
-    <text x="132" y="338" fill="#e2e8f0">雅可比</text>
-  </g>
-</svg>
-
-> 📈 上图把本例误差画在**对数纵坐标**上：两条曲线都近似直线，说明误差按固定比率线性衰减（即 $\rho^k$，谱半径 $\rho$ 越小斜率越陡）。高斯-赛德尔的直线更陡、更早触底——"快一倍"在图上就是横坐标提前了一半。雅可比 $k=6\sim 10$ 段为按谱半径约 $0.5$ 的趋势外推（虚线），非实测点。
+> 两条误差曲线都近似直线，说明误差按固定比率线性衰减（即 $\rho^k$，谱半径 $\rho$ 越小斜率越陡）。高斯-赛德尔更陡、更早触底——"快一倍"在图上就是横坐标提前了一半。
 
 ### 4.4 代码实现
 

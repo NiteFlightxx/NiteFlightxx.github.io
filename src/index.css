@@ -365,6 +365,18 @@ body {
   border-radius: 0.5rem;
 }
 
+/* Calculator-style embeds (Desmos / GeoGebra): taller than 16:9 so the
+   expression list + graph both fit on screen. */
+.article-body .calc-embed {
+  display: block;
+  width: 100%;
+  height: 560px;
+  max-width: 800px;
+  margin: 1.5rem auto;
+  border: 0;
+  border-radius: 0.5rem;
+}
+
 /* Protect monospace + math from the site-wide HEAVY (900) override:
    fake-bold would distort KaTeX glyphs and blur code. */
 code,
