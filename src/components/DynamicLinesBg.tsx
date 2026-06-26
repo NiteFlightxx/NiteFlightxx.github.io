@@ -1,4 +1,5 @@
 import React, { useEffect, useRef } from "react";
+import { useAnimationOptOut } from "../lib/useAnimationOptOut";
 
 interface DynamicLinesBgProps {
   theme: "dark" | "light";
@@ -39,6 +40,11 @@ const EQUATIONS = [
 export default function DynamicLinesBg({ theme }: DynamicLinesBgProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const mouseRef = useRef({ x: -1000, y: -1000, targetX: -1000, targetY: -1000 });
+  const { paused } = useAnimationOptOut();
+  // Mirror the live opt-out flag into a ref so the rAF closure can read the
+  // current value without re-subscribing (the effect runs once per `theme`).
+  const pausedRef = useRef(paused);
+  pausedRef.current = paused;
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -122,6 +128,14 @@ export default function DynamicLinesBg({ theme }: DynamicLinesBgProps) {
 
     // Draw Loop
     const draw = () => {
+      // While paused (tab hidden or reduced-motion), keep the last painted
+      // frame on the canvas and skip all redraw work — no flicker, no wasted
+      // CPU/GPU. The loop keeps scheduling frames so resume is automatic.
+      if (pausedRef.current) {
+        animationFrameId = requestAnimationFrame(draw);
+        return;
+      }
+
       ctx.clearRect(0, 0, width, height);
 
       // Smooth mouse transition
@@ -318,7 +332,7 @@ export default function DynamicLinesBg({ theme }: DynamicLinesBgProps) {
     draw();
 
     return () => {
-      cancelAnimationFrame(animationFrameId);
+      if (animationFrameId) cancelAnimationFrame(animationFrameId);
       window.removeEventListener("resize", handleResize);
       window.removeEventListener("mousemove", handleMouseMove);
       window.removeEventListener("mouseleave", handleMouseLeave);

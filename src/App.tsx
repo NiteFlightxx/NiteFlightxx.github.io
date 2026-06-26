@@ -26,9 +26,13 @@ import {
 } from "./translations";
 import type { Project, ContentArticle } from "./types";
 
-// Asset references
-import heroImage from "./assets/images/hero_cinematic_rendering_1782300621428.jpg";
-const HERO_IMAGE_URL: string = heroImage.src;
+// Asset references — modern formats only. AVIF (56KB) is ~6% of the original
+// JPEG (875KB); WebP covers browsers without AVIF. Both formats are supported
+// by every browser released since 2020, so no JPEG fallback is shipped.
+import heroAvif from "./assets/images/hero.avif";
+import heroWebp from "./assets/images/hero.webp";
+const HERO_IMAGE_AVIF: string = heroAvif.src;
+const HERO_IMAGE_WEBP: string = heroWebp.src;
 
 interface AppProps {
   // Markdown-backed content (pre-rendered HTML + KaTeX at build time by Astro)
@@ -60,6 +64,19 @@ export default function App({ knowledgeArticles = [], labExperiments = [] }: App
 
   const selectedProject = selectedProjectId ? projects.find(p => p.id === selectedProjectId) || null : null;
 
+  // Persist + restore theme. SSR renders "dark" (no localStorage on server),
+  // then this effect reconciles to the stored value on mount and on every
+  // toggle. Toggling writes back so the choice survives reloads.
+  useEffect(() => {
+    const stored = localStorage.getItem("theme");
+    if (stored === "light" || stored === "dark") {
+      setTheme(stored);
+    }
+  }, []);
+  useEffect(() => {
+    localStorage.setItem("theme", theme);
+  }, [theme]);
+
   // Smooth scroll to top on page switches
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -76,7 +93,8 @@ export default function App({ knowledgeArticles = [], labExperiments = [] }: App
             labExperiments={experiments}
             onSelectProject={(proj) => setSelectedProjectId(proj.id)}
             setActiveTab={setActiveTab}
-            heroImageUrl={HERO_IMAGE_URL}
+            heroImageAvif={HERO_IMAGE_AVIF}
+            heroImageWebp={HERO_IMAGE_WEBP}
             lang={lang}
           />
         );
@@ -128,7 +146,7 @@ export default function App({ knowledgeArticles = [], labExperiments = [] }: App
       <div className="fixed inset-0 -z-15 pointer-events-none opacity-90">
         <SideRays
           speed={2.5}
-          rayColor1="#EAB308"
+          rayColor1="#bcfd49"
           rayColor2="#96c8ff"
           intensity={2.0}
           spread={2.0}

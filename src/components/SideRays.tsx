@@ -1,5 +1,6 @@
 import React, { useRef, useEffect, useState } from 'react';
 import { Renderer, Program, Triangle, Mesh } from 'ogl';
+import { useAnimationOptOut } from '../lib/useAnimationOptOut';
 import './SideRays.css';
 
 interface SideRaysProps {
@@ -53,6 +54,11 @@ export const SideRays: React.FC<SideRaysProps> = ({
   const cleanupFunctionRef = useRef<(() => void) | null>(null);
   const [isVisible, setIsVisible] = useState(false);
   const observerRef = useRef<IntersectionObserver | null>(null);
+  const { paused } = useAnimationOptOut();
+  // Mirror into a ref so the rAF `loop` closure (captured once per
+  // initializeWebGL) reads the live value without re-initializing WebGL.
+  const pausedRef = useRef(paused);
+  pausedRef.current = paused;
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -210,13 +216,18 @@ void main() {
 
       const loop = (t: number) => {
         if (!rendererRef.current || !uniformsRef.current || !meshRef.current) return;
-        uniforms.iTime.value = t * 0.001;
-        try {
-          renderer.render({ scene: mesh });
-          animationIdRef.current = requestAnimationFrame(loop);
-        } catch (e) {
-          return;
+        // While paused (tab hidden / reduced-motion), keep the last rendered
+        // WebGL frame on screen and skip the render call — no flicker, no
+        // wasted GPU. The loop keeps scheduling so resume is automatic.
+        if (!pausedRef.current) {
+          uniforms.iTime.value = t * 0.001;
+          try {
+            renderer.render({ scene: mesh });
+          } catch (e) {
+            return;
+          }
         }
+        animationIdRef.current = requestAnimationFrame(loop);
       };
 
       window.addEventListener('resize', updateSize);

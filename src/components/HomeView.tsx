@@ -15,7 +15,8 @@ interface HomeViewProps {
   labExperiments: ContentArticle[];
   onSelectProject: (project: Project) => void;
   setActiveTab: (tab: string) => void;
-  heroImageUrl: string;
+  heroImageAvif: string;
+  heroImageWebp: string;
   lang: "zh" | "en";
 }
 
@@ -25,7 +26,8 @@ export default function HomeView({
   labExperiments,
   onSelectProject,
   setActiveTab,
-  heroImageUrl,
+  heroImageAvif,
+  heroImageWebp,
   lang,
 }: HomeViewProps) {
   const t = UI_TRANSLATIONS[lang];
@@ -66,7 +68,13 @@ export default function HomeView({
           <div className="absolute w-[600px] h-[400px] bg-white/5 glow-ambient bottom-10" />
           <div className="absolute inset-0 opacity-20 bg-[linear-gradient(rgba(255,255,255,0.02)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.02)_1px,transparent_1px)] bg-[size:32px_32px]" />
           <div className="absolute right-0 top-1/4 w-full max-w-[650px] aspect-video opacity-10 blur-xl pointer-events-none">
-            <img src={heroImageUrl} alt="" referrerPolicy="no-referrer" className="w-full h-full object-cover rounded-full" />
+            <picture>
+              <source srcSet={heroImageAvif} type="image/avif" />
+              <source srcSet={heroImageWebp} type="image/webp" />
+              {/* Fallback src uses WebP (92KB), not the 875KB JPEG — AVIF+WebP
+                  cover all modern browsers, so a JPEG fallback isn't shipped. */}
+              <img src={heroImageWebp} alt="" referrerPolicy="no-referrer" className="w-full h-full object-cover rounded-full" />
+            </picture>
           </div>
         </div>
 
