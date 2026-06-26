@@ -317,12 +317,6 @@ $$
 
 5 次即收敛，比雅可比（10 次）快一倍。
 
-> 🧮 **交互画板（Desmos）**：下面嵌入一个 Desmos 交互图，可拖动滑块、缩放坐标轴实时观察曲线变化。
-
-<iframe class="calc-embed" loading="lazy" src="https://www.desmos.com/calculator/3l8c9bttav?embed"></iframe>
-
-> 两条误差曲线都近似直线，说明误差按固定比率线性衰减（即 $\rho^k$，谱半径 $\rho$ 越小斜率越陡）。高斯-赛德尔更陡、更早触底——"快一倍"在图上就是横坐标提前了一半。
-
 ### 4.4 代码实现
 
 ```cpp
