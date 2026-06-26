@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
-import { Cpu, Terminal, ArrowUpRight } from "lucide-react";
+import { ArrowUpRight } from "lucide-react";
+import Logo from "./Logo";
 import { UI_TRANSLATIONS } from "../translations";
 
 interface FooterProps {
@@ -33,7 +34,7 @@ export default function Footer({ lang, theme }: FooterProps) {
         {/* Left: Metadata */}
         <div className="flex flex-col justify-between gap-4 md:max-w-md">
           <div className="flex items-center gap-2">
-            <Cpu className="w-4 h-4 text-brand-accent-orange" />
+            <Logo className="w-4 h-4 text-brand-accent-orange" />
             <span className="font-display font-medium text-xs tracking-wider text-white">
               NITE SYSTEMS INC.
             </span>

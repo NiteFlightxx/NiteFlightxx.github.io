@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { Terminal, Menu, X, Github, Linkedin, Cpu, Sun, Moon } from "lucide-react";
+import { Menu, X, Github, Linkedin, Sun, Moon } from "lucide-react";
+import Logo from "./Logo";
 import { UI_TRANSLATIONS } from "../translations";
 
 interface HeaderProps {
@@ -37,7 +38,7 @@ export default function Header({
           id="nav-logo"
         >
           <div className="relative w-9 h-9 rounded bg-brand-gray-800 border border-white/15 flex items-center justify-center overflow-hidden transition-all duration-300 group-hover:border-brand-accent-orange/50">
-            <Cpu className="w-5 h-5 text-gray-200 transition-colors duration-300 group-hover:text-brand-accent-orange" />
+            <Logo className="w-5 h-5 text-gray-200 transition-colors duration-300 group-hover:text-brand-accent-orange" />
             <div className="absolute inset-0 bg-gradient-to-tr from-brand-accent-orange/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
           </div>
           <div className="flex flex-col">

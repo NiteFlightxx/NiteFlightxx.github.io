@@ -44,6 +44,7 @@ const {
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <title>{title} · Nite</title>
     <meta name="description" content={excerpt ?? title} />
     <link
@@ -76,7 +77,12 @@ const {
     {/* Sticky minimal top bar */}
     <header class="sticky top-0 z-50 glass-panel border-b border-white/10 px-6 md:px-12 py-3.5 flex items-center justify-between select-none">
       <div class="flex items-center gap-4">
-        <a href="/" class="font-display font-black text-base tracking-widest text-white hover:text-brand-accent-lime transition-colors">
+        <a href="/" class="flex items-center gap-2 font-display font-black text-base tracking-widest text-white hover:text-brand-accent-lime transition-colors">
+          <svg class="w-5 h-5" viewBox="0 0 512 512" fill="currentColor" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+            <path d="M150 150L170 170L170 350L150 370Z"/>
+            <path transform="translate(10, 0)" d="M340 120L360 100L360 300L340 280Z"/>
+            <path d="M140 110 C200 120,250 180,300 260 C330 305,365 340,400 355 C360 350,315 320,265 250 C220 185,195 135,140 110 Z"/>
+          </svg>
           NITE
         </a>
         <span class="hidden sm:block text-[10px] font-mono text-gray-600 tracking-widest">/ {category}</span>
