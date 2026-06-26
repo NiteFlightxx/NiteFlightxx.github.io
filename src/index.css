@@ -342,6 +342,29 @@ body {
   border-radius: 0.5rem;
 }
 
+/* Inline charts / diagrams (hand-written <svg> in markdown). Scoped by class
+   so KaTeX's internal SVGs are never affected. */
+.article-body .inline-chart {
+  display: block;
+  width: 100%;
+  max-width: 640px;
+  height: auto;
+  margin: 1.5rem auto;
+  border-radius: 0.5rem;
+}
+
+/* Responsive 16:9 embeds for external iframes (GeoGebra applets, Bilibili /
+   YouTube players). Scoped by class so it never touches other elements. */
+.article-body .video-embed {
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  max-width: 800px;
+  margin: 1.5rem auto;
+  border: 0;
+  border-radius: 0.5rem;
+}
+
 /* Protect monospace + math from the site-wide HEAVY (900) override:
    fake-bold would distort KaTeX glyphs and blur code. */
 code,
