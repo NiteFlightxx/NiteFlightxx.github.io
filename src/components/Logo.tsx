@@ -11,7 +11,7 @@ export default function Logo({ className }: LogoProps) {
   return (
     <svg
       className={className}
-      viewBox="0 0 512 512"
+      viewBox="132 92 284 296"
       fill="currentColor"
       xmlns="http://www.w3.org/2000/svg"
       aria-hidden="true"
