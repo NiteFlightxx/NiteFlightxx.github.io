@@ -46,7 +46,7 @@ export default function Header({
               NITE
             </span>
             <span className="text-[10px] font-mono text-gray-400 tracking-widest leading-none mt-0.5">
-              物理、动画工程师
+              程序向 TA
             </span>
           </div>
         </div>
