@@ -1,0 +1,59 @@
+---
+// Shared <head> SEO metadata: description, canonical, Open Graph, Twitter
+// Card, and font preconnect. Favicon is NOT emitted here — both Layout.astro
+// and ArticleLayout.astro already link their own /favicon.svg, so emitting it
+// again would duplicate the tag.
+//
+// `canonicalPath` is the pathname relative to the site root ('/' or
+// '/knowledge/foo/'); it is resolved to an absolute URL for OG/Twitter, which
+// require absolute URLs.
+import { SITE } from '../consts';
+
+interface Props {
+  title: string;
+  description?: string;
+  image?: string; // absolute site path, e.g. '/og-image.jpg'
+  imageAlt?: string;
+  type?: 'website' | 'article';
+  canonicalPath?: string;
+}
+
+const {
+  title,
+  description = SITE.description,
+  image = SITE.ogImage,
+  imageAlt = SITE.ogImageAlt,
+  type = 'website',
+  canonicalPath = '/',
+} = Astro.props;
+
+const canonical = new URL(canonicalPath, `${SITE.url}/`).href;
+const imageUrl = new URL(image, `${SITE.url}/`).href;
+---
+
+<meta name="description" content={description} />
+<link rel="canonical" href={canonical} />
+<meta name="author" content={SITE.author} />
+<meta name="theme-color" content="#000000" />
+
+<!-- Open Graph -->
+<meta property="og:type" content={type} />
+<meta property="og:site_name" content={SITE.shortTitle} />
+<meta property="og:locale" content={SITE.locale} />
+<meta property="og:url" content={canonical} />
+<meta property="og:title" content={title} />
+<meta property="og:description" content={description} />
+<meta property="og:image" content={imageUrl} />
+<meta property="og:image:alt" content={imageAlt} />
+
+<!-- Twitter Card -->
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content={title} />
+<meta name="twitter:description" content={description} />
+<meta name="twitter:image" content={imageUrl} />
+<meta name="twitter:image:alt" content={imageAlt} />
+
+<!-- Fonts: preconnect before the stylesheet request so the CSS isn't queued
+     behind a cold DNS/TLS handshake on first paint. -->
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />

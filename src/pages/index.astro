@@ -8,5 +8,5 @@ const labExperiments = await loadLab();
 ---
 
 <Layout>
-  <App client:only="react" knowledgeArticles={knowledgeArticles} labExperiments={labExperiments} />
+  <App client:load knowledgeArticles={knowledgeArticles} labExperiments={labExperiments} />
 </Layout>

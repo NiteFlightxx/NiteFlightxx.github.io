@@ -1,4 +1,6 @@
 ---
+import BaseHead from '../components/BaseHead.astro';
+import { SITE } from '../consts';
 import 'katex/dist/katex.min.css';
 import '../index.css';
 
@@ -6,7 +8,7 @@ interface Props {
   title?: string;
 }
 
-const title = Astro.props.title ?? 'Nite | 个人研发实验室';
+const title = Astro.props.title ?? SITE.title;
 ---
 
 <!doctype html>
@@ -16,10 +18,7 @@ const title = Astro.props.title ?? 'Nite | 个人研发实验室';
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <title>{title}</title>
-    <link
-      rel="stylesheet"
-      href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Noto+Sans+SC:wght@900&display=swap"
-    />
+    <BaseHead title={title} type="website" canonicalPath="/" />
   </head>
   <body>
     <slot />
