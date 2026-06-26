@@ -478,6 +478,10 @@ void RedBlackGaussSeidel(const FMatrix& A, const TArray<float>& b,
 }
 ```
 
+> 📺 **占位动图**：演示红节点先并行更新、黑节点再并行更新的两阶段 sweep。把 `red-black-coloring.gif` 放进 `public/gifs/` 后即显示。
+
+![Red-Black 染色并行高斯-赛德尔的两阶段 sweep 过程](/gifs/red-black-coloring.gif)
+
 #### 5.4.6 多色排序（Multi-color）
 
 红黑是 2 色的特例。当模板更大（比如 3D 的 7 点模板）或网格不规则（三角形/四面体网格、非结构化网格）时，依赖图不是二部图，2 色不够，需要更多颜色：
