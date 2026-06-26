@@ -1,5 +1,5 @@
 ---
-title: "虚幻引擎 IK Retargeter Op 堆栈的数学原理"
+title: "UE IK Retargeter Op 堆栈的数学原理详解 — 堆栈架构与逐 Op 公式拆解"
 excerpt: "基于 Unreal Engine 5.9 IKRig 插件源码，系统剖析 IK Retargeter 的 Op 堆栈架构、共享的 One Euro Filter 平滑原语，以及全部 20 个活跃 Op 的功能、数学原理与参数。从骨盆运动、FK 链重定向到 IK 目标偏移、地面约束的 Rodrigues 趾弯曲求解，逐个拆解其公式推导与代码落地。"
 date: "2026-06-25"
 category: "Animation"
