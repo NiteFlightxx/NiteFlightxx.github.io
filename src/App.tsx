@@ -12,7 +12,6 @@ import Footer from "./components/Footer";
 import HomeView from "./components/HomeView";
 import ProjectsView from "./components/ProjectsView";
 import KnowledgeView from "./components/KnowledgeView";
-import LabView from "./components/LabView";
 import ArchiveView from "./components/ArchiveView";
 import ProjectDetailModal from "./components/ProjectDetailModal";
 import DynamicLinesBg from "./components/DynamicLinesBg";
@@ -37,13 +36,12 @@ const HERO_IMAGE_WEBP: string = heroWebp.src;
 interface AppProps {
   // Markdown-backed content (pre-rendered HTML + KaTeX at build time by Astro)
   knowledgeArticles?: ContentArticle[];
-  labExperiments?: ContentArticle[];
 }
 
-export default function App({ knowledgeArticles = [], labExperiments = [] }: AppProps) {
+export default function App({ knowledgeArticles = [] }: AppProps) {
   // Initial tab from the URL hash (e.g. "#knowledge") so article-page "back" links
   // land on the originating feed tab. Falls back to "home" for unknown/empty hashes.
-  const validTabs = ["home", "projects", "knowledge", "lab", "archive"];
+  const validTabs = ["home", "projects", "knowledge", "archive"];
   const hashTab = typeof window !== "undefined"
     ? window.location.hash.replace(/^#/, "")
     : "";
@@ -58,7 +56,6 @@ export default function App({ knowledgeArticles = [], labExperiments = [] }: App
 
   const projects = PROJECTS_ZH as Project[];
   const knowledge = knowledgeArticles;
-  const experiments = labExperiments;
   const skills = SKILLS_ZH;
   const timeline = TIMELINE_ZH;
 
@@ -90,7 +87,6 @@ export default function App({ knowledgeArticles = [], labExperiments = [] }: App
           <HomeView
             projects={projects}
             knowledgeArticles={knowledge}
-            labExperiments={experiments}
             onSelectProject={(proj) => setSelectedProjectId(proj.id)}
             setActiveTab={setActiveTab}
             heroImageAvif={HERO_IMAGE_AVIF}
@@ -110,13 +106,6 @@ export default function App({ knowledgeArticles = [], labExperiments = [] }: App
         return (
           <KnowledgeView
             articles={knowledge}
-            lang={lang}
-          />
-        );
-      case "lab":
-        return (
-          <LabView
-            experiments={experiments}
             lang={lang}
           />
         );

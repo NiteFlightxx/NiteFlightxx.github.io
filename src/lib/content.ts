@@ -5,7 +5,7 @@ import remarkRehype from 'remark-rehype';
 import rehypeKatex from 'rehype-katex';
 import rehypeStringify from 'rehype-stringify';
 import matter from 'gray-matter';
-import { knowledgeCategoryZh, knowledgeSubtopicZh, labTopicZh } from './taxonomy';
+import { knowledgeCategoryZh, knowledgeSubtopicZh } from './taxonomy';
 import type { ContentArticle } from '../types';
 
 // Shared Markdown -> HTML pipeline (remark-math + rehype-katex at build time).
@@ -91,23 +91,3 @@ export async function loadKnowledge(): Promise<ContentArticle[]> {
   });
 }
 
-/** Load lab experiments (实验室). topic is mapped onto `category` for the shared shape. */
-export async function loadLab(): Promise<ContentArticle[]> {
-  const modules = import.meta.glob<string>('/src/content/lab/*.md', {
-    query: '?raw',
-    import: 'default',
-  });
-  const entries = sortByDateDesc(await loadRaw(modules));
-  return entries.map((e) => ({
-    id: e.slug,
-    slug: e.slug,
-    title: String(e.data.title ?? ''),
-    excerpt: String(e.data.excerpt ?? ''),
-    date: formatZhDate(e.isoDate),
-    category: labTopicZh(String(e.data.topic ?? '')), // Lab "topic" surfaces as category
-    tags: Array.isArray(e.data.tags) ? (e.data.tags as string[]) : [],
-    readTime: undefined, // Lab experiments have no read-time estimate
-    html: e.html,
-    searchText: e.searchText,
-  }));
-}

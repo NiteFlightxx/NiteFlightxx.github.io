@@ -15,7 +15,6 @@ const NAV_ITEMS = [
   { id: "home", labelZh: "首页" },
   { id: "projects", labelZh: "项目" },
   { id: "knowledge", labelZh: "知识库" },
-  { id: "lab", labelZh: "实验室" },
   { id: "archive", labelZh: "档案" },
 ];
 

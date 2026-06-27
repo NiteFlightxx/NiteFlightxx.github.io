@@ -1,9 +1,9 @@
 /**
  * Content data for the Personal R&D Lab site.
  * Skeleton/placeholder content — to be filled in during content redesign.
- * Blog and research data have been migrated to Markdown collections
- * (src/content/knowledge + src/content/lab); only projects/skills/timeline
- * remain as data objects here.
+ * Research data has been migrated to the Markdown knowledge collection
+ * (src/content/knowledge); only projects/skills/timeline remain as data
+ * objects here.
  */
 
 export const UI_TRANSLATIONS = {
@@ -17,11 +17,8 @@ export const UI_TRANSLATIONS = {
     // Home sections
     featuredSystems: "精选系统",
     recentKnowledge: "最新知识",
-    currentExperiments: "当前实验",
-    researchTimeline: "研究时间线",
     viewAllProjects: "查看全部项目",
     viewAllKnowledge: "查看全部知识",
-    viewAllExperiments: "查看全部实验",
     // Projects
     filterSpecialization: "筛选分类:",
     all: "全部",
@@ -36,7 +33,7 @@ export const UI_TRANSLATIONS = {
     outcomes: "项目成果",
     references: "参考资料",
     techStack: "技术栈",
-    // Knowledge / Lab
+    // Knowledge
     searchPlaceholder: "搜索引擎、物理、动画、C++ 代码...",
     resetFilters: "重置筛选",
     filterTag: "标签筛选:",
@@ -46,8 +43,6 @@ export const UI_TRANSLATIONS = {
     allSubtopics: "全部主题",
     noArticlesFound: "未找到匹配内容",
     refineSearch: "请优化搜索关键词或选择其他标签。",
-    researchMap: "研究地图",
-    experiment: "实验",
     // Article viewer
     backToFeed: "返回列表",
     share: "分享",
@@ -87,11 +82,8 @@ export const UI_TRANSLATIONS = {
     // Home sections
     featuredSystems: "Featured Systems",
     recentKnowledge: "Recent Knowledge",
-    currentExperiments: "Current Experiments",
-    researchTimeline: "Research Timeline",
     viewAllProjects: "View All Projects",
     viewAllKnowledge: "View All Knowledge",
-    viewAllExperiments: "View All Experiments",
     // Projects
     filterSpecialization: "Filter Category:",
     all: "All",
@@ -106,7 +98,7 @@ export const UI_TRANSLATIONS = {
     outcomes: "Outcomes",
     references: "References",
     techStack: "Tech Stack",
-    // Knowledge / Lab
+    // Knowledge
     searchPlaceholder: "Search engine, physics, animation, C++...",
     resetFilters: "Reset Filters",
     filterTag: "Filter Tag:",
@@ -116,8 +108,6 @@ export const UI_TRANSLATIONS = {
     allSubtopics: "All Subtopics",
     noArticlesFound: "No matching content found",
     refineSearch: "Refine your search or select a different tag.",
-    researchMap: "Research Map",
-    experiment: "Experiment",
     // Article viewer
     backToFeed: "Back to List",
     share: "Share",

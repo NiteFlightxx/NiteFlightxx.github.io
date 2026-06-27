@@ -1,7 +1,7 @@
 import React from "react";
 import { motion } from "motion/react";
 import type { Variants } from "motion/react";
-import { ArrowRight, Calendar } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import type { Project, ContentArticle } from "../types";
 import { projectCategoryZh } from "../lib/taxonomy";
 import { UI_TRANSLATIONS } from "../translations";
@@ -12,7 +12,6 @@ const BASE_URL = import.meta.env.BASE_URL;
 interface HomeViewProps {
   projects: Project[];
   knowledgeArticles: ContentArticle[];
-  labExperiments: ContentArticle[];
   onSelectProject: (project: Project) => void;
   setActiveTab: (tab: string) => void;
   heroImageAvif: string;
@@ -23,7 +22,6 @@ interface HomeViewProps {
 export default function HomeView({
   projects,
   knowledgeArticles,
-  labExperiments,
   onSelectProject,
   setActiveTab,
   heroImageAvif,
@@ -36,9 +34,6 @@ export default function HomeView({
   // Aggregated highlights (by content value, not by source)
   const featured = projects.slice(0, 2);
   const recentKnowledge = knowledgeArticles.slice(0, 2);
-  const currentExperiments = labExperiments.slice(0, 2);
-  // Research timeline: most recent lab experiments by date
-  const researchTimeline = labExperiments.slice(0, 4);
 
   const containerVariants: Variants = {
     hidden: { opacity: 0 },
@@ -237,91 +232,6 @@ export default function HomeView({
                 )}
               </a>
             </BorderGlow>
-          ))}
-        </div>
-      </section>
-
-      {/* ===== Current Experiments (from Lab) ===== */}
-      <section className="px-6 md:px-12 max-w-7xl mx-auto space-y-8">
-        <motion.div variants={itemVariants} className="flex items-end justify-between border-b border-white/5 pb-4">
-          <div className="space-y-1">
-            <h2 className="font-display font-black text-2xl md:text-4.5xl text-white tracking-tight">{t.currentExperiments}</h2>
-          </div>
-          <button
-            onClick={() => setActiveTab("lab")}
-            className="group flex items-center gap-1.5 text-xs font-mono text-gray-400 hover:text-white transition-colors cursor-pointer"
-            id="view-all-experiments-btn"
-          >
-            {t.viewAllExperiments} <ArrowRight className="w-3.5 h-3.5 transition-transform group-hover:translate-x-0.5" />
-          </button>
-        </motion.div>
-
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          {currentExperiments.map((exp) => (
-            <BorderGlow
-              key={exp.id}
-              edgeSensitivity={30}
-              glowColor="76 95 64"
-              backgroundColor="#121214"
-              borderRadius={12}
-              glowRadius={45}
-              glowIntensity={1.15}
-              coneSpread={20}
-              colors={["#bcfd49", "#6366f1", "#4f46e5"]}
-              fillOpacity={0.16}
-              className="group cursor-pointer"
-            >
-              <a href={`${BASE_URL}lab/${exp.slug}`} target="_blank" rel="noopener noreferrer" className="block p-6 md:p-8 flex flex-col justify-between gap-4">
-                <div className="flex items-center justify-between text-xs font-mono">
-                  <span className="text-brand-accent-lime">{exp.category.toUpperCase()}</span>
-                  <span className="text-gray-500">{exp.date}</span>
-                </div>
-                <h3 className="font-display font-bold text-lg md:text-xl text-white group-hover:text-brand-accent-lime transition-colors">
-                  {exp.title}
-                </h3>
-                {exp.excerpt && (
-                  <p className="text-sm text-gray-300 leading-relaxed font-sans line-clamp-2">{exp.excerpt}</p>
-                )}
-                <span className="text-white opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center gap-1 font-mono text-[9px]">
-                  {t.experiment} <ArrowRight className="w-3 h-3 text-brand-accent-lime" />
-                </span>
-              </a>
-            </BorderGlow>
-          ))}
-        </div>
-      </section>
-
-      {/* ===== Research Timeline (recent lab experiments by date) ===== */}
-      <section className="px-6 md:px-12 max-w-7xl mx-auto space-y-8">
-        <motion.div variants={itemVariants} className="space-y-2 border-b border-white/5 pb-4">
-          <h2 className="font-display font-black text-2xl md:text-4.5xl text-white tracking-tight">{t.researchTimeline}</h2>
-        </motion.div>
-
-        <div className="relative border-l border-white/5 pl-6 space-y-6 ml-4">
-          {researchTimeline.map((exp) => (
-            <motion.div
-              key={exp.id}
-              variants={itemVariants}
-              className="relative space-y-2"
-            >
-              <span className="absolute -left-[31px] top-1.5 w-2 h-2 rounded-full bg-brand-accent-orange ring-4 ring-brand-black" />
-              <div className="flex items-center gap-2 text-xs font-mono text-gray-500">
-                <Calendar className="w-3 h-3 text-gray-600" />
-                <span>{exp.date}</span>
-                <span className="text-brand-accent-lime uppercase tracking-wider">{exp.category}</span>
-              </div>
-              <a
-                href={`${BASE_URL}lab/${exp.slug}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="font-display font-bold text-sm text-white hover:text-brand-accent-lime transition-colors block"
-              >
-                {exp.title}
-              </a>
-              {exp.excerpt && (
-                <p className="text-xs text-gray-400 leading-relaxed font-sans font-light line-clamp-1">{exp.excerpt}</p>
-              )}
-            </motion.div>
           ))}
         </div>
       </section>

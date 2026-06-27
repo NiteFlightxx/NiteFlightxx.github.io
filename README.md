@@ -2,7 +2,7 @@
 
 > Unreal Engine 工程师的个人作品 / 知识库站点。工程能力 · 研究能力 · 系统设计能力。
 
-基于 **Astro 5 + React 19** 的静态站点：首页为 React SPA 单页应用（`client:only="react"`），知识库 / 实验室文章为 Astro 原生静态路由页（独立 URL、左侧目录、KaTeX 公式）。部署于 GitHub Pages。
+基于 **Astro 5 + React 19** 的静态站点：首页为 React SPA 单页应用（`client:only="react"`），知识库文章为 Astro 原生静态路由页（独立 URL、左侧目录、KaTeX 公式）。部署于 GitHub Pages。
 
 线上地址：<https://niteflightxx.github.io/>
 
@@ -35,12 +35,10 @@ src/
 │
 ├── components/                # SPA 视图组件（React）
 │   ├── Header.tsx / Footer.tsx
-│   ├── HomeView.tsx           # 首页：精选系统 + 最新知识 + 当前实验 + 时间线
+│   ├── HomeView.tsx           # 首页：精选系统 + 最新知识
 │   ├── ProjectsView.tsx       # 项目卡片 + ProjectDetailModal 详情弹窗
 │   ├── KnowledgeView.tsx      # 知识库 feed（卡片 → 新标签页打开文章）
-│   ├── LabView.tsx            # 实验室 feed（同上）
 │   ├── ArchiveView.tsx        # 档案：技能矩阵
-│   ├── ResearchMap.tsx        # 研究方向树
 │   ├── ArticleToc.tsx         # 文章页左侧目录（分级折叠 + scroll-spy）
 │   ├── BorderGlow.tsx         # 卡片边框光效
 │   ├── SideRays.tsx           # 背景光线层
@@ -52,13 +50,11 @@ src/
 │
 ├── pages/
 │   ├── index.astro            # 首页（挂载 React App）
-│   ├── knowledge/[slug].astro # 知识库文章静态路由
-│   └── lab/[slug].astro       # 实验室文章静态路由
+│   └── knowledge/[slug].astro # 知识库文章静态路由
 │
 ├── content/
-│   ├── config.ts              # 内容集合 schema（knowledge + lab，zod）
-│   ├── knowledge/*.md         # 知识库文章
-│   └── lab/*.md               # 实验室文章
+│   ├── config.ts              # 内容集合 schema（knowledge，zod）
+│   └── knowledge/*.md         # 知识库文章
 │
 └── lib/
     ├── content.ts             # SPA 端内容加载器（import.meta.glob）
@@ -76,19 +72,19 @@ docs/
 
 ## 内容集合
 
-两个 Astro Content Collections，由 `src/content/config.ts` 的 zod schema 约束：
+一个 Astro Content Collection，由 `src/content/config.ts` 的 zod schema 约束：
 
-| | 知识库 `knowledge` | 实验室 `lab` |
-|---|---|---|
-| 定位 | 知识沉淀 / 技术分析 / 教学内容 | 研究记录 / 数学推导 / 原型开发 |
-| 分类字段 | `category` | `topic` |
-| 取值 | Engine / Physics / Animation / Rendering / Gameplay / AI / Mathematics | Simulation / Motion / Rendering / Gameplay / AI |
-| 路由 | `/knowledge/<slug>/` | `/lab/<slug>/` |
-| `readTime` | 必填 | 无 |
+| | 知识库 `knowledge` |
+|---|---|
+| 定位 | 知识沉淀 / 技术分析 / 教学内容 |
+| 分类字段 | `category` + `subtopic` |
+| 分类取值 | Engine / Physics / Animation / Rendering / Gameplay / AI / Mathematics |
+| 路由 | `/knowledge/<slug>/` |
+| `readTime` | 必填 |
 
 每篇文章点击后在**新标签页**打开，拥有独立可分享的永久链接；文章页左侧带分级折叠目录（每个 `##` 可独立折叠其 `###` 子项）+ scroll-spy 高亮。分类的中文显示名由 `src/lib/taxonomy.ts` 单一映射，frontmatter 只写英文枚举。
 
-**添加新文章请严格遵循 [`docs/ADDING_ARTICLES.md`](docs/ADDING_ARTICLES.md)**，其中规定了 frontmatter 模板、正文约定（不写手动目录、围栏式 `$$` 公式、标题层级）与发布前检查清单。`src/content/{knowledge,lab}/_template.md` 提供了可直接复制的模板。
+**添加新文章请严格遵循 [`docs/ADDING_ARTICLES.md`](docs/ADDING_ARTICLES.md)**，其中规定了 frontmatter 模板、正文约定（不写手动目录、围栏式 `$$` 公式、标题层级）与发布前检查清单。`src/content/knowledge/_template.md` 提供了可直接复制的模板。
 
 ---
 
@@ -131,7 +127,7 @@ npm run check    # astro check（类型检查，期望 0 errors 0 warnings）
 
 - **左侧目录**（`ArticleToc.tsx`）：按 H2 分级折叠，每个一级标题独立展开/收起其 H3 子项；IntersectionObserver scroll-spy 跟踪视口顶部最近标题并高亮；点击目录项平滑滚动 + 更新 URL hash
 - **正文排版**（`index.css` 的 `.article-body`）：标题、段落、列表、代码块、表格、引用、分割线、KaTeX 公式全套暗色主题样式；块级公式居中（围栏式 `$$`）
-- **返回导航**：顶栏「← 返回知识库/实验室」链接回 `/#knowledge` / `/#lab`，首页读取 `location.hash` 落到对应 tab
+- **返回导航**：顶栏「← 返回知识库」链接回 `/#knowledge`，首页读取 `location.hash` 落到对应 tab
 
 ---
 

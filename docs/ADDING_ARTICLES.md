@@ -1,23 +1,23 @@
 # 添加新文章标准工作流
 
-> 本文档是向网站「知识库 / 实验室」添加新文章的唯一权威流程。每篇新文档都必须按此流程执行，以保证分类、路由、目录、公式渲染与样式全部一致。
+> 本文档是向网站「知识库」添加新文章的唯一权威流程。每篇新文档都必须按此流程执行，以保证分类、路由、目录、公式渲染与样式全部一致。
 
 ---
 
-## 0. 两个集合的差异
+## 0. 集合定义
 
-| | 知识库 Knowledge | 实验室 Lab |
-|---|---|---|
-| 目的 | 知识沉淀 / 技术分析 / 经验总结 / 教学内容 | 研究记录 / 数学推导 / 算法探索 / 原型开发 |
-| 目录 | `src/content/knowledge/*.md` | `src/content/lab/*.md` |
-| 分类字段 | `category` + `subtopic` | `topic` |
-| 分类取值 | Engine / Physics / Animation / Rendering / Gameplay / AI / Mathematics | Simulation / Motion / Rendering / Gameplay / AI |
-| 子主题取值 | 见下方「知识库子主题词表」（受控枚举，与 category 配对） | — |
-| 路由 | `/knowledge/<slug>/` | `/lab/<slug>/` |
-| 返回链接 | `/#knowledge`（落到知识库 tab） | `/#lab`（落到实验室 tab） |
-| `readTime` 字段 | **必填** | 不需要 |
+| | 知识库 Knowledge |
+|---|---|
+| 目的 | 知识沉淀 / 技术分析 / 经验总结 / 教学内容 |
+| 目录 | `src/content/knowledge/*.md` |
+| 分类字段 | `category` + `subtopic` |
+| 分类取值 | Engine / Physics / Animation / Rendering / Gameplay / AI / Mathematics |
+| 子主题取值 | 见下方「知识库子主题词表」（受控枚举，与 category 配对） |
+| 路由 | `/knowledge/<slug>/` |
+| 返回链接 | `/#knowledge`（落到知识库 tab） |
+| `readTime` 字段 | **必填** |
 
-分类的中文显示名由 `src/lib/taxonomy.ts` 的 `KNOWLEDGE_CATEGORIES` / `LAB_TOPICS` 单一映射，**不要**在前matter 里写中文，写英文枚举即可。知识库的 `subtopic` 同理，中文显示名由 `KNOWLEDGE_SUBTOPICS` 映射。
+分类的中文显示名由 `src/lib/taxonomy.ts` 的 `KNOWLEDGE_CATEGORIES` 单一映射，**不要**在前matter 里写中文，写英文枚举即可。`subtopic` 同理，中文显示名由 `KNOWLEDGE_SUBTOPICS` 映射。
 
 ### 知识库子主题词表（受控枚举）
 
@@ -41,7 +41,6 @@
 
 ```
 src/content/knowledge/<slug>.md        # 如 ue-fullbody-ik-math.md
-src/content/lab/<slug>.md              # 如 chaos-constraint-solver.md
 ```
 
 > ⚠️ 文件名一旦发布即为永久链接的一部分，不要事后改名（会导致外链失效）。
@@ -64,18 +63,6 @@ readTime: "阅读约35分钟"
 ---
 ```
 
-### 实验室模板
-
-```markdown
----
-title: "Chaos 约束求解器推导"
-excerpt: "从约束雅可比出发推导 Chaos 物理约束求解器的 PBD/XPBD 数学形式。"
-date: "2026-07-01"
-topic: "Simulation"
-tags: ["Chaos", "物理", "PBD", "数学"]
----
-```
-
 ### 字段规则
 
 | 字段 | 必填 | 规则 |
@@ -83,15 +70,15 @@ tags: ["Chaos", "物理", "PBD", "数学"]
 | `title` | 是 | 文章标题，必须遵循下方「标题命名规范」 |
 | `excerpt` | 是 | 一句话摘要，用于卡片预览 + `<meta description>` |
 | `date` | 是 | ISO 日期 `YYYY-MM-DD`，发布日 |
-| `category` / `topic` | 是 | 必须是上方枚举值之一（区分大小写） |
-| `subtopic` | 知识库必填 / 实验室无 | 必须是对应 category 下的子主题枚举（见上表，区分大小写） |
+| `category` | 是 | 必须是上方枚举值之一（区分大小写） |
+| `subtopic` | 是 | 必须是对应 category 下的子主题枚举（见上表，区分大小写） |
 | `tags` | 是 | 字符串数组，3–6 个，混合中文标签可 |
-| `readTime` | 知识库必填 / 实验室无 | 显示串如 `"阅读约40分钟"` |
+| `readTime` | 是 | 显示串如 `"阅读约40分钟"` |
 | `draft` | 否 | `true` 则不生成路由、不出现在卡片列表（默认 `false`） |
 
 ### 标题命名规范
 
-知识库所有文章的 `title` 必须遵循统一句式，保证卡片列表视觉一致、读者能一眼判断"讲什么 / 多硬核 / 属哪个领域"。实验室文档可参照执行。
+知识库所有文章的 `title` 必须遵循统一句式，保证卡片列表视觉一致、读者能一眼判断"讲什么 / 多硬核 / 属哪个领域"。
 
 **统一句式**：
 
@@ -203,14 +190,14 @@ npm run dev
 
 打开 `http://localhost:4324/`（端口被占用会自动顺延，看终端输出）：
 
-1. 进入对应 tab（知识库 / 实验室），确认卡片出现
+1. 进入知识库 tab，确认卡片出现
 2. 点击卡片 → **新标签页打开**文章页
 3. 检查：
    - 左侧目录列出所有 `##` / `###`
    - 点击目录项 → 平滑滚动到对应章节
    - 滚动正文 → 目录高亮跟随（scroll-spy）
    - 公式**居中**显示，无红色错误
-   - 顶部「← 返回知识库/实验室」回到对应 tab
+   - 顶部「← 返回知识库」回到对应 tab
 
 类型 + 构建检查：
 
@@ -241,7 +228,6 @@ npm run build        # 应生成对应路由 HTML
 | `src/content/config.ts` | 集合 schema 定义 | 新增分类枚举时 |
 | `src/lib/taxonomy.ts` | 分类中文映射（单一真相源） | 新增分类时同步 |
 | `src/pages/knowledge/[slug].astro` | 知识库文章路由 | 一般不动 |
-| `src/pages/lab/[slug].astro` | 实验室文章路由 | 一般不动 |
 | `src/layouts/ArticleLayout.astro` | 文章页布局（TOC + 正文） | 调整版式时 |
 | `src/components/ArticleToc.tsx` | 左侧目录（折叠 + scroll-spy） | 调整目录行为时 |
 | `src/index.css` `.article-body` 段 | 正文排版样式 | 调整正文样式时 |

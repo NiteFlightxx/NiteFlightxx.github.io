@@ -23,9 +23,9 @@ export interface Project {
   mediaUrl?: string;
 }
 
-// ---- Shared runtime shape for Markdown-backed content (Knowledge + Lab) ----
-// Both loaders return objects satisfying this interface so ArticleViewer can be
-// reused for both knowledge articles and lab experiments.
+// ---- Shared runtime shape for Markdown-backed content (Knowledge) ----
+// The knowledge loader returns objects satisfying this interface so
+// ArticleViewer can render them.
 export interface ContentArticle {
   id: string;
   slug: string;
@@ -36,7 +36,7 @@ export interface ContentArticle {
   categoryKey?: string; // raw enum key (e.g. "Physics"), for subtopic cascading lookup
   subtopic?: string; // localized subtopic label (e.g. "飞控系统")
   tags: string[];
-  readTime?: string; // Knowledge has it; Lab does not
+  readTime?: string; // estimated reading time
   html: string; // pre-rendered HTML (Markdown + KaTeX)
   searchText: string; // plain-text body for search
 }

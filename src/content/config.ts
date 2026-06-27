@@ -12,8 +12,6 @@ const KNOWLEDGE_CATEGORIES = [
   'Mathematics',
 ] as const;
 
-const LAB_TOPICS = ['Simulation', 'Motion', 'Rendering', 'Gameplay', 'AI'] as const;
-
 // 受控子主题词表：每个分类下的固定子主题枚举。
 // 与 KNOWLEDGE_CATEGORIES 一一对应，作者只能从此列表中选取 subtopic，
 // 避免 tags 式的自由膨胀。新增子主题需在此处与 taxonomy.ts 同步登记。
@@ -77,17 +75,4 @@ const knowledge = defineCollection({
   }),
 });
 
-// 实验室 — 研究记录 / 数学推导 / 算法探索 / 原型开发
-const lab = defineCollection({
-  type: 'content',
-  schema: z.object({
-    title: z.string(),
-    excerpt: z.string(),
-    date: z.string(), // ISO date
-    topic: z.enum(LAB_TOPICS),
-    tags: z.array(z.string()),
-    draft: z.boolean().optional().default(false),
-  }),
-});
-
-export const collections = { knowledge, lab };
+export const collections = { knowledge };
