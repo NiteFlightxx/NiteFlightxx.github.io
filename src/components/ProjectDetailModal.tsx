@@ -1,12 +1,20 @@
 import React, { useState } from "react";
 import { motion } from "motion/react";
-import { X, Check, Copy, FileCode, ArrowRight, BookOpen } from "lucide-react";
+import { X, Check, Copy, FileCode, ArrowRight, ArrowUpRight, BookOpen, Github, ExternalLink } from "lucide-react";
 import type { Project } from "../types";
 import { projectCategoryZh, projectStatusZh } from "../lib/taxonomy";
 import { UI_TRANSLATIONS } from "../translations";
 
 // Site base path (GitHub Pages sub-path aware), same convention as KnowledgeView.
 const BASE_URL = import.meta.env.BASE_URL;
+
+// Extract a Bilibili bvid from either a full URL (https://www.bilibili.com/video/BV1xQja61EQU/)
+// or a bare bvid (BV1xQja61EQU). Returns null if no valid bvid is found, so the
+// caller can silently skip rendering the video block.
+function resolveBilibiliBvid(input: string): string | null {
+  const m = input.match(/(BV[\w]{10})/);
+  return m ? m[1] : null;
+}
 
 interface ProjectDetailModalProps {
   project: Project;
@@ -100,6 +108,32 @@ export default function ProjectDetailModal({ project, onClose, lang }: ProjectDe
             </div>
           </div>
 
+          {/* Demo video — Bilibili embed (rendered only when a valid bvid resolves) */}
+          {(() => {
+            const bvid = project.mediaUrl ? resolveBilibiliBvid(project.mediaUrl) : null;
+            if (!bvid) return null;
+            const src = `https://player.bilibili.com/player.html?bvid=${bvid}&page=1&high_quality=1&autoplay=0`;
+            return (
+              <div className="space-y-2">
+                <h3 className="font-mono text-[10px] text-brand-accent-lime uppercase tracking-widest">
+                  {lang === "zh" ? "演示视频" : "Demo Video"}
+                </h3>
+                <div className="relative w-full overflow-hidden rounded-xl border border-white/10 bg-brand-black">
+                  <iframe
+                    src={src}
+                    title={project.title}
+                    loading="lazy"
+                    scrolling="no"
+                    frameBorder={0}
+                    allowFullScreen
+                    className="block w-full aspect-video"
+                    referrerPolicy="no-referrer"
+                  />
+                </div>
+              </div>
+            );
+          })()}
+
           {/* 1. Overview */}
           <div className="space-y-2">
             <h3 className="font-mono text-[10px] text-brand-accent-orange uppercase tracking-widest">{t.overview}</h3>
@@ -171,80 +205,80 @@ export default function ProjectDetailModal({ project, onClose, lang }: ProjectDe
             </div>
           )}
 
-          {/* 7. References */}
-          {project.references.length > 0 && (
-            <div className="space-y-2">
-              <h3 className="font-mono text-[10px] text-brand-accent-orange uppercase tracking-widest">{t.references}</h3>
-              <ul className="space-y-1">
-                {project.references.map((ref, idx) => {
-                  // Render links inside a reference as clickable anchors. Supports:
-                  //  - Markdown link [text](url) — displays the friendly text; internal
-                  //    paths (starting with "/") are prefixed with BASE_URL.
-                  //  - Bare http(s):// URL — displays the URL itself as the link text.
-                  const mdLink = ref.match(/\[([^\]]+)\]\(([^)]+)\)/);
-                  if (mdLink) {
-                    const [full, text, url] = mdLink;
-                    const [before, after] = ref.split(full);
-                    const isExternal = /^https?:\/\//.test(url);
-                    const href = isExternal
-                      ? url
-                      : `${BASE_URL}${url.replace(/^\/+/, "")}`;
-                    return (
-                      <li key={idx} className="text-xs text-gray-400 font-mono flex items-start gap-2">
-                        <span className="text-gray-600 select-none">›</span>
-                        <span className="break-all">
-                          {before}
-                          <a
-                            href={href}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-brand-accent-lime hover:underline"
-                          >
-                            {text}
-                          </a>
-                          {after}
-                        </span>
-                      </li>
-                    );
-                  }
-                  const urlMatch = ref.match(/(https?:\/\/[^\s)]+)/);
-                  if (urlMatch) {
-                    const url = urlMatch[1];
-                    const [before, after] = ref.split(url);
-                    return (
-                      <li key={idx} className="text-xs text-gray-400 font-mono flex items-start gap-2">
-                        <span className="text-gray-600 select-none">›</span>
-                        <span className="break-all">
-                          {before}
-                          <a
-                            href={url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-brand-accent-lime hover:underline"
-                          >
-                            {url}
-                          </a>
-                          {after}
-                        </span>
-                      </li>
-                    );
-                  }
-                  return (
-                    <li key={idx} className="text-xs text-gray-400 font-mono flex items-start gap-2">
-                      <span className="text-gray-600 select-none">›</span>
-                      <span>{ref}</span>
-                    </li>
-                  );
-                })}
-              </ul>
-            </div>
-          )}
-
-          {/* 8. Outcomes */}
+          {/* 7. Outcomes */}
           <div className="space-y-2">
             <h3 className="font-mono text-[10px] text-brand-accent-lime uppercase tracking-widest">{t.outcomes}</h3>
             <p className="text-sm text-gray-300 leading-relaxed font-sans font-light">{project.outcomes}</p>
           </div>
+
+          {/* 8. References — external links render as cards, plain text stays as list */}
+          {project.references.length > 0 && (
+            <div className="space-y-3">
+              <h3 className="font-mono text-[10px] text-brand-accent-orange uppercase tracking-widest">{t.references}</h3>
+              <div className="space-y-2">
+                {project.references.map((ref, idx) => {
+                  // Resolve a link from the reference string. Supports:
+                  //  - Markdown link [text](url) — friendly text + url; internal paths
+                  //    (starting with "/") are prefixed with BASE_URL.
+                  //  - Bare http(s):// URL — the URL is both the href and the display text.
+                  // No link found → render as a plain-text list item (no card).
+                  const mdLink = ref.match(/\[([^\]]+)\]\(([^)]+)\)/);
+                  const bare = !mdLink && ref.match(/(https?:\/\/[^\s)]+)/);
+                  if (mdLink) {
+                    const [full, text, url] = mdLink;
+                    const [before, after] = ref.split(full);
+                    const isExternal = /^https?:\/\//.test(url);
+                    const href = isExternal ? url : `${BASE_URL}${url.replace(/^\/+/, "")}`;
+                    const isGitHub = /github\.com/i.test(url);
+                    const Icon = isGitHub ? Github : ExternalLink;
+                    return (
+                      <a key={idx} href={href} target="_blank" rel="noopener noreferrer"
+                         className="group flex items-center justify-between gap-4 p-4 rounded-xl border border-white/10 bg-brand-black/30 hover:bg-brand-black/50 hover:border-white/20 transition-all">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <Icon className="w-4 h-4 text-gray-400 group-hover:text-white transition-colors shrink-0" />
+                          <div className="flex flex-col min-w-0">
+                            <span className="font-mono text-xs text-white truncate">
+                              {before}<span className="text-brand-accent-lime">{text}</span>{after}
+                            </span>
+                            <span className="font-mono text-[9px] text-gray-500 truncate mt-0.5">{href}</span>
+                          </div>
+                        </div>
+                        <ArrowUpRight className="w-4 h-4 text-gray-400 group-hover:text-brand-accent-lime group-hover:translate-x-0.5 transition-all shrink-0" />
+                      </a>
+                    );
+                  }
+                  if (bare) {
+                    const url = bare[1];
+                    const [before, after] = ref.split(url);
+                    const isGitHub = /github\.com/i.test(url);
+                    const Icon = isGitHub ? Github : ExternalLink;
+                    return (
+                      <a key={idx} href={url} target="_blank" rel="noopener noreferrer"
+                         className="group flex items-center justify-between gap-4 p-4 rounded-xl border border-white/10 bg-brand-black/30 hover:bg-brand-black/50 hover:border-white/20 transition-all">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <Icon className="w-4 h-4 text-gray-400 group-hover:text-white transition-colors shrink-0" />
+                          <div className="flex flex-col min-w-0">
+                            <span className="font-mono text-xs text-white truncate">
+                              <span className="text-gray-400">{before}</span><span className="text-brand-accent-lime">{url}</span><span className="text-gray-400">{after}</span>
+                            </span>
+                            <span className="font-mono text-[9px] text-gray-500 truncate mt-0.5">{(() => { try { return new URL(url).hostname; } catch { return url; } })()}</span>
+                          </div>
+                        </div>
+                        <ArrowUpRight className="w-4 h-4 text-gray-400 group-hover:text-brand-accent-lime group-hover:translate-x-0.5 transition-all shrink-0" />
+                      </a>
+                    );
+                  }
+                  // Plain-text reference — no link, keep the original list style.
+                  return (
+                    <div key={idx} className="text-xs text-gray-400 font-mono flex items-start gap-2 px-1">
+                      <span className="text-gray-600 select-none">›</span>
+                      <span>{ref}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
           {/* 9. Deep-dive exit — prominent link to the knowledge article */}
           <div className="pt-4 border-t border-white/5">

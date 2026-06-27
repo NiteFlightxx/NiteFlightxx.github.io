@@ -23,6 +23,7 @@ export interface Project {
   metrics: ProjectMetric[];
   codeSnippet?: string;
   visualPrompt?: string; // optional descriptive text for visuals
+  mediaUrl?: string; // Bilibili demo video — full URL (https://www.bilibili.com/video/BVxxxx) or bare bvid (BVxxxx)
 }
 
 // ---- Shared runtime shape for Markdown-backed content (Knowledge) ----

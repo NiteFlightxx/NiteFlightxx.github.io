@@ -171,6 +171,7 @@ export const PROJECTS_ZH = [
       { label: "支持布局", value: "Quad/Hex/Octo" },
     ],
     visualPrompt: "从牛顿-欧拉方程到电机指令，一条可推导、可验证的飞控翻译链。",
+    mediaUrl: "https://www.bilibili.com/video/BV1xQja61EQU/",
   },
 ];
 
