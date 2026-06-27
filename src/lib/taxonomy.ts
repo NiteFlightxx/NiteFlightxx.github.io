@@ -14,6 +14,14 @@ export const PROJECT_CATEGORIES = {
 } as const;
 export type ProjectCategory = keyof typeof PROJECT_CATEGORIES;
 
+// ---- Project status lifecycle ----
+export const PROJECT_STATUSES = {
+  completed: "已完成",
+  experimental: "实验性",
+  archived: "已归档",
+} as const;
+export type ProjectStatus = keyof typeof PROJECT_STATUSES;
+
 // ---- Knowledge categories (7) ----
 export const KNOWLEDGE_CATEGORIES = {
   Engine: "引擎",
@@ -101,6 +109,9 @@ export const SKILL_CATEGORIES = {
 // Display helper used by views (looks up the localized label for any enum value).
 export function projectCategoryZh(c: string): string {
   return (PROJECT_CATEGORIES as Record<string, string>)[c] ?? c;
+}
+export function projectStatusZh(s: string): string {
+  return (PROJECT_STATUSES as Record<string, string>)[s] ?? s;
 }
 export function knowledgeCategoryZh(c: string): string {
   return (KNOWLEDGE_CATEGORIES as Record<string, string>)[c] ?? c;

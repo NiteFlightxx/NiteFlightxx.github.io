@@ -1,8 +1,8 @@
 import React, { useState } from "react";
 import { motion } from "motion/react";
-import { X, Check, Copy, FileCode } from "lucide-react";
+import { X, Check, Copy, FileCode, ArrowRight, BookOpen } from "lucide-react";
 import type { Project } from "../types";
-import { projectCategoryZh } from "../lib/taxonomy";
+import { projectCategoryZh, projectStatusZh } from "../lib/taxonomy";
 import { UI_TRANSLATIONS } from "../translations";
 
 // Site base path (GitHub Pages sub-path aware), same convention as KnowledgeView.
@@ -28,6 +28,8 @@ export default function ProjectDetailModal({ project, onClose, lang }: ProjectDe
 
   const zh = lang === "zh";
   const catLabel = zh ? projectCategoryZh(project.category) : project.category;
+  const statusLabel = zh ? projectStatusZh(project.status) : project.status;
+  const articleUrl = `${BASE_URL}knowledge/${project.articleSlug}/`;
 
   return (
     <motion.div
@@ -69,11 +71,19 @@ export default function ProjectDetailModal({ project, onClose, lang }: ProjectDe
 
         {/* Modal content body — 8-section structure */}
         <div className="flex-1 overflow-y-auto p-6 md:p-8 space-y-8">
-          {/* Title + category */}
+          {/* Title + category + status */}
           <div className="space-y-3 border-b border-white/5 pb-6">
-            <span className="text-[10px] font-mono text-brand-accent-lime uppercase tracking-widest">
-              {catLabel}
-            </span>
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] font-mono text-brand-accent-lime uppercase tracking-widest">
+                {catLabel}
+              </span>
+              <span className="px-1.5 py-0.5 rounded border text-[9px] uppercase tracking-wider text-gray-400 border-gray-500/30 bg-gray-500/15">
+                {statusLabel}
+              </span>
+              {project.year && (
+                <span className="text-[10px] font-mono text-gray-500">{project.year}</span>
+              )}
+            </div>
             <h2 className="font-display font-medium text-xl md:text-3xl text-white tracking-tight">
               {project.title}
             </h2>
@@ -234,6 +244,30 @@ export default function ProjectDetailModal({ project, onClose, lang }: ProjectDe
           <div className="space-y-2">
             <h3 className="font-mono text-[10px] text-brand-accent-lime uppercase tracking-widest">{t.outcomes}</h3>
             <p className="text-sm text-gray-300 leading-relaxed font-sans font-light">{project.outcomes}</p>
+          </div>
+
+          {/* 9. Deep-dive exit — prominent link to the knowledge article */}
+          <div className="pt-4 border-t border-white/5">
+            <a
+              href={articleUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="group flex items-center justify-between gap-4 p-5 rounded-xl border border-brand-accent-lime/30 bg-brand-accent-lime/5 hover:bg-brand-accent-lime/10 hover:border-brand-accent-lime/50 transition-all"
+              id="project-read-deep-dive"
+            >
+              <div className="flex items-center gap-3">
+                <BookOpen className="w-5 h-5 text-brand-accent-lime shrink-0" />
+                <div className="flex flex-col">
+                  <span className="font-display font-bold text-base text-white">
+                    {lang === "zh" ? "阅读完整技术详解" : "Read the Full Deep Dive"}
+                  </span>
+                  <span className="font-mono text-[10px] text-gray-400 mt-0.5">
+                    {lang === "zh" ? "数学推导 · 代码落地 · 设计决策" : "Math derivations · code · design rationale"}
+                  </span>
+                </div>
+              </div>
+              <ArrowRight className="w-5 h-5 text-brand-accent-lime group-hover:translate-x-1 transition-transform shrink-0" />
+            </a>
           </div>
         </div>
 

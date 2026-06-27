@@ -11,7 +11,7 @@ export const UI_TRANSLATIONS = {
     // Hero
     role: "Unreal Engine 工程师",
     title: "个人研发实验室",
-    statement: "工程能力 · 研究能力 · 系统设计能力",
+    statement: "探索动画、物理与世界的实时交互",
     exploreWork: "探索项目",
     viewProfile: "查看档案",
     // Home sections
@@ -20,6 +20,7 @@ export const UI_TRANSLATIONS = {
     viewAllProjects: "查看全部项目",
     viewAllKnowledge: "查看全部知识",
     // Projects
+    capabilityTagline: "工程能力 · 研究能力 · 系统设计能力",
     filterSpecialization: "筛选分类:",
     all: "全部",
     examine: "分析",
@@ -76,7 +77,7 @@ export const UI_TRANSLATIONS = {
     // Hero
     role: "Unreal Engine Engineer",
     title: "Personal R&D Lab",
-    statement: "Engineering · Research · System Design",
+    statement: "Exploring real-time interaction between animation, physics, and the world",
     exploreWork: "Explore Projects",
     viewProfile: "View Archive",
     // Home sections
@@ -85,6 +86,7 @@ export const UI_TRANSLATIONS = {
     viewAllProjects: "View All Projects",
     viewAllKnowledge: "View All Knowledge",
     // Projects
+    capabilityTagline: "Engineering · Research · System Design",
     filterSpecialization: "Filter Category:",
     all: "All",
     examine: "Examine",
@@ -145,6 +147,9 @@ export const PROJECTS_ZH = [
     id: "aircraftlab",
     title: "AircraftLab — 四旋翼无人机飞控系统",
     category: "Simulation" as const,
+    status: "completed" as const,
+    year: "2026",
+    articleSlug: "quadcopter-flight-control-math",
     overview:
       "基于 Unreal Engine 5 与 Chaos 物理引擎的四旋翼无人机飞控实验系统。从飞行员摇杆输入到四个电机转速指令，完整实现位置—速度—姿态—角速率的级联 PID 控制链，以及阻尼伪逆加活动集的控制分配（混控）算法，可在物理子步下闭环仿真真实飞行。",
     architecture:
@@ -157,7 +162,6 @@ export const PROJECTS_ZH = [
       "支持 Quad / Hex / Octo 多种布局与单桨失效后的自动重配；默认参数针对百公斤级无人机，控制循环 250Hz 闭环；悬停倾斜方程 tan θ = a/g 将期望水平加速度解析映射为目标姿态，打通位置控制到姿态控制的桥梁。",
     references: [
       "GitHub 仓库：https://github.com/NiteFlightxx/AircraftLab",
-      "技术详解：[四轴无人机飞控的数学与物理原理（知识库）](/knowledge/quadcopter-flight-control-math/)",
     ],
     tech: ["UE5", "C++", "Chaos", "级联 PID"],
     metrics: [

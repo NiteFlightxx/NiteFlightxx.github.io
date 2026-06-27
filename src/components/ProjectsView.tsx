@@ -2,9 +2,17 @@ import React, { useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { Sliders, ArrowUpRight } from "lucide-react";
 import type { Project } from "../types";
-import { PROJECT_CATEGORIES, projectCategoryZh } from "../lib/taxonomy";
+import type { ProjectStatus } from "../lib/taxonomy";
+import { PROJECT_CATEGORIES, projectCategoryZh, projectStatusZh } from "../lib/taxonomy";
 import { UI_TRANSLATIONS } from "../translations";
 import BorderGlow from "./BorderGlow";
+
+// Status → badge styling. Exported so HomeView featured cards reuse the same look.
+export const STATUS_BADGE: Record<ProjectStatus, string> = {
+  completed: "bg-brand-accent-lime/15 text-brand-accent-lime border-brand-accent-lime/30",
+  experimental: "bg-brand-accent-orange/15 text-brand-accent-orange border-brand-accent-orange/30",
+  archived: "bg-gray-500/15 text-gray-400 border-gray-500/30",
+};
 
 interface ProjectsViewProps {
   projects: Project[];
@@ -32,10 +40,13 @@ export default function ProjectsView({ projects, onSelectProject, lang }: Projec
         <h1 className="font-display font-black text-4xl md:text-6xl text-white tracking-tighter">
           {lang === "zh" ? "项目" : "Projects"}
         </h1>
+        <p className="font-serif italic text-xl md:text-2xl text-brand-accent-gold-light tracking-wide">
+          {t.capabilityTagline}
+        </p>
         <p className="font-sans text-base md:text-lg text-gray-300 max-w-2xl mx-auto font-light leading-relaxed">
           {lang === "zh"
-            ? "强调工程能力、系统架构与技术实现的系统集合，而非作品展示。"
-            : "Systems emphasizing engineering capability, architecture, and technical implementation."}
+            ? "以工程实现为核心的真实系统集合，而非作品展示。"
+            : "Real systems centered on engineering implementation, not a portfolio showcase."}
         </p>
       </div>
 
@@ -115,9 +126,15 @@ export default function ProjectsView({ projects, onSelectProject, lang }: Projec
                     <div className="p-6 md:p-8 space-y-4 flex-1 flex flex-col justify-between">
                       <div className="space-y-4">
                         <div className="flex items-center justify-between text-xs font-mono">
-                          <span className="text-brand-accent-lime uppercase tracking-wider font-semibold">
-                            {lang === "zh" ? projectCategoryZh(proj.category) : proj.category}
-                          </span>
+                          <div className="flex items-center gap-2">
+                            <span className={`px-1.5 py-0.5 rounded border text-[9px] uppercase tracking-wider ${STATUS_BADGE[proj.status]}`}>
+                              {lang === "zh" ? projectStatusZh(proj.status) : proj.status}
+                            </span>
+                            <span className="text-brand-accent-lime uppercase tracking-wider font-semibold">
+                              {lang === "zh" ? projectCategoryZh(proj.category) : proj.category}
+                            </span>
+                            {proj.year && <span className="text-gray-500">{proj.year}</span>}
+                          </div>
                           <span className="text-gray-400 group-hover:text-white transition-colors flex items-center gap-1">
                             {t.examine} <ArrowUpRight className="w-3.5 h-3.5 text-brand-accent-lime" />
                           </span>

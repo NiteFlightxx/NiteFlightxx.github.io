@@ -3,9 +3,10 @@ import { motion } from "motion/react";
 import type { Variants } from "motion/react";
 import { ArrowRight } from "lucide-react";
 import type { Project, ContentArticle } from "../types";
-import { projectCategoryZh } from "../lib/taxonomy";
+import { projectCategoryZh, projectStatusZh } from "../lib/taxonomy";
 import { UI_TRANSLATIONS } from "../translations";
 import BorderGlow from "./BorderGlow";
+import { STATUS_BADGE } from "./ProjectsView";
 
 const BASE_URL = import.meta.env.BASE_URL;
 
@@ -161,8 +162,14 @@ export default function HomeView({
                 <div className="flex flex-col h-full justify-between">
                   <div className="p-6 md:p-8 space-y-4 flex-1 flex flex-col justify-between">
                     <div className="space-y-4">
-                      <div className="flex items-center justify-between text-xs font-mono text-brand-accent-lime">
-                        <span>{(zh ? projectCategoryZh(proj.category) : proj.category).toUpperCase()}</span>
+                      <div className="flex items-center justify-between text-xs font-mono">
+                        <div className="flex items-center gap-2">
+                          <span className={`px-1.5 py-0.5 rounded border text-[9px] uppercase tracking-wider ${STATUS_BADGE[proj.status]}`}>
+                            {zh ? projectStatusZh(proj.status) : proj.status}
+                          </span>
+                          <span className="text-brand-accent-lime">{(zh ? projectCategoryZh(proj.category) : proj.category).toUpperCase()}</span>
+                        </div>
+                        {proj.year && <span className="text-gray-500">{proj.year}</span>}
                       </div>
                       <h3 className="font-display font-bold text-xl md:text-2xl text-white group-hover:text-brand-accent-lime transition-colors">
                         {proj.title}

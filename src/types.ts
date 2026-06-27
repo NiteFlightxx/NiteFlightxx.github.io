@@ -1,4 +1,4 @@
-import type { ProjectCategory } from './lib/taxonomy';
+import type { ProjectCategory, ProjectStatus } from './lib/taxonomy';
 
 // ---- Projects: 已完成或具有工程价值的系统 ----
 export interface ProjectMetric {
@@ -10,6 +10,9 @@ export interface Project {
   id: string;
   title: string;
   category: ProjectCategory;
+  status: ProjectStatus;
+  year?: string; // release year shown on the card
+  articleSlug: string; // slug of the knowledge article with the deep dive
   overview: string; // 项目概述
   architecture: string; // 技术架构
   challenges: string; // 核心难点
@@ -20,7 +23,6 @@ export interface Project {
   metrics: ProjectMetric[];
   codeSnippet?: string;
   visualPrompt?: string; // optional descriptive text for visuals
-  mediaUrl?: string;
 }
 
 // ---- Shared runtime shape for Markdown-backed content (Knowledge) ----
