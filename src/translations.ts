@@ -70,7 +70,7 @@ export const UI_TRANSLATIONS = {
     diagnosticsDriver: "驱动:",
     diagnosticsSolver: "求解器:",
     diagnosticsTimer: "计时器:",
-    compileStatus: "UE5.5 编译",
+    compileStatus: "UE5.8 编译",
     compileActive: "编译就绪"
   },
   en: {
@@ -136,7 +136,7 @@ export const UI_TRANSLATIONS = {
     diagnosticsDriver: "Driver:",
     diagnosticsSolver: "Solver:",
     diagnosticsTimer: "Timer:",
-    compileStatus: "UE5.5 Compile",
+    compileStatus: "UE5.8 Compile",
     compileActive: "Compile Ready"
   }
 };

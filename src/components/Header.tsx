@@ -1,7 +1,8 @@
 import React, { useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { Menu, X, Github, Linkedin, Sun, Moon } from "lucide-react";
+import { Menu, X, Github, Sun, Moon } from "lucide-react";
 import Logo from "./Logo";
+import BilibiliIcon from "./BilibiliIcon";
 import { UI_TRANSLATIONS } from "../translations";
 
 interface HeaderProps {
@@ -91,14 +92,14 @@ export default function Header({
             <Github className="w-4 h-4" />
           </a>
           <a
-            href="https://linkedin.com"
+            href="https://space.bilibili.com/101356800"
             target="_blank"
             rel="noopener noreferrer"
             className="p-2 text-gray-400 hover:text-white transition-colors duration-200 rounded-lg hover:bg-white/5"
-            aria-label="LinkedIn Profile"
-            id="social-linkedin"
+            aria-label="Bilibili 主页"
+            id="social-bilibili"
           >
-            <Linkedin className="w-4 h-4" />
+            <BilibiliIcon className="w-4 h-4" />
           </a>
 
           {/* Theme switcher */}
@@ -122,7 +123,7 @@ export default function Header({
         <div className="flex items-center gap-2 md:hidden">
           <div className="flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-brand-accent-orange/10 border border-brand-accent-orange/20 text-[9px] font-mono text-brand-accent-orange">
             <span className="w-1 h-1 rounded-full bg-brand-accent-orange animate-pulse" />
-            UE5.5
+            UE5.8
           </div>
           <button
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
@@ -197,12 +198,12 @@ export default function Header({
                   <Github className="w-4 h-4" />
                 </a>
                 <a
-                  href="https://linkedin.com"
+                  href="https://space.bilibili.com/101356800"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-gray-400 hover:text-white transition-colors"
                 >
-                  <Linkedin className="w-4 h-4" />
+                  <BilibiliIcon className="w-4 h-4" />
                 </a>
               </div>
             </div>

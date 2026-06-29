@@ -90,12 +90,12 @@ export default function Footer({ lang, theme }: FooterProps) {
             </a>
             <span className="text-white/10 select-none">•</span>
             <a
-              href="https://linkedin.com"
+              href="https://space.bilibili.com/101356800"
               target="_blank"
               rel="noopener noreferrer"
               className="flex items-center gap-0.5 hover:text-white transition-colors duration-200 group"
             >
-              LinkedIn <ArrowUpRight className="w-3 h-3 text-gray-500 group-hover:text-brand-accent-orange transition-colors" />
+              Bilibili <ArrowUpRight className="w-3 h-3 text-gray-500 group-hover:text-brand-accent-orange transition-colors" />
             </a>
           </div>
         </div>
