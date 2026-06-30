@@ -47,7 +47,7 @@ export interface ContentArticle {
 // ---- Skill matrix (Archive) ----
 export interface SkillCategory {
   name: string;
-  skills: { name: string; proficiency: number; details: string }[];
+  skills: { name: string; details: string }[];
 }
 
 // ---- Career timeline (Archive) ----

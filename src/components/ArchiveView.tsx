@@ -139,20 +139,11 @@ export default function ArchiveView({ skills, timeline, lang }: ArchiveViewProps
               <div className="space-y-5">
                 {cat.skills.map((skill) => (
                   <div key={skill.name} className="space-y-1.5 group">
-                    <div className="flex justify-between text-xs font-mono">
+                    <div className="flex items-center gap-2 text-xs font-mono">
+                      <span className="text-brand-accent-lime select-none">›</span>
                       <span className="text-gray-300 group-hover:text-white transition-colors">{skill.name}</span>
-                      <span className="text-brand-accent-orange font-medium">{skill.proficiency}%</span>
                     </div>
-                    <div className="h-1.5 w-full bg-brand-charcoal rounded-full overflow-hidden border border-white/5">
-                      <motion.div
-                        initial={{ width: 0 }}
-                        whileInView={{ width: `${skill.proficiency}%` }}
-                        viewport={{ once: true }}
-                        transition={{ duration: 1, ease: "easeOut" }}
-                        className="h-full bg-white group-hover:bg-brand-accent-orange transition-colors duration-300"
-                      />
-                    </div>
-                    <p className="text-[10px] text-gray-500 leading-relaxed font-sans group-hover:text-gray-400 transition-colors">
+                    <p className="text-[10px] text-gray-500 leading-relaxed font-sans group-hover:text-gray-400 transition-colors pl-4">
                       {skill.details}
                     </p>
                   </div>
