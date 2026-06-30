@@ -11,6 +11,40 @@ interface ArchiveViewProps {
   lang: "zh" | "en";
 }
 
+// 五条核心描述 — 档案概览的主体内容，中英双语。
+const PROFILE_PILLARS = [
+  {
+    labelZh: "核心方向",
+    labelEn: "Core Direction",
+    zh: "专注于 Unreal Engine 角色运动技术，覆盖程序动画（Procedural Animation）、角色物理（Character Physics）、物理动画（Physical Animation）及实时交互系统的设计与开发。技术栈包括 Active Ragdoll、IK、Chaos Physics、Motion Matching、Mover 等，应用于运动匹配、物理驱动动画、二级运动、受击反馈、身体平衡及环境自适应交互。",
+    en: "Specializes in Unreal Engine character motion technology, spanning Procedural Animation, Character Physics, Physical Animation, and real-time interaction systems. The stack includes Active Ragdoll, IK, Chaos Physics, Motion Matching, Mover, and is applied to motion matching, physics-driven animation, secondary motion, hit reaction, body balance, and environment-adaptive interaction.",
+  },
+  {
+    labelZh: "设计理念",
+    labelEn: "Design Philosophy",
+    zh: "强调动画、物理与控制算法的协同设计，认为单一模块优化不足以达成全局表现，真正可信的运动来自三者在运行时的一致调度与动态耦合。",
+    en: "Advocates the co-design of animation, physics, and control algorithms, holding that optimizing any single module alone cannot achieve global quality — truly believable motion emerges from the consistent scheduling and dynamic coupling of all three at runtime.",
+  },
+  {
+    labelZh: "工程实践",
+    labelEn: "Engineering Practice",
+    zh: "既负责底层系统架构，也深入运动表现调校，从物理参数到动画状态机的每一环节均参与设计与优化，确保系统稳定性、可扩展性与最终表现力的统一。",
+    en: "Owns both the underlying system architecture and the motion-performance tuning, participating in the design and optimization of every link from physics parameters to animation state machines, ensuring the unity of stability, scalability, and final expressiveness.",
+  },
+  {
+    labelZh: "底层研究",
+    labelEn: "Foundational Research",
+    zh: "长期阅读 Unreal Engine 源码，持续研究控制理论、约束求解与实时物理仿真，从底层机制理解角色运动系统的设计取舍，并将理论成果转化为高效、可靠的工程实现。",
+    en: "Reads Unreal Engine source long-term, continuously studying control theory, constraint solving, and real-time physics simulation, understanding the design trade-offs of character motion systems from the underlying mechanisms, and translating theory into efficient, reliable engineering.",
+  },
+  {
+    labelZh: "最终目标",
+    labelEn: "Ultimate Goal",
+    zh: "让角色在动态环境中产生符合物理直觉、响应玩家输入并与世界建立可信因果关系的运动行为，使每一次移动与反馈都成为游戏体验的自然延伸，而非单纯的动画播放。",
+    en: "To let characters produce motion that matches physical intuition, responds to player input, and builds credible causality with the world, so every movement and reaction becomes a natural extension of the game experience rather than mere animation playback.",
+  },
+];
+
 export default function ArchiveView({ skills, timeline, lang }: ArchiveViewProps) {
   const t = UI_TRANSLATIONS[lang];
 
@@ -25,19 +59,20 @@ export default function ArchiveView({ skills, timeline, lang }: ArchiveViewProps
           <h1 className="font-display font-black text-4xl md:text-5xl text-white tracking-tighter leading-tight">
             {t.narrativeHeadline}
           </h1>
-          <div className="space-y-3 text-xs font-mono text-gray-400">
-            <div className="flex gap-2">
-              <span className="text-gray-500 min-w-[64px]">{t.techDirection}:</span>
-              <span className="text-gray-300">Unreal Engine · 物理模拟 · 动画系统</span>
-            </div>
-            <div className="flex gap-2">
-              <span className="text-gray-500 min-w-[64px]">{t.researchInterest}:</span>
-              <span className="text-gray-300">XPBD · Motion Matching · 飞控 · Agent NPC</span>
-            </div>
-            <div className="flex gap-2">
-              <span className="text-gray-500 min-w-[64px]">{t.expertise}:</span>
-              <span className="text-gray-300">C++ 引擎子系统 · HLSL 计算着色器 · GAS · Chaos</span>
-            </div>
+          <div className="space-y-5">
+            {PROFILE_PILLARS.map((p) => (
+              <div key={p.labelZh} className="space-y-1.5">
+                <div className="flex items-center gap-2">
+                  <span className="w-1 h-1 rounded-full bg-brand-accent-lime" />
+                  <span className="font-mono text-[10px] text-brand-accent-lime uppercase tracking-widest">
+                    {lang === "zh" ? p.labelZh : p.labelEn}
+                  </span>
+                </div>
+                <p className="text-xs text-gray-400 leading-relaxed font-sans font-light pl-3">
+                  {lang === "zh" ? p.zh : p.en}
+                </p>
+              </div>
+            ))}
           </div>
         </div>
 
