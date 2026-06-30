@@ -16,32 +16,32 @@ const PROFILE_PILLARS = [
   {
     labelZh: "核心方向",
     labelEn: "Core Direction",
-    zh: "专注于 Unreal Engine 角色运动技术，覆盖程序动画（Procedural Animation）、角色物理（Character Physics）、物理动画（Physical Animation）及实时交互系统的设计与开发。技术栈包括 Active Ragdoll、IK、Chaos Physics、Motion Matching、Mover 等，应用于运动匹配、物理驱动动画、二级运动、受击反馈、身体平衡及环境自适应交互。",
-    en: "Specializes in Unreal Engine character motion technology, spanning Procedural Animation, Character Physics, Physical Animation, and real-time interaction systems. The stack includes Active Ragdoll, IK, Chaos Physics, Motion Matching, Mover, and is applied to motion matching, physics-driven animation, secondary motion, hit reaction, body balance, and environment-adaptive interaction.",
+    zh: "专注于 Unreal Engine 角色运动技术，研究动画、程序动画、角色物理与实时交互系统。",
+    en: "Focused on Unreal Engine character motion technology, researching animation, procedural animation, character physics, and real-time interaction systems.",
   },
   {
     labelZh: "设计理念",
     labelEn: "Design Philosophy",
-    zh: "强调动画、物理与控制算法的协同设计，认为单一模块优化不足以达成全局表现，真正可信的运动来自三者在运行时的一致调度与动态耦合。",
-    en: "Advocates the co-design of animation, physics, and control algorithms, holding that optimizing any single module alone cannot achieve global quality — truly believable motion emerges from the consistent scheduling and dynamic coupling of all three at runtime.",
+    zh: "通过动画、物理模拟与控制算法的协同，构建真实、自然且富有表现力的角色运动体验。",
+    en: "Through the synergy of animation, physics simulation, and control algorithms, building authentic, natural, and expressive character motion experiences.",
   },
   {
     labelZh: "工程实践",
     labelEn: "Engineering Practice",
-    zh: "既负责底层系统架构，也深入运动表现调校，从物理参数到动画状态机的每一环节均参与设计与优化，确保系统稳定性、可扩展性与最终表现力的统一。",
-    en: "Owns both the underlying system architecture and the motion-performance tuning, participating in the design and optimization of every link from physics parameters to animation state machines, ensuring the unity of stability, scalability, and final expressiveness.",
+    zh: "深入探索 Active Ragdoll、程序动画、Chaos Physics、实时交互等角色技术，并关注运动表现的设计与调校。",
+    en: "Deeply exploring character technologies such as Active Ragdoll, procedural animation, Chaos Physics, and real-time interaction, with attention to the design and tuning of motion performance.",
   },
   {
     labelZh: "底层研究",
     labelEn: "Foundational Research",
-    zh: "长期阅读 Unreal Engine 源码，持续研究控制理论、约束求解与实时物理仿真，从底层机制理解角色运动系统的设计取舍，并将理论成果转化为高效、可靠的工程实现。",
-    en: "Reads Unreal Engine source long-term, continuously studying control theory, constraint solving, and real-time physics simulation, understanding the design trade-offs of character motion systems from the underlying mechanisms, and translating theory into efficient, reliable engineering.",
+    zh: "持续研究 Unreal Engine 源码、实时物理仿真与控制理论，从底层原理到工程实践不断完善角色运动系统。",
+    en: "Continuously studying Unreal Engine source, real-time physics simulation, and control theory, refining the character motion system from underlying principles to engineering practice.",
   },
   {
     labelZh: "最终目标",
     labelEn: "Ultimate Goal",
-    zh: "让角色在动态环境中产生符合物理直觉、响应玩家输入并与世界建立可信因果关系的运动行为，使每一次移动与反馈都成为游戏体验的自然延伸，而非单纯的动画播放。",
-    en: "To let characters produce motion that matches physical intuition, responds to player input, and builds credible causality with the world, so every movement and reaction becomes a natural extension of the game experience rather than mere animation playback.",
+    zh: "致力于让角色真正感知环境、遵循物理规律，并与玩家和游戏世界建立可信、自然的实时交互。",
+    en: "Committed to making characters truly perceive their environment, follow physical laws, and build credible, natural real-time interactions with players and the game world.",
   },
 ];
 
