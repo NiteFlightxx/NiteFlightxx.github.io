@@ -175,42 +175,44 @@ export const PROJECTS_ZH = [
   },
 ];
 
-// ---- Skill matrix: 档案技能矩阵（6 类骨架） ----
+// ---- Skill matrix: 档案技能矩阵（按 UE 技术领域划分） ----
 export const SKILLS_ZH = [
-  {
-    name: "引擎编程",
-    skills: [
-      { name: "C++ 引擎子系统开发", proficiency: 0, details: "待填充。" },
-    ],
-  },
-  {
-    name: "物理模拟",
-    skills: [
-      { name: "Chaos 物理与约束求解", proficiency: 0, details: "待填充。" },
-    ],
-  },
   {
     name: "动画系统",
     skills: [
-      { name: "Motion Matching 与 Control Rig", proficiency: 0, details: "待填充。" },
+      { name: "Animation Blueprint", proficiency: 86, details: "状态机、混合与骨骼控制节点的组合编排，驱动角色姿态、状态切换与运动表现。" },
+      { name: "Motion Matching", proficiency: 78, details: "基于姿态搜索的实时运动匹配，从动画库中选取最贴合目标动作的姿态序列。" },
+      { name: "IK", proficiency: 88, details: "从单链 IK 到全身 IK 求解器的选型与调参，覆盖雅可比法与位置动力学两条范式。" },
+      { name: "Control Rig", proficiency: 84, details: "在 RigGraph 中以 RigUnit 形式组织骨骼控制逻辑，实现程序化、可复用的绑定与求解。" },
+      { name: "Motion Warping", proficiency: 80, details: "对动画根运动与目标点进行运行时形变，让预制动作贴合实际环境与交互目标。" },
     ],
   },
   {
-    name: "渲染",
+    name: "物理引擎",
     skills: [
-      { name: "HLSL 计算着色器与渲染管线", proficiency: 0, details: "待填充。" },
+      { name: "Chaos", proficiency: 85, details: "在 Chaos 物理引擎下定义角色刚体行为、约束与碰撞，平衡物理可信度与实时性能。" },
+      { name: "Active Ragdoll", proficiency: 82, details: "以物理模拟驱动角色身体，实现受击反馈、二级运动与自然的身体动力学响应。" },
+      { name: "Physical Animation", proficiency: 80, details: "物理与动画的混合驱动，让骨骼在物理响应与动画表现之间平滑过渡。" },
+      { name: "Constraint", proficiency: 84, details: "刚体约束求解与运动刚度控制，维持骨骼长度、关节限位与柔性表现。" },
+      { name: "Cloth", proficiency: 75, details: "布料与软体模拟，为角色二级运动提供贴合物理规律的动态形变。" },
     ],
   },
   {
-    name: "玩法架构",
+    name: "引擎编程",
     skills: [
-      { name: "GAS 与网络同步", proficiency: 0, details: "待填充。" },
+      { name: "Unreal Engine C++", proficiency: 88, details: "深入 UE C++ 与模块架构，从插件到子系统的设计与扩展，落地角色运动系统。" },
+      { name: "源码分析", proficiency: 86, details: "长期阅读 UE 引擎与插件源码，从底层机制理解各子系统的设计取舍与实现路径。" },
+      { name: "系统设计", proficiency: 84, details: "运动系统的架构设计，兼顾可扩展性、稳定性与表现力的工程化组织。" },
+      { name: "性能优化", proficiency: 82, details: "关注控制循环频率、缓存友好性与子步调度的实时性能调优。" },
     ],
   },
   {
-    name: "AI 工具链",
+    name: "数学与仿真",
     skills: [
-      { name: "Agent 与 MCP 实践", proficiency: 0, details: "待填充。" },
+      { name: "Control Theory", proficiency: 86, details: "以级联 PID 与反馈控制为骨架，建立角色运动与物理系统的目标跟踪与稳定闭环。" },
+      { name: "Quaternion", proficiency: 84, details: "四元数旋转表示与 Swing-Twist 分解、球面插值，支撑骨骼朝向求解与限位。" },
+      { name: "Jacobian", proficiency: 90, details: "雅可比矩阵与阻尼最小二乘，将末端目标映射为关节增量，统一 IK 与约束求解的数学骨架。" },
+      { name: "Numerical Methods", proficiency: 87, details: "数值积分、迭代求解与极分解，在实时性与精度之间为物理仿真选择合适方法。" },
     ],
   },
 ];
