@@ -1,5 +1,5 @@
 ---
-title: "UE FullBodyIK 插件的数学原理详解 — 雅可比矩阵与 XPBD 位置动力学的双范式拆解"
+title: "UE FullBodyIK 插件详解 — 雅可比矩阵与 XPBD 位置动力学的双范式拆解"
 excerpt: "基于 Unreal Engine FullBodyIK 实验性插件源码，系统拆解两种 IK 求解器的数学原理：基于雅可比矩阵（DLS / 转置法）的 FullBodyIK 求解器，与基于位置动力学（XPBD 约束、极分解、Swing-Twist 限位）的 PBIK 求解器，覆盖偏导几何计算、推-转力矩、最佳拟合旋转与关键参数选型。"
 date: "2026-06-30"
 category: "Animation"

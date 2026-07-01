@@ -1,6 +1,6 @@
 ---
-title: "PBD 与 XPBD 的数学与物理原理详解 — 从位置投影到柔度可控的约束求解"
-excerpt: "从基于力的弹簧方法的数值刚性痛点出发，系统推导 Position Based Dynamics (PBD) 如何绕过力、直接投影位置以满足约束，再到 XPBD 引入柔度（compliance）参数实现刚度与时间步长、迭代次数解耦。覆盖约束线性化、拉格朗日乘子推导、距离/体积/碰撞/弯曲/形状匹配约束的梯度与海森、Gauss-Seidel 与 Jacobi 迭代策略、图染色并行化，以及在布料、流体（PBF）、软体中的应用。与本站《数值积分方法》《雅可比矩阵》《VBD 与 AVBD》互为印证。"
+title: "PBD 与 XPBD 详解 — 从位置投影到柔度可控的约束求解"
+excerpt: "从基于力的弹簧方法的数值刚性痛点出发，系统推导 Position Based Dynamics (PBD) 如何绕过力、直接投影位置以满足约束，再到 XPBD 引入柔度（compliance）参数实现刚度与时间步长、迭代次数解耦。覆盖约束线性化、拉格朗日乘子推导、距离/体积/碰撞/弯曲/形状匹配约束的梯度与海森、Gauss-Seidel 与 Jacobi 迭代策略、图染色并行化，以及在布料、流体（PBF）、软体中的应用。与本站《物理模拟数值积分方法详解》《雅可比矩阵详解》《VBD 与 AVBD 详解》互为印证。"
 date: "2026-07-01"
 category: "Physics"
 subtopic: "ConstraintSolver"
@@ -10,7 +10,7 @@ readTime: "阅读约45分钟"
 
 > 物理模拟的刚性约束（不可拉伸布料、不可压缩流体、刚性关节）让基于力的弹簧方法陷入"刚度越大、时间步越小"的数值困境。**Position Based Dynamics (PBD)**（Müller et al., 2007）换了一条路：不计算力、不解微分方程，直接修正位置使约束满足——绕过了力层面的数值刚性。**XPBD**（Macklin et al., 2016）在此基础上引入柔度（compliance）参数，让材料刚度不再随时间步长和迭代次数漂移，实现了物理参数的直观可控。
 >
-> 本文从约束线性化与拉格朗日乘子出发搭建 PBD/XPBD 的完整推导，覆盖五类常用约束的梯度与海森、Gauss-Seidel 与 Jacobi 迭代的收敛特性、图染色并行化机制，以及在布料、流体、软体中的工程组合。阅读前建议回顾本站《物理模拟数值积分方法》的隐式欧拉与 predict-correct 流水线，以及《雅可比矩阵》的约束求解器内核 $\mathbf{J}\mathbf{M}^{-1}\mathbf{J}^{\mathsf T}$——PBD/XPBD 的局部步正是该内核的标量特例。如需进一步了解 PBD/XPBD 的后继方法 VBD/AVBD，参见本站《VBD 与 AVBD 的数学原理详解》。
+> 本文从约束线性化与拉格朗日乘子出发搭建 PBD/XPBD 的完整推导，覆盖五类常用约束的梯度与海森、Gauss-Seidel 与 Jacobi 迭代的收敛特性、图染色并行化机制，以及在布料、流体、软体中的工程组合。阅读前建议回顾本站&#12298;[物理模拟数值积分方法详解](/knowledge/numerical-integration-methods/)&#12299;的隐式欧拉与 predict-correct 流水线，以及&#12298;[雅可比矩阵详解](/knowledge/jacobian-matrix/)&#12299;的约束求解器内核 $\mathbf{J}\mathbf{M}^{-1}\mathbf{J}^{\mathsf T}$——PBD/XPBD 的局部步正是该内核的标量特例。如需进一步了解 PBD/XPBD 的后继方法 VBD/AVBD，参见本站&#12298;[VBD 与 AVBD 详解](/knowledge/vbd-avbd-math/)&#12299;。
 
 ---
 
@@ -63,7 +63,7 @@ PBD 绕开力层面，直接在**位置空间**求解：预测位置 → 投影�
      x_i ← p_i
 ```
 
-步骤 2 是**预测步**（predict），步骤 4 是**修正步**（correct）——这正是本站《数值积分方法》所述 predict-correct 流水线的约束求解层。
+步骤 2 是**预测步**（predict），步骤 4 是**修正步**（correct）——这正是本站&#12298;[物理模拟数值积分方法详解](/knowledge/numerical-integration-methods/)&#12299;所述 predict-correct 流水线的约束求解层。
 
 ### 2.2 约束线性化与位置修正推导
 
@@ -99,7 +99,7 @@ $$
 \Delta\mathbf{p}_i = \lambda\,\frac{1}{m_i}\,\frac{\partial C}{\partial\mathbf{p}_i}
 $$
 
-> **与本站《雅可比矩阵》的联系**：分母 $\nabla C^{\mathsf T}\mathbf{M}^{-1}\nabla C$ 正是约束求解器内核 $\mathbf{J}\mathbf{M}^{-1}\mathbf{J}^{\mathsf T}$ 的标量特例（单约束时雅可比 $\mathbf{J}=\nabla C^{\mathsf T}$ 退化为向量）。PBD 的每一步就是在解一个单约束的局部线性系统。
+> **与本站&#12298;[雅可比矩阵详解](/knowledge/jacobian-matrix/)&#12299;的联系**：分母 $\nabla C^{\mathsf T}\mathbf{M}^{-1}\nabla C$ 正是约束求解器内核 $\mathbf{J}\mathbf{M}^{-1}\mathbf{J}^{\mathsf T}$ 的标量特例（单约束时雅可比 $\mathbf{J}=\nabla C^{\mathsf T}$ 退化为向量）。PBD 的每一步就是在解一个单约束的局部线性系统。
 
 ### 2.3 距离约束示例
 
@@ -180,9 +180,9 @@ $$
 \min_{\mathbf{p}} \;\frac{1}{2}\|\mathbf{p}-\tilde{\mathbf{p}}\|_{\mathbf{M}}^2 + \frac{1}{2\alpha}\,C(\mathbf{p})^2
 $$
 
-其中 $\tilde{\mathbf{p}}=\mathbf{x}+h\mathbf{v}+h^2\mathbf{M}^{-1}\mathbf{f}_{\text{ext}}$ 是无约束预测位置。第一项是惯性项（参见本站《VBD 与 AVBD》的惯性势能），第二项是约束能量。
+其中 $\tilde{\mathbf{p}}=\mathbf{x}+h\mathbf{v}+h^2\mathbf{M}^{-1}\mathbf{f}_{\text{ext}}$ 是无约束预测位置。第一项是惯性项（参见本站&#12298;[VBD 与 AVBD 详解](/knowledge/vbd-avbd-math/)&#12299;的惯性势能），第二项是约束能量。
 
-> **与 VBD 的关系**：这个变分形式与 VBD 的能量函数 $E=E_{\text{inertia}}+W$ 结构相同。区别在于：XPBD 的约束项是纯罚函数 $\frac{1}{2\alpha}C^2$，逐**约束**做标量投影；VBD 逐**顶点**做向量牛顿步，海森含惯性项 $m_i/h^2\cdot\mathbf{I}$。两者同源但局部步形式不同（详见本站《VBD 与 AVBD》§4.1）。
+> **与 VBD 的关系**：这个变分形式与 VBD 的能量函数 $E=E_{\text{inertia}}+W$ 结构相同。区别在于：XPBD 的约束项是纯罚函数 $\frac{1}{2\alpha}C^2$，逐**约束**做标量投影；VBD 逐**顶点**做向量牛顿步，海森含惯性项 $m_i/h^2\cdot\mathbf{I}$。两者同源但局部步形式不同（详见本站&#12298;[VBD 与 AVBD 详解](/knowledge/vbd-avbd-math/)&#12299;§4.1）。
 
 引入拉格朗日乘子 $\lambda$，由 KKT 条件：
 
@@ -380,7 +380,7 @@ PBD/XPBD 的约束求解是一个迭代过程，有两种经典策略：
 
 PBD 原始论文（Müller 2007）使用 Gauss-Seidel——收敛快但串行。GPU 实现常用 Jacobi 或带阻尼的 Jacobi 变体。NVIDIA FleX 在 GPU 上使用约束图染色（见下节）实现并行 Gauss-Seidel，兼顾收敛与并行。
 
-> **与 VBD 的对比**：VBD 逐顶点做牛顿步，天然是 Gauss-Seidel 风格（用最新顶点位置），但通过顶点图染色实现并行。PBD/XPBD 逐约束投影，可通过约束图染色实现并行 Gauss-Seidel。两者的并行机制（图染色）相同，区别在于染色对象的稠密程度——详见本站《VBD 与 AVBD》§7。
+> **与 VBD 的对比**：VBD 逐顶点做牛顿步，天然是 Gauss-Seidel 风格（用最新顶点位置），但通过顶点图染色实现并行。PBD/XPBD 逐约束投影，可通过约束图染色实现并行 Gauss-Seidel。两者的并行机制（图染色）相同，区别在于染色对象的稠密程度——详见本站&#12298;[VBD 与 AVBD 详解](/knowledge/vbd-avbd-math/)&#12299;§7。
 
 ---
 
@@ -596,7 +596,7 @@ $$
 **选型建议**：
 - 实时游戏、快速近似 → **PBD**（简单高效）
 - 需要物理真实材料参数、电影/VFX → **XPBD**
-- 硬约束多、高质量布料/软体 → 考虑 **VBD/AVBD**（见本站《VBD 与 AVBD》）
+- 硬约束多、高质量布料/软体 → 考虑 **VBD/AVBD**（见本站&#12298;[VBD 与 AVBD 详解](/knowledge/vbd-avbd-math/)&#12299;）
 
 ---
 
@@ -606,4 +606,4 @@ $$
 
 > **XPBD 的核心**：引入柔度 $\alpha=1/k$ 并做时间步缩放 $\tilde\alpha=\alpha/h^2$，使材料刚度独立于 $h$ 和 $N_{\text{iter}}$。增量乘子 $\Delta\lambda=-(C+\tilde\alpha\lambda)/(\nabla C^{\mathsf T}\mathbf{M}^{-1}\nabla C+\tilde\alpha)$ 跨迭代累积，收敛到精确拉格朗日乘子。$\alpha=0$ 时退化为 PBD。
 
-> **与 VBD/AVBD 的关系**：PBD/XPBD 逐**约束**做标量投影，分母用逆质量 $w_1+w_2+\tilde\alpha$；VBD 逐**顶点**做 $3\times3$ 向量牛顿步，海森含惯性刚度 $m_i/h^2\cdot\mathbf{I}$。两者同源（都是变分隐式欧拉的局部求解），但局部步形式不同。三者都用图染色并行，区别在于染色对象（约束图 vs 顶点图）的稠密程度。详见本站《VBD 与 AVBD 的数学原理详解》。
+> **与 VBD/AVBD 的关系**：PBD/XPBD 逐**约束**做标量投影，分母用逆质量 $w_1+w_2+\tilde\alpha$；VBD 逐**顶点**做 $3\times3$ 向量牛顿步，海森含惯性刚度 $m_i/h^2\cdot\mathbf{I}$。两者同源（都是变分隐式欧拉的局部求解），但局部步形式不同。三者都用图染色并行，区别在于染色对象（约束图 vs 顶点图）的稠密程度。详见本站&#12298;[VBD 与 AVBD 详解](/knowledge/vbd-avbd-math/)&#12299;。
