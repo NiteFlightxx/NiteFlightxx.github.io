@@ -179,8 +179,9 @@ body {
   padding: 0.5rem 0 0.5rem 1rem;
   border-left: 2px solid rgba(188, 253, 73, 0.4);
   color: #9ca3af;
-  font-size: 0.875rem;
-  line-height: 1.7;
+  font-size: 0.85rem;
+  line-height: 1.75;
+  font-weight: 400;
 }
 
 .article-body blockquote p {
@@ -229,7 +230,8 @@ body {
 }
 
 .article-body td {
-  color: #d1d5db;
+  color: #c9c9c9;
+  font-weight: 400;
 }
 
 .article-body tr:nth-child(even) td {
@@ -244,17 +246,17 @@ body {
 }
 
 .article-body p {
-  font-size: 0.875rem;
-  line-height: 1.7;
-  color: #d1d5db;
+  font-size: 0.9rem;
+  line-height: 1.85;
+  color: #c9c9c9;
   margin: 1.25rem 0;
-  font-weight: 900;
-  letter-spacing: 0.015em;
+  font-weight: 400;
+  letter-spacing: 0.01em;
 }
 
 @media (min-width: 768px) {
   .article-body p {
-    font-size: 1rem;
+    font-size: 1.025rem;
   }
 }
 
@@ -266,11 +268,12 @@ body {
 }
 
 .article-body li {
-  font-size: 0.875rem;
-  line-height: 1.7;
-  color: #d1d5db;
+  font-size: 0.9rem;
+  line-height: 1.85;
+  color: #c9c9c9;
   margin: 0.5rem 0;
   padding-left: 0.5rem;
+  font-weight: 400;
 }
 
 .article-body ul li::before {
@@ -310,7 +313,7 @@ body {
   background: rgba(255, 255, 255, 0.05);
   padding: 0.1rem 0.35rem;
   border-radius: 0.25rem;
-  color: #e5e7eb;
+  color: #d4d4d4;
 }
 
 /* Fenced code blocks: render the header bar + dark panel like the old viewer */
@@ -328,8 +331,8 @@ body {
   font-size: 0.75rem;
   background: none;
   padding: 0;
-  color: #d1d5db;
-  line-height: 1.6;
+  color: #c9c9c9;
+  line-height: 1.65;
 }
 
 /* Images (static + GIF): responsive baseline — never overflow the column,
