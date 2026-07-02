@@ -9,7 +9,7 @@
 export const UI_TRANSLATIONS = {
   zh: {
     // Hero
-    role: "Unreal Engine 工程师",
+    role: "Physical Animation Engineer",
     title: "个人研发实验室",
     statement: "探索动画、物理与世界的实时交互",
     exploreWork: "探索项目",
@@ -68,7 +68,7 @@ export const UI_TRANSLATIONS = {
   },
   en: {
     // Hero
-    role: "Unreal Engine Engineer",
+    role: "Physical Animation Engineer",
     title: "Personal R&D Lab",
     statement: "Exploring real-time interaction between animation, physics, and the world",
     exploreWork: "Explore Projects",

@@ -45,9 +45,6 @@ export default function Header({
             <span className="font-display font-black text-base tracking-widest text-white group-hover:text-brand-accent-orange transition-colors duration-300">
               NITE
             </span>
-            <span className="text-[10px] font-mono text-gray-400 tracking-widest leading-none mt-0.5">
-              程序向 TA
-            </span>
           </div>
         </div>
 

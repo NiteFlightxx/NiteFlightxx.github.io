@@ -36,7 +36,7 @@ export default function Footer({ lang, theme }: FooterProps) {
           <div className="flex items-center gap-2">
             <Logo className="w-4 h-4 text-brand-accent-orange" />
             <span className="font-display font-medium text-xs tracking-wider text-white">
-              NITE SYSTEMS INC.
+              NITE — PERSONAL PORTFOLIO
             </span>
           </div>
           <p className="text-xs text-gray-500 leading-relaxed font-sans">
