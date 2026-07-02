@@ -1,5 +1,5 @@
 /**
- * Content data for the Personal R&D Lab site.
+ * Content data for the Personal Exploration Workshop site.
  * Skeleton/placeholder content — to be filled in during content redesign.
  * Research data has been migrated to the Markdown knowledge collection
  * (src/content/knowledge); only projects/skills/timeline remain as data
@@ -10,7 +10,7 @@ export const UI_TRANSLATIONS = {
   zh: {
     // Hero
     role: "Physical Animation Engineer",
-    title: "个人研发实验室",
+    title: "个人探索工坊",
     statement: "探索动画、物理与世界的实时交互",
     exploreWork: "探索项目",
     viewProfile: "查看档案",
@@ -69,7 +69,7 @@ export const UI_TRANSLATIONS = {
   en: {
     // Hero
     role: "Physical Animation Engineer",
-    title: "Personal R&D Lab",
+    title: "Personal Exploration Workshop",
     statement: "Exploring real-time interaction between animation, physics, and the world",
     exploreWork: "Explore Projects",
     viewProfile: "View Archive",
