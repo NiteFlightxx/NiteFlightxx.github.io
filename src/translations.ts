@@ -56,14 +56,8 @@ export const UI_TRANSLATIONS = {
     techDirection: "技术方向",
     researchInterest: "研究兴趣",
     expertise: "专业领域",
-    experience: "经验:",
-    language: "语言:",
-    platforms: "平台:",
-    location: "地点:",
     systemProficiencies: "技能矩阵",
     techStackProfile: "技术栈画像",
-    professionalTimeline: "职业发展时间线",
-    careerChronology: "成长轨迹",
     // Footer / diagnostics
     allRightsReserved: "Nite。保留所有计算权利。",
     systemDiagnostics: "系统诊断数据",
@@ -122,14 +116,8 @@ export const UI_TRANSLATIONS = {
     techDirection: "Tech Direction",
     researchInterest: "Research Interest",
     expertise: "Expertise",
-    experience: "Experience:",
-    language: "Language:",
-    platforms: "Platforms:",
-    location: "Location:",
     systemProficiencies: "Skill Matrix",
     techStackProfile: "Tech Stack Profile",
-    professionalTimeline: "Professional Timeline",
-    careerChronology: "Growth Trajectory",
     // Footer / diagnostics
     allRightsReserved: "Nite. All computational rights reserved.",
     systemDiagnostics: "System Diagnostics",
@@ -214,18 +202,5 @@ export const SKILLS_ZH = [
       { name: "Jacobian", details: "雅可比矩阵与阻尼最小二乘，将末端目标映射为关节增量，统一 IK 与约束求解的数学骨架。" },
       { name: "Numerical Methods", details: "数值积分、迭代求解与极分解，在实时性与精度之间为物理仿真选择合适方法。" },
     ],
-  },
-];
-
-// ---- Career timeline: 成长轨迹（骨架占位） ----
-export const TIMELINE_ZH = [
-  {
-    year: "2024 — 至今",
-    role: "占位职位待填充",
-    company: "占位公司待填充",
-    project: "占位项目待填充",
-    description: "职责描述待填充。",
-    outcomes: ["成果待填充"],
-    highlights: ["亮点待填充"],
   },
 ];

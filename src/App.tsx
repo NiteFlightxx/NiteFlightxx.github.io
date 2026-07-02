@@ -21,7 +21,6 @@ import SideRays from "./components/SideRays";
 import {
   PROJECTS_ZH,
   SKILLS_ZH,
-  TIMELINE_ZH,
 } from "./translations";
 import type { Project, ContentArticle } from "./types";
 
@@ -57,7 +56,6 @@ export default function App({ knowledgeArticles = [] }: AppProps) {
   const projects = PROJECTS_ZH as Project[];
   const knowledge = knowledgeArticles;
   const skills = SKILLS_ZH;
-  const timeline = TIMELINE_ZH;
 
   const selectedProject = selectedProjectId ? projects.find(p => p.id === selectedProjectId) || null : null;
 
@@ -113,7 +111,6 @@ export default function App({ knowledgeArticles = [] }: AppProps) {
         return (
           <ArchiveView
             skills={skills}
-            timeline={timeline}
             lang={lang}
           />
         );
