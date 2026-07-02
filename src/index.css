@@ -390,4 +390,219 @@ pre code,
   font-weight: 400 !important;
 }
 
+/* ============================================================
+   LIGHT MODE — comprehensive overrides applied via .light-theme
+   on <html>. Brand palette CSS variables are remapped so all
+   bg-brand-*, text-brand-*, border-brand-* utilities update
+   automatically. Tailwind built-in utilities (text-white,
+   text-gray-*, border-white/*, bg-white/*) are overridden at
+   the class level since --color-white is shared by bg-white
+   (page background) and text-white (headings) and can't be
+   repurposed for both simultaneously.
+   ============================================================ */
+
+.light-theme {
+  /* Surfaces: black/charcoal → white/light-slate */
+  --color-brand-black: #ffffff;
+  --color-brand-charcoal: #f8fafc;   /* slate-50 — card/glass bg */
+  --color-brand-gray-900: #f1f5f9;   /* slate-100 */
+  --color-brand-gray-800: #e2e8f0;   /* slate-200 — active states, chips */
+  --color-brand-gray-700: #cbd5e1;   /* slate-300 */
+  --color-brand-gray-600: #94a3b8;   /* slate-400 */
+  --color-brand-gray-400: #64748b;   /* slate-500 */
+
+  /* Accents: bright cyber-lime #bcfd49 → dark lime #4d7c0f
+     (lime-700) for ~5:1 contrast on white. The same token is
+     used for text, borders and button fills. */
+  --color-brand-accent-lime: #4d7c0f;
+  --color-brand-accent-orange: #4d7c0f;
+  --color-brand-accent-gold: #4d7c0f;
+  --color-brand-accent-gold-light: #65a30d; /* lime-600 */
+  --color-brand-accent-indigo: #4f46e5;
+  --color-brand-accent-silver: #475569;     /* slate-600 */
+}
+
+/* ---- Body & global surface ---- */
+.light-theme body {
+  background-color: #ffffff;
+  color: #1e293b;
+}
+
+/* ---- Custom scrollbar ---- */
+.light-theme ::-webkit-scrollbar-track {
+  background: #f1f5f9;
+}
+.light-theme ::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+}
+.light-theme ::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* ---- Glassmorphism: dark glass → light glass ---- */
+.light-theme .glass-panel {
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid rgba(15, 23, 42, 0.08);
+}
+.light-theme .glass-panel-hover:hover {
+  background: rgba(241, 245, 249, 0.9);
+  border-color: rgba(15, 23, 42, 0.12);
+  box-shadow: 0 10px 35px -15px rgba(0, 0, 0, 0.12);
+}
+
+/* ---- Code container ---- */
+.light-theme .code-block {
+  background: #f8fafc;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+}
+
+/* ---- Cinematic grain: slightly more visible on white ---- */
+.light-theme .grain-overlay {
+  opacity: 0.025;
+}
+
+/* ---- Ambient glow blobs: dim on light ---- */
+.light-theme .glow-ambient {
+  opacity: 0.25;
+}
+
+/* ---- bg-brand-black tints: variable is now white, so opacity
+   variants would be invisible. Override to subtle dark-slate tints
+   so panels-within-cards (code headers, tags, quote blocks) remain
+   visible. bg-brand-black (no opacity) stays white via the variable. ---- */
+.light-theme .bg-brand-black\/90 { background-color: rgba(15, 23, 42, 0.5); }
+.light-theme .bg-brand-black\/80 { background-color: rgba(15, 23, 42, 0.05); }
+.light-theme .bg-brand-black\/60 { background-color: rgba(15, 23, 42, 0.04); }
+.light-theme .bg-brand-black\/50 { background-color: rgba(15, 23, 42, 0.04); }
+.light-theme .bg-brand-black\/40 { background-color: rgba(15, 23, 42, 0.03); }
+.light-theme .bg-brand-black\/30 { background-color: rgba(15, 23, 42, 0.03); }
+.light-theme .bg-brand-black\/20 { background-color: rgba(15, 23, 42, 0.02); }
+
+/* ---- bg-brand-charcoal low-opacity variants: variable is now
+   slate-50, so these are near-invisible on white. Override to
+   dark-slate tints for panel-within-card subtlety. ---- */
+.light-theme .bg-brand-charcoal\/40 { background-color: rgba(15, 23, 42, 0.03); }
+.light-theme .bg-brand-charcoal\/30 { background-color: rgba(15, 23, 42, 0.03); }
+
+/* ---- Text color overrides (Tailwind built-in palette).
+   --color-white can't be repurposed (bg-white needs #fff), so
+   remap at the class level. The gray scale is inverted: bright
+   text on dark → dark text on light, preserving relative contrast. ---- */
+.light-theme .text-white { color: #0f172a; }
+.light-theme .text-gray-100 { color: #0f172a; }   /* slate-900 */
+.light-theme .text-gray-200 { color: #1e293b; }   /* slate-800 */
+.light-theme .text-gray-300 { color: #334155; }   /* slate-700 */
+.light-theme .text-gray-400 { color: #475569; }   /* slate-600 */
+.light-theme .text-gray-500 { color: #64748b; }   /* slate-500 */
+.light-theme .text-gray-600 { color: #94a3b8; }   /* slate-400 */
+
+.light-theme .hover\:text-white:hover { color: #0f172a; }
+.light-theme .hover\:text-gray-200:hover { color: #1e293b; }
+.light-theme .hover\:text-gray-300:hover { color: #334155; }
+.light-theme .hover\:text-gray-400:hover { color: #475569; }
+
+/* White text at opacity (separators, dividers in Footer) */
+.light-theme .text-white\/10 { color: rgba(15, 23, 42, 0.15); }
+
+/* ---- Border overrides: white-tinted → dark-slate-tinted ---- */
+.light-theme .border-white\/5 { border-color: rgba(15, 23, 42, 0.08); }
+.light-theme .border-white\/10 { border-color: rgba(15, 23, 42, 0.12); }
+.light-theme .border-white\/15 { border-color: rgba(15, 23, 42, 0.15); }
+.light-theme .border-white\/20 { border-color: rgba(15, 23, 42, 0.2); }
+
+.light-theme .hover\:border-white\/10:hover { border-color: rgba(15, 23, 42, 0.15); }
+.light-theme .hover\:border-white\/20:hover { border-color: rgba(15, 23, 42, 0.25); }
+
+/* ---- Background overrides: white-tinted → dark-slate-tinted ---- */
+.light-theme .bg-white\/5 { background-color: rgba(15, 23, 42, 0.04); }
+.light-theme .bg-white\/10 { background-color: rgba(15, 23, 42, 0.06); }
+
+.light-theme .hover\:bg-white\/5:hover { background-color: rgba(15, 23, 42, 0.04); }
+
+/* ---- Gradient stop: from-white would be invisible on white.
+   Override --tw-gradient-from to dark slate (lazy-resolved by
+   --tw-gradient-stops → background-image). ---- */
+.light-theme .from-white {
+  --tw-gradient-from: #1e293b var(--tw-gradient-from-position, 0%) !important;
+}
+
+/* ---- Hero CTA button: bg-brand-accent-lime text-black.
+   In light mode the lime is dark green (#4d7c0f), so black text
+   becomes white for contrast; hover transitions to a light slate
+   surface instead of pure white (which would be white-on-white). ---- */
+.light-theme .bg-brand-accent-lime.text-black {
+  color: #ffffff;
+}
+.light-theme .bg-brand-accent-lime.text-black:hover {
+  background-color: #e2e8f0;
+  color: #0f172a;
+}
+
+/* ---- Article body (Markdown + KaTeX) ---- */
+.light-theme .article-body h2 {
+  color: #0f172a;
+  border-top-color: rgba(77, 124, 15, 0.2);
+}
+.light-theme .article-body h3 {
+  color: #0f172a;
+  border-bottom-color: rgba(15, 23, 42, 0.1);
+}
+.light-theme .article-body h4 {
+  color: #1e293b;
+}
+.light-theme .article-body h5,
+.light-theme .article-body h6 {
+  color: #64748b;
+}
+.light-theme .article-body p {
+  color: #334155;
+}
+.light-theme .article-body li {
+  color: #334155;
+}
+.light-theme .article-body ul li::before {
+  color: #94a3b8;
+}
+.light-theme .article-body ol li::before {
+  color: #4d7c0f;
+}
+.light-theme .article-body a {
+  color: #4d7c0f;
+  border-bottom-color: rgba(77, 124, 15, 0.3);
+}
+.light-theme .article-body a:hover {
+  color: #65a30d;
+  border-bottom-color: #65a30d;
+}
+.light-theme .article-body blockquote {
+  color: #64748b;
+  border-left-color: rgba(77, 124, 15, 0.4);
+}
+.light-theme .article-body code {
+  background: rgba(15, 23, 42, 0.06);
+  color: #1e293b;
+}
+.light-theme .article-body pre {
+  background: rgba(15, 23, 42, 0.03);
+  border-color: rgba(15, 23, 42, 0.08);
+}
+.light-theme .article-body pre code {
+  color: #334155;
+}
+.light-theme .article-body th {
+  color: #0f172a;
+  background: rgba(15, 23, 42, 0.03);
+  border-color: rgba(15, 23, 42, 0.1);
+}
+.light-theme .article-body td {
+  color: #334155;
+  border-color: rgba(15, 23, 42, 0.08);
+}
+.light-theme .article-body tr:nth-child(even) td {
+  background: rgba(15, 23, 42, 0.02);
+}
+.light-theme .article-body hr {
+  border-top-color: rgba(15, 23, 42, 0.1);
+}
+
 

@@ -70,6 +70,9 @@ export default function App({ knowledgeArticles = [] }: AppProps) {
   }, []);
   useEffect(() => {
     localStorage.setItem("theme", theme);
+    // Sync to <html> so global CSS overrides (body bg, scrollbar, article-body)
+    // apply everywhere — the React root div alone can't reach those elements.
+    document.documentElement.classList.toggle("light-theme", theme === "light");
   }, [theme]);
 
   // Smooth scroll to top on page switches
@@ -129,7 +132,9 @@ export default function App({ knowledgeArticles = [] }: AppProps) {
       }`} />
 
       {/* Global Seamless WebGL Rays Background */}
-      <div className="fixed inset-0 -z-15 pointer-events-none opacity-90">
+      <div className={`fixed inset-0 -z-15 pointer-events-none transition-opacity duration-300 ${
+        theme === "light" ? "opacity-30" : "opacity-90"
+      }`}>
         <SideRays
           speed={2.5}
           rayColor1="#bcfd49"

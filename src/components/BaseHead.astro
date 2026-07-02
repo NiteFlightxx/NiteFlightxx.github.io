@@ -36,6 +36,18 @@ const imageUrl = new URL(image, `${SITE.url}/`).href;
 <meta name="author" content={SITE.author} />
 <meta name="theme-color" content="#000000" />
 
+<!-- Apply persisted theme before paint to avoid FOUC. The SPA's
+     App.tsx also syncs via useEffect, but this inline script runs
+     synchronously in <head> so the correct palette is applied on
+     the very first frame (including article pages, which have no
+     React tree). -->
+<script is:inline>
+  (function () {
+    var t = localStorage.getItem('theme');
+    if (t === 'light') document.documentElement.classList.add('light-theme');
+  })();
+</script>
+
 <!-- Open Graph -->
 <meta property="og:type" content={type} />
 <meta property="og:site_name" content={SITE.shortTitle} />
