@@ -96,8 +96,8 @@ export default function KnowledgeView({ articles, lang }: KnowledgeViewProps) {
         </h1>
         <p className="font-sans text-sm md:text-base text-gray-400 max-w-xl mx-auto font-light leading-relaxed">
           {lang === "zh"
-            ? "理解与解释技术。涵盖引擎、物理、动画、渲染、玩法、AI 与数学领域的技术沉淀。"
-            : "Explain and understand technology across engine, physics, animation, rendering, gameplay, AI and math."}
+            ? "理解与解释技术。涵盖引擎、物理、动画与数学领域的技术沉淀。"
+            : "Explain and understand technology across engine, physics, animation and math."}
         </p>
       </div>
 
