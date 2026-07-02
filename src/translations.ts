@@ -177,8 +177,8 @@ export const SKILLS_ZH = [
     name: "物理引擎",
     skills: [
       { name: "Chaos", details: "在 Chaos 物理引擎下定义角色刚体行为、约束与碰撞，平衡物理可信度与实时性能。" },
-      { name: "Active Ragdoll", details: "以物理模拟驱动角色身体，实现受击反馈、二级运动与自然的身体动力学响应。" },
-      { name: "Physical Animation", details: "物理与动画的混合驱动，让骨骼在物理响应与动画表现之间平滑过渡。" },
+      { name: "Forward Dynamics", details: "基于力与质量的物理建模，通过求解外力作用下的加速度与状态演化，模拟碰撞、重力、弹性与摩擦等物理行为，从而驱动物体在时间维度上的真实运动响应。" },
+      { name: "Inverse Dynamics", details: "基于目标运动状态或期望轨迹，反向求解系统所需的力、力矩或控制输入，用于生成满足约束条件的驱动行为，实现对运动结果的控制与约束。" },
       { name: "Constraint", details: "刚体约束求解与运动刚度控制，维持骨骼长度、关节限位与柔性表现。" },
       { name: "Cloth", details: "布料与软体模拟，为角色二级运动提供贴合物理规律的动态形变。" },
     ],
