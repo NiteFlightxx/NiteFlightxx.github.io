@@ -169,10 +169,8 @@ export const SKILLS_ZH = [
     name: "动画系统",
     skills: [
       { name: "Animation Blueprint", details: "状态机、混合与骨骼控制节点的组合编排，驱动角色姿态、状态切换与运动表现。" },
-      { name: "Motion Matching", details: "基于姿态搜索的实时运动匹配，从动画库中选取最贴合目标动作的姿态序列。" },
       { name: "IK", details: "从单链 IK 到全身 IK 求解器的选型与调参，覆盖雅可比法与位置动力学两条范式。" },
       { name: "Control Rig", details: "在 RigGraph 中以 RigUnit 形式组织骨骼控制逻辑，实现程序化、可复用的绑定与求解。" },
-      { name: "Motion Warping", details: "对动画根运动与目标点进行运行时形变，让预制动作贴合实际环境与交互目标。" },
     ],
   },
   {
@@ -183,15 +181,6 @@ export const SKILLS_ZH = [
       { name: "Physical Animation", details: "物理与动画的混合驱动，让骨骼在物理响应与动画表现之间平滑过渡。" },
       { name: "Constraint", details: "刚体约束求解与运动刚度控制，维持骨骼长度、关节限位与柔性表现。" },
       { name: "Cloth", details: "布料与软体模拟，为角色二级运动提供贴合物理规律的动态形变。" },
-    ],
-  },
-  {
-    name: "引擎编程",
-    skills: [
-      { name: "Unreal Engine C++", details: "深入 UE C++ 与模块架构，从插件到子系统的设计与扩展，落地角色运动系统。" },
-      { name: "源码分析", details: "长期阅读 UE 引擎与插件源码，从底层机制理解各子系统的设计取舍与实现路径。" },
-      { name: "系统设计", details: "运动系统的架构设计，兼顾可扩展性、稳定性与表现力的工程化组织。" },
-      { name: "性能优化", details: "关注控制循环频率、缓存友好性与子步调度的实时性能调优。" },
     ],
   },
   {
