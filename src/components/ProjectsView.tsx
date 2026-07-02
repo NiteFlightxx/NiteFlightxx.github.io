@@ -34,20 +34,9 @@ export default function ProjectsView({ projects, onSelectProject, lang }: Projec
     <div className="space-y-12 pb-20 select-none" id="projects-view-container">
       {/* Intro Header */}
       <div className="max-w-4xl mx-auto text-center space-y-4 px-6">
-        <span className="font-mono text-xs text-brand-accent-lime uppercase tracking-widest">
-          {lang === "zh" ? "已完成 · 具有工程价值的系统" : "ENGINEERED SYSTEMS"}
-        </span>
         <h1 className="font-display font-black text-4xl md:text-6xl text-white tracking-tighter">
           {lang === "zh" ? "项目" : "Projects"}
         </h1>
-        <p className="font-serif italic text-xl md:text-2xl text-brand-accent-gold-light tracking-wide">
-          {t.capabilityTagline}
-        </p>
-        <p className="font-sans text-base md:text-lg text-gray-300 max-w-2xl mx-auto font-light leading-relaxed">
-          {lang === "zh"
-            ? "以工程实现为核心的真实系统集合，而非作品展示。"
-            : "Real systems centered on engineering implementation, not a portfolio showcase."}
-        </p>
       </div>
 
       {/* Categories Toolbar Filter */}

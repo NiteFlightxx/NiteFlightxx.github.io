@@ -3,14 +3,10 @@
  * Views import from here instead of re-declaring categories inline.
  */
 
-// ---- Project categories (6) ----
+// ---- Project categories (2) ----
 export const PROJECT_CATEGORIES = {
   Simulation: "物理模拟",
-  Motion: "运动与动画",
-  Rendering: "渲染",
-  Gameplay: "玩法系统",
-  Tools: "工具链",
-  AI: "智能系统",
+  Animation: "动画",
 } as const;
 export type ProjectCategory = keyof typeof PROJECT_CATEGORIES;
 

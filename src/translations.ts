@@ -20,7 +20,6 @@ export const UI_TRANSLATIONS = {
     viewAllProjects: "查看全部项目",
     viewAllKnowledge: "查看全部知识",
     // Projects
-    capabilityTagline: "工程能力 · 研究能力 · 系统设计能力",
     filterSpecialization: "筛选分类:",
     all: "全部",
     examine: "分析",
@@ -80,7 +79,6 @@ export const UI_TRANSLATIONS = {
     viewAllProjects: "View All Projects",
     viewAllKnowledge: "View All Knowledge",
     // Projects
-    capabilityTagline: "Engineering · Research · System Design",
     filterSpecialization: "Filter Category:",
     all: "All",
     examine: "Examine",
