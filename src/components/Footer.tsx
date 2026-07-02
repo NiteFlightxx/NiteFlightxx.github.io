@@ -41,8 +41,8 @@ export default function Footer({ lang, theme }: FooterProps) {
           </div>
           <p className="text-xs text-gray-500 leading-relaxed font-sans">
             {lang === "zh"
-              ? "专攻高性能 C++ 方案、GPU 并行计算，以及为虚幻引擎深度研发定制骨骼动画图表。致力于探索实时交互媒体与物理模拟的终极边界。"
-              : "Specializing in high-performance C++ solutions, GPU computing, and custom skeletal animation graphs for Unreal Engine. Focused on pushing the boundaries of real-time interactive media."}
+              ? "致力于探索实时交互媒体与物理模拟的终极边界。"
+              : "Focused on pushing the boundaries of real-time interactive media and physics simulation."}
           </p>
           <span className="text-[10px] font-mono text-gray-600">
             © {new Date().getFullYear()} {lang === "zh" ? "Nite。保留所有计算权利。" : "Nite. All computational rights reserved."}
