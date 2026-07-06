@@ -49,14 +49,3 @@ export interface SkillCategory {
   name: string;
   skills: { name: string; details: string }[];
 }
-
-// ---- Career timeline (Archive) ----
-export interface TimelineEvent {
-  year: string;
-  role: string;
-  company: string;
-  project: string; // 涉及项目
-  description: string;
-  outcomes: string[]; // 成果
-  highlights: string[];
-}

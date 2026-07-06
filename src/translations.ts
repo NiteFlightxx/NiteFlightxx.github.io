@@ -1,5 +1,5 @@
 /**
- * Content data for the Personal R&D Lab site.
+ * Content data for the Personal Exploration Workshop site.
  * Skeleton/placeholder content — to be filled in during content redesign.
  * Research data has been migrated to the Markdown knowledge collection
  * (src/content/knowledge); only projects/skills/timeline remain as data
@@ -9,8 +9,8 @@
 export const UI_TRANSLATIONS = {
   zh: {
     // Hero
-    role: "Unreal Engine 工程师",
-    title: "个人研发实验室",
+    role: "Physical Animation Engineer",
+    title: "个人探索工坊",
     statement: "探索动画、物理与世界的实时交互",
     exploreWork: "探索项目",
     viewProfile: "查看档案",
@@ -20,7 +20,6 @@ export const UI_TRANSLATIONS = {
     viewAllProjects: "查看全部项目",
     viewAllKnowledge: "查看全部知识",
     // Projects
-    capabilityTagline: "工程能力 · 研究能力 · 系统设计能力",
     filterSpecialization: "筛选分类:",
     all: "全部",
     examine: "分析",
@@ -56,14 +55,8 @@ export const UI_TRANSLATIONS = {
     techDirection: "技术方向",
     researchInterest: "研究兴趣",
     expertise: "专业领域",
-    experience: "经验:",
-    language: "语言:",
-    platforms: "平台:",
-    location: "地点:",
     systemProficiencies: "技能矩阵",
     techStackProfile: "技术栈画像",
-    professionalTimeline: "职业发展时间线",
-    careerChronology: "成长轨迹",
     // Footer / diagnostics
     allRightsReserved: "Nite。保留所有计算权利。",
     systemDiagnostics: "系统诊断数据",
@@ -75,8 +68,8 @@ export const UI_TRANSLATIONS = {
   },
   en: {
     // Hero
-    role: "Unreal Engine Engineer",
-    title: "Personal R&D Lab",
+    role: "Physical Animation Engineer",
+    title: "Personal Exploration Workshop",
     statement: "Exploring real-time interaction between animation, physics, and the world",
     exploreWork: "Explore Projects",
     viewProfile: "View Archive",
@@ -86,7 +79,6 @@ export const UI_TRANSLATIONS = {
     viewAllProjects: "View All Projects",
     viewAllKnowledge: "View All Knowledge",
     // Projects
-    capabilityTagline: "Engineering · Research · System Design",
     filterSpecialization: "Filter Category:",
     all: "All",
     examine: "Examine",
@@ -122,14 +114,8 @@ export const UI_TRANSLATIONS = {
     techDirection: "Tech Direction",
     researchInterest: "Research Interest",
     expertise: "Expertise",
-    experience: "Experience:",
-    language: "Language:",
-    platforms: "Platforms:",
-    location: "Location:",
     systemProficiencies: "Skill Matrix",
     techStackProfile: "Tech Stack Profile",
-    professionalTimeline: "Professional Timeline",
-    careerChronology: "Growth Trajectory",
     // Footer / diagnostics
     allRightsReserved: "Nite. All computational rights reserved.",
     systemDiagnostics: "System Diagnostics",
@@ -181,29 +167,18 @@ export const SKILLS_ZH = [
     name: "动画系统",
     skills: [
       { name: "Animation Blueprint", details: "状态机、混合与骨骼控制节点的组合编排，驱动角色姿态、状态切换与运动表现。" },
-      { name: "Motion Matching", details: "基于姿态搜索的实时运动匹配，从动画库中选取最贴合目标动作的姿态序列。" },
       { name: "IK", details: "从单链 IK 到全身 IK 求解器的选型与调参，覆盖雅可比法与位置动力学两条范式。" },
       { name: "Control Rig", details: "在 RigGraph 中以 RigUnit 形式组织骨骼控制逻辑，实现程序化、可复用的绑定与求解。" },
-      { name: "Motion Warping", details: "对动画根运动与目标点进行运行时形变，让预制动作贴合实际环境与交互目标。" },
     ],
   },
   {
     name: "物理引擎",
     skills: [
       { name: "Chaos", details: "在 Chaos 物理引擎下定义角色刚体行为、约束与碰撞，平衡物理可信度与实时性能。" },
-      { name: "Active Ragdoll", details: "以物理模拟驱动角色身体，实现受击反馈、二级运动与自然的身体动力学响应。" },
-      { name: "Physical Animation", details: "物理与动画的混合驱动，让骨骼在物理响应与动画表现之间平滑过渡。" },
+      { name: "Forward Dynamics", details: "基于力与质量的物理建模，通过求解外力作用下的加速度与状态演化，模拟碰撞、重力、弹性与摩擦等物理行为，从而驱动物体在时间维度上的真实运动响应。" },
+      { name: "Inverse Dynamics", details: "基于目标运动状态或期望轨迹，反向求解系统所需的力、力矩或控制输入，用于生成满足约束条件的驱动行为，实现对运动结果的控制与约束。" },
       { name: "Constraint", details: "刚体约束求解与运动刚度控制，维持骨骼长度、关节限位与柔性表现。" },
       { name: "Cloth", details: "布料与软体模拟，为角色二级运动提供贴合物理规律的动态形变。" },
-    ],
-  },
-  {
-    name: "引擎编程",
-    skills: [
-      { name: "Unreal Engine C++", details: "深入 UE C++ 与模块架构，从插件到子系统的设计与扩展，落地角色运动系统。" },
-      { name: "源码分析", details: "长期阅读 UE 引擎与插件源码，从底层机制理解各子系统的设计取舍与实现路径。" },
-      { name: "系统设计", details: "运动系统的架构设计，兼顾可扩展性、稳定性与表现力的工程化组织。" },
-      { name: "性能优化", details: "关注控制循环频率、缓存友好性与子步调度的实时性能调优。" },
     ],
   },
   {
@@ -214,18 +189,5 @@ export const SKILLS_ZH = [
       { name: "Jacobian", details: "雅可比矩阵与阻尼最小二乘，将末端目标映射为关节增量，统一 IK 与约束求解的数学骨架。" },
       { name: "Numerical Methods", details: "数值积分、迭代求解与极分解，在实时性与精度之间为物理仿真选择合适方法。" },
     ],
-  },
-];
-
-// ---- Career timeline: 成长轨迹（骨架占位） ----
-export const TIMELINE_ZH = [
-  {
-    year: "2024 — 至今",
-    role: "占位职位待填充",
-    company: "占位公司待填充",
-    project: "占位项目待填充",
-    description: "职责描述待填充。",
-    outcomes: ["成果待填充"],
-    highlights: ["亮点待填充"],
   },
 ];

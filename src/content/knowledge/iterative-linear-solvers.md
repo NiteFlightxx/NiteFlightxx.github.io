@@ -1,5 +1,5 @@
 ---
-title: "线性方程组迭代求解的数学原理详解 — 从雅可比、高斯-赛德尔到共轭梯度与约束求解"
+title: "线性方程组迭代求解详解 — 从雅可比、高斯-赛德尔到共轭梯度与约束求解"
 excerpt: "像搭积木一样，从最基础的方程、未知数、矩阵开始，一步步搭出雅可比迭代与高斯-赛德尔迭代，再延伸到 SOR、共轭梯度（CG）、预条件共轭梯度（PCG）、GMRES、BiCGSTAB、多重网格，以及收敛性的谱半径判据与条件数收敛率。最后落到物理引擎：PBD 约束求解就是高斯-赛德尔、PGS 用投影处理不等约束、Sequential Impulse 即冲量形式的 PGS、有效质量就是 J·M⁻¹·Jᵀ 的对角、XPBD 用 compliance 把刚度与迭代次数解耦。打通数值线性代数与游戏物理约束求解背后同一套迭代思想。"
 date: "2026-06-26"
 category: "Mathematics"
@@ -1146,4 +1146,4 @@ void DiagnoseConvergence(const FSparseMatrix& A)
 
 理解了谱半径与条件数，就理解了它们为什么收敛、为什么快或慢；理解了 PGS 的投影与 XPBD 的柔度，就理解了它们为什么能处理接触与控制刚度。下次在代码里看到 `NumIterations`、`SolverIterationCount`、`PGS`、`SequentialImpulse`、`effectiveMass`、`compliance`、`PCG`、`Multigrid`，它们背后都是同一件事：在 $\mathbf{A}\mathbf{x}=\mathbf{b}$ 上反复修正、逼近真解。
 
-想继续追溯约束雅可比 $\mathbf{J}$ 与有效质量 $\mathbf{J}\mathbf{M}^{-1}\mathbf{J}^{\mathsf T}$ 的来源，见《雅可比矩阵的数学原理详解》；想看 XPBD 的 predict-correct 流程如何与数值积分串联，见《物理模拟数值积分方法的数学与物理原理详解》。
+想继续追溯约束雅可比 $\mathbf{J}$ 与有效质量 $\mathbf{J}\mathbf{M}^{-1}\mathbf{J}^{\mathsf T}$ 的来源，见&#12298;[雅可比矩阵详解](/knowledge/jacobian-matrix/)&#12299;；想看 XPBD 的 predict-correct 流程如何与数值积分串联，见&#12298;[物理模拟数值积分方法详解](/knowledge/numerical-integration-methods/)&#12299;。

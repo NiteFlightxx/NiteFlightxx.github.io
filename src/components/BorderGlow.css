@@ -174,3 +174,21 @@
   width: 100%;
   height: 100%;
 }
+
+/* ---- Light mode: cards become light surfaces ----
+   --card-bg is set via inline style (always dark hex), so we
+   override it with !important. Inline normal-priority styles
+   lose to stylesheet !important rules. */
+.light-theme .border-glow-card {
+  --card-bg: #ffffff !important;
+  border-color: rgba(15, 23, 42, 0.1) !important;
+  box-shadow:
+    rgba(0, 0, 0, 0.03) 0px 1px 2px,
+    rgba(0, 0, 0, 0.03) 0px 2px 4px,
+    rgba(0, 0, 0, 0.03) 0px 4px 8px,
+    rgba(0, 0, 0, 0.02) 0px 8px 16px,
+    rgba(0, 0, 0, 0.02) 0px 16px 32px !important;
+}
+
+/* Pseudo-element gradients reference --card-bg via var(), so
+   the !important override above propagates automatically. */
