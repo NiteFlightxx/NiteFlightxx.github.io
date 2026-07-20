@@ -48,14 +48,12 @@ AircraftLab 是一个基于 Unreal Engine 5 Chaos 的多旋翼飞行仿真插件
 - 数据驱动的四级 Simulation LOD。
 - 服务器权威的 UE 刚体移动复制和 `PredictiveInterpolation`。
 
-### 1.2 当前没有实现或没有接线
+### 1.2 当前没有实现
 
 - 没有真实 IMU/GPS/气压计传感器链和状态估计器；飞控直接读取 Chaos 真值。
 - 没有 `UNetworkPhysicsComponent`、客户端输入历史或物理重模拟。
 - 没有为 Autopilot 命令提供内建 Server RPC；联网游戏必须由服务器提交命令。
 - 没有单独复制 Autopilot 意图、每桨 RPM、旋翼健康数组和 PID 状态。
-- `FDroneMassProperties`、`FDroneAerodynamicsConfig`、传感器配置、`FDroneEstimatorConfig`、`FDroneFailsafeConfig` 等结构仍是未来数据契约，不是当前运行链路的配置源。
-- `FDroneControlAllocationConfig::AxisWeights` 当前保留，但没有参与求解器计算；调整它不会改变飞行结果。
 
 ---
 
@@ -111,7 +109,7 @@ AAircraftPawn
 - `SetSimulatePhysics(true)`；
 - `SetEnableGravity(true)`。
 
-真实质量、质心、惯量和 Chaos 阻尼来自 Skeletal Mesh/Physics Asset/BodyInstance，而不是 `FDroneMassProperties`。飞控在物理线程通过刚体句柄读取：
+真实质量、质心、惯量和 Chaos 阻尼来自 Skeletal Mesh/Physics Asset/BodyInstance。飞控在物理线程通过刚体句柄读取：
 
 - `M()`：质量 kg；
 - `CenterOfMass()`：机体局部质心偏移 cm；
@@ -146,7 +144,7 @@ AAircraftPawn
 - `ArmState` 直接设为 `Armed`；
 - 用当前位姿初始化估计状态与 Hold 目标。
 
-这意味着 `UDroneInputComponent` 中某些“初始是否解锁”配置并不是实际启动状态的唯一来源。若项目需要安全的 Disarmed 启动流程，应统一修改飞控初始化状态机，而不是只修改输入组件。
+若项目需要安全的 Disarmed 启动流程，应统一修改飞控初始化状态机。
 
 ---
 
@@ -182,7 +180,7 @@ FlightController 游戏线程 Tick：
 
 ### 4.2 物理线程：一物理步一次控制
 
-当前版本已经删除 `ControlLoopRateHz` 和固定 250 Hz 累加器。真实路径是：
+飞控没有独立控制频率累加器，每个 Chaos 异步物理步运行一次完整控制循环：
 
 ```cpp
 AsyncPhysicsTickComponent(DeltaTime, SimTime)
@@ -355,8 +353,6 @@ $$
 | `MaxCommandSlewPerSecond` | 8.0/s | 越小越平顺，但会增加控制延迟。 |
 | `CommandScale` | 1.0 | 组件级输出微调，容易掩盖布局/标定问题，不建议作为常规配平手段。 |
 
-`RadiusCm`、`bUseSocketTransform` 和 `Motor.MinRpm` 当前没有完整进入实际气动/几何选择路径：桨半径不参与推力计算，组件实际 Transform 是几何事实来源，零命令仍直接得到 0 RPM。不要把这些字段交给策划当作当前有效参数。
-
 ---
 
 ## 7. 状态读取与级联飞控
@@ -469,29 +465,55 @@ $$
 
 ### 7.5 姿态参考模型与四元数控制
 
-Roll/Pitch 目标默认先经过临界阻尼二阶参考模型：
+非直通模式（非 Acro/Manual）的姿态环由三段组成：Roll/Pitch 二阶参考模型、四元数倾斜误差、独立水平航向闭环。Roll/Pitch 与 Yaw 走两条独立路径，避免航向误差泄漏进 Roll/Pitch。
+
+Roll/Pitch 期望角度先经过临界阻尼二阶参考模型（对标 PX4 `AttitudeControl.cpp`）：
 
 $$
 \ddot x+2\omega_n\dot x+\omega_n^2(x-x_{sp})=0
 $$
 
-它输出平滑姿态目标和角速度前馈。`RefModelNaturalFrequency` 越高，目标跟踪越快；太高会重新接近阶跃。`RefModelRateFFLimitDegPerSec` 限制参考模型导数。
-
-默认四元数姿态路径计算：
+用 ZOH 半隐式离散积分：
 
 $$
-q_{err}=q_{current}^{-1}q_{desired}
+v_{n+1}=v_n+\left(\omega_n^2(x_{sp}-x_n)-2\omega_n v_n\right)\Delta t,\quad x_{n+1}=x_n+v_{n+1}\Delta t
 $$
 
-选择最短旋转后，用虚部近似姿态误差并转换成期望机体角速度。`YawWeight` 缩放偏航误差，使 Roll/Pitch 推力方向对齐优先于机头朝向。
+它输出平滑姿态目标 $x_{n+1}$ 和角速度前馈 $v_{n+1}$。`RefModelNaturalFrequency`（$\omega_n$，默认 6 rad/s）越高跟踪越快但越接近阶跃；`RefModelRateFFLimitDegPerSec`（默认 100°/s，对标 PX4 `MC_REF_FF_MAX`）限制前馈幅值。前馈直接进入下游角速度设定值（`RollRateFF`/`PitchRateFF`），角速度内环不再开配置期 `Kff` 通道，避免前馈二次叠加（见 14.1）。
 
-随后角速度内环把：
+Roll/Pitch 误差不在欧拉角空间计算，而是直接用 Chaos 刚体四元数。目标姿态用**当前机头航向**拼接平滑后的 Roll/Pitch，刻意不使用目标 Yaw：
+
+$$
+q_{des}=\text{Rot}(\theta_{sm},\,\psi_{cur},\,\phi_{sm}),\quad q_{err}=q_{cur}^{-1}\,q_{des}
+$$
+
+若 $(q_{err})_W<0$ 取四元数负元保证最短旋转，再归一化。用虚部近似机体姿态误差（弧度），X/Y 取负匹配飞控 Roll/Pitch 角速度符号约定，再转成 °/s 叠加参考模型前馈：
+
+$$
+\omega_{\phi,des}=\text{Rad2Deg}\bigl(-2\,(q_{err})_X\cdot K_{quat,\phi}\bigr)+\dot\phi_{ff}
+$$
+
+$$
+\omega_{\theta,des}=\text{Rad2Deg}\bigl(-2\,(q_{err})_Y\cdot K_{quat,\theta}\bigr)+\dot\theta_{ff}
+$$
+
+这里 $K_{quat}$ 是 `QuaternionAttitudeGains`（标量比例增益，非 PID，默认 Roll/Pitch 4.5、Yaw 3.0）。$2\,(q_{err})_{imag}$ 本身是弧度量纲，必须经 `RadiansToDegrees` 对齐下游 °/s 管线；`RadiansToDegrees` 是正向缩放，不改变 X/Y 取负的符号约定（见 5.1）。
+
+Yaw 误差刻意不进入 $q_{err}$：若把 `TargetYaw` 与 Roll/Pitch 一起拼进 $q_{des}$，航向误差会泄漏到 $(q_{err})_X$/$(q_{err})_Y$，使单纯转向也产生错误的横滚/俯仰指令。当前实现用 `ComputePlanarHeadingErrorRadians` 单独从刚体四元数取水平机头方向与世界 Yaw 夹角，按比例生成偏航角速度：
+
+$$
+\omega_{\psi,des}=\text{Rad2Deg}\bigl(e_{heading}\cdot K_{quat,\psi}\bigr)+\dot\psi_{ff}
+$$
+
+这条独立路径实现了“推力方向对齐优先于机头朝向”的设计意图：Roll/Pitch 只关心让推力指向期望倾斜方向，Yaw 闭环单独收敛机头航向，两者在 $q_{err}$ 层面完全解耦。
+
+三轴期望角速度限幅到 `MaxRoll/PitchRateDegreesPerSec` 与 `YawSetpoint.MaxRateDegPerSec` 后，进入角速度内环：
 
 $$
 \boldsymbol\omega_{des}-\boldsymbol\omega_{measured}
 $$
 
-转换为归一化 Roll/Pitch/Yaw 力矩指令，并叠加按惯量、角阻尼和当前正/负力矩权限归一化的角阻尼前馈。
+内环 PID 把误差转换为归一化 Roll/Pitch/Yaw 力矩指令，并叠加按惯量、角阻尼和当前正/负力矩权限归一化的角阻尼前馈（运行时 `Kff=1.0` 走 PID 前馈通道，统一限幅与 anti-windup）。分配饱和时上一帧残差标志回传内环，禁止饱和方向继续累积积分。
 
 ### 7.6 倾斜总距补偿
 
@@ -567,21 +589,11 @@ $\lambda$ 增大时矩阵更稳定，但跟踪更软、残差更大；过小则�
 
 力矩轴残差还会回传给下一物理步的角速度 PID，用于阻止积分继续向已经饱和的方向累积。
 
-### 8.4 `AxisWeights` 的真实状态
-
-虽然配置中存在 `AxisWeights=(Thrust, Roll, Pitch, Yaw)`，当前代码已经回退到标准阻尼伪逆，**没有把这个字段带入法矩阵或分层去饱和算法**。原因是旧的行加权公式会破坏满秩情况下的精确解并可能翻转力矩。
-
-因此当前版本：
-
-- 调整 `AxisWeights` 没有运行效果；
-- 不应向策划暴露该参数；
-- 若未来需要“饱和时先牺牲 Yaw、再牺牲总距”等优先级，应实现正确的层次化/顺序去饱和分配，而不是简单对 $JJ^T$ 行加权。
-
 ---
 
 ## 9. 旋翼健康、降效与 FailurePolicy
 
-`FRotorFailureManager` 与已经删除的 `RotorHitRecovery` 游戏化碰撞恢复策略不是同一系统。前者是飞控仍在使用的通用旋翼健康与权限管理器。
+`FRotorFailureManager` 是飞控使用的通用旋翼健康与权限管理器。
 
 支持的操作包括：
 
@@ -663,7 +675,7 @@ $\lambda$ 增大时矩阵更稳定，但跟踪更软、残差更大；过小则�
 5. 最大倾角换算出的物理加速度；
 6. Chaos 线性阻尼及保留的控制余量。
 
-旧文档或旧接口中的 `TargetSpeedCmPerSec` 已不应作为第二个等价巡航参数出现。有限命令只有 `CruiseSpeed`；穿越终点速度只在 `PassThrough` 模式下存在。
+有限命令只有 `CruiseSpeed` 一个速度参数；穿越终点速度只在 `PassThrough` 模式下作为 `PassThroughSpeedCmPerSec` 存在。
 
 ### 10.4 为什么需要 Jerk
 
@@ -925,7 +937,7 @@ SetPhysicsReplicationMode(
 - Full/Reduced 客户端默认保留 Chaos，以便 UE 物理复制执行 Predictive Interpolation；
 - Kinematic/Dormant 客户端关闭本地 Chaos，根 Transform 由 Replicate Movement 驱动，内部组件跟随根组件。
 
-`bClientProxyUsesDefaultPhysicsReplication` 是保留的序列化字段名。它开启时实际使用的模式是 Pawn BeginPlay 设置的 `PredictiveInterpolation`，不是旧的默认位置纠偏模式。
+`bClientProxyUsesDefaultPhysicsReplication` 控制客户端代理是否启用本地 Chaos 刚体：开启时客户端按对应层级的 `bEnablePhysics` 设置启用物理（Full/Reduced 客户端保留 Chaos 用于 Predictive Interpolation），关闭时客户端所有层级都关闭本地物理。物理复制模式本身由 Pawn `BeginPlay` 固定设置为 `PredictiveInterpolation`，与该字段无关。
 
 服务器会按层级设置 `NetUpdateFrequency`：30/15/8/2 Hz。这个频率只是 Actor 复制建议频率，不是飞控频率，也不是客户端插值帧率。
 
@@ -996,7 +1008,7 @@ Autonomous Proxy 和服务器必须保持 FullPhysics，不能因客户端距离
 | Velocity X/Y | 速度误差 -> 水平加速度 | 平移响应、制动和阻尼 |
 | Altitude | 高度误差 -> 垂直速度 | 高度回正速度 |
 | Vertical Velocity | 垂直速度误差 -> 总距偏移 | 上下振荡与悬停抗扰 |
-| Angle Roll/Pitch/Yaw | 姿态误差 -> 角速度 | 回平和航向跟踪 |
+| 姿态 Roll/Pitch/Yaw | 四元数姿态误差 -> 期望角速度 | 回平和航向跟踪（标量比例增益 `QuaternionAttitudeGains`，非 PID） |
 | Rate Roll/Pitch/Yaw | 角速度误差 -> 归一化力矩 | 最内环稳定性 |
 
 必须从内向外调：Rate -> Angle -> Velocity/VerticalVelocity -> Position/Altitude -> Autopilot。
@@ -1007,12 +1019,12 @@ Autonomous Proxy 和服务器必须保持 FullPhysics，不能因客户端距离
 
 | 参数 | 建议 |
 |---|---|
-| `AngularDampingFeedForwardScale` | 默认 1；Chaos 角阻尼被修改后重新验证。 |
+| `QuaternionAttitudeGains.Roll/Pitch` | 默认 4.5；四元数倾斜误差到期望角速率的标量比例增益（非 PID）。 |
+| `QuaternionAttitudeGains.Yaw` | 默认 3.0；独立水平航向闭环的标量比例增益。 |
 | `bEnableAttitudeRefModel` | 建议开启。 |
-| `RefModelNaturalFrequency` | 默认 6 rad/s；越大越硬。 |
-| `RefModelRateFFLimitDegPerSec` | 默认 100°/s；是参考模型速度安全网。 |
-| `bEnableQuaternionAttitude` | 建议开启。 |
-| `YawWeight` | 默认 0.4；越低越优先推力方向。 |
+| `RefModelNaturalFrequency` | 默认 6 rad/s；越大越硬，过高接近阶跃。 |
+| `RefModelRateFFLimitDegPerSec` | 默认 100°/s；参考模型角速度前馈安全网（对标 PX4 `MC_REF_FF_MAX`）。 |
+| `AngularDampingFeedForwardScale` | 默认 1；Chaos 角阻尼被修改后重新验证。 |
 | `LinearDampingFeedForwardScale` | 默认 1；只在 Chaos 线性阻尼模型可信时完整补偿。 |
 | `DampingAccelerationReserveFraction` | 默认 0.2；越大越稳健但持续极速越低。 |
 | `VerticalDampingFeedForwardScale` | 默认 1；控制稳态升降阻尼补偿。 |
@@ -1022,7 +1034,6 @@ Autonomous Proxy 和服务器必须保持 FullPhysics，不能因客户端距离
 - `DampedPseudoInverseLambda=0.05` 是当前正常布局的轻度正则化起点。
 - `bEnableTiltCompensation` 建议开启。
 - `MinCosTilt=0.1` 是数学防爆下限，不是玩法倾角。
-- `AxisWeights` 当前未接线。
 - FailurePolicy 默认关闭；启用前必须专门验证每种故障动作。
 
 ### 14.2 UAutopilotProfileAsset
@@ -1201,7 +1212,6 @@ Get Autopilot Component
 | 偏航自旋 | 旋向不平衡、反扭矩系数、Yaw 前馈重复、Yaw Rate PID |
 | 客户端抖动 | 是否为 Simulated Proxy、PredictiveInterpolation、网络频率、Dormancy 切换 |
 | Reduced 仍很耗 CPU | 当前 Reduced 仍保留完整 Chaos 和飞控，这是已知边界 |
-| 修改 AxisWeights 无效果 | 当前字段未接线 |
 
 ### 17.3 自动化测试范围
 
@@ -1225,11 +1235,9 @@ Get Autopilot Component
 2. **ReducedPhysics 名称大于实现**：当前没有真正的低精度物理模型。
 3. **网络命令层未复制**：AI/玩法必须在服务器权威执行。
 4. **玩家控制网络路径未完成**：Autonomous Proxy 不应直接套用 NPC 的 Simulated Proxy 插值方案。
-5. **AxisWeights 未生效**：未来实现层次化分配前保持只读/隐藏。
-6. **部分遗留数据结构未接线**：不要仅凭 `UPROPERTY` 存在就认为参数会影响运行结果。
-7. **Profile 默认值与已有资产可能不同**：运行时以实际 DataAsset 序列化值为准；修改 C++ 默认只影响新建/重置资产。
-8. **Autopilot Tick 是游戏线程慢逻辑**：Kinematic 层按 0.1 s 更新目标，WorldSubsystem 每帧只积分缓存目标。
-9. **内部多刚体 Rig 的 LOD 切换需要场景验证**：复杂约束从非物理恢复到物理时仍应检查初始重叠和约束冲量。
+5. **Profile 默认值与已有资产可能不同**：运行时以实际 DataAsset 序列化值为准；修改 C++ 默认只影响新建/重置资产。
+6. **Autopilot Tick 是游戏线程慢逻辑**：Kinematic 层按 0.1 s 更新目标，WorldSubsystem 每帧只积分缓存目标。
+7. **内部多刚体 Rig 的 LOD 切换需要场景验证**：复杂约束从非物理恢复到物理时仍应检查初始重叠和约束冲量。
 
 ---
 
