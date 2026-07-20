@@ -274,8 +274,8 @@ $$
 $$
 
 $$
-\boldsymbol\tau_i=mathbf r_i\times\mathbf F_i+
-\hat{\mathbf n}_i\,T_i k_{\tau,i}s_i
+\boldsymbol\tau_i=\mathbf r_i\times\mathbf F_i+
+\hat{\mathbf n}_i\,T_i k_{\tau,i}\eta_i s_i
 $$
 
 其中 `s_i` 对 CW 为 -1、CCW 为 +1。Chaos 汇总所有旋翼力/力矩、重力、碰撞和约束后完成刚体积分。
@@ -314,7 +314,7 @@ $$
 5. **反扭矩**
 
    $$
-   \tau_{reaction}=T\,k_\tau\,s
+   \tau_{reaction}=T\,k_\tau\,\eta\,s
    $$
 
 `CommandExponent` 是“命令到 RPM”的曲线指数，不是推力平方律本身。两者串联后，忽略 Idle RPM 时近似有 $T\propto c^{2p}$。因此增大指数会让低指令区更软、接近满指令时更陡；它不会自动让推力更线性。
@@ -547,7 +547,7 @@ $$
 
 $$
 \boldsymbol\tau_i=\mathbf r_i\times\mathbf F_i+
-\hat{\mathbf n}_i T_i k_{\tau,i}s_i
+\hat{\mathbf n}_i T_i k_{\tau,i}\eta_i s_i
 $$
 
 符号中的 X/Y 负号用于对齐飞控内部 Roll/Pitch 约定。
@@ -730,13 +730,13 @@ Motion Profile 用 Jerk 限制加速度的变化速度，并根据剩余误差�
 - CircleArc；
 - Orbit 无限循环。
 
-普通有限轨迹使用梯形/三角形速度剖面。制动距离来自：
+普通有限轨迹使用梯形/三角形速度剖面。无 Jerk 限制时制动距离为：
 
 $$
 s_{brake}=\frac{v^2-v_{end}^2}{2a_{decel}}
 $$
 
-当路径太短，轨迹在达到巡航速度前就进入减速，自动退化成三角速度剖面。Minimum Snap 段使用原生时间参数化，不走普通弧长梯形剖面。
+当 `PlanningJerkCmPerSecCubed > 0` 时，改用 Jerk 感知公式，考虑把加减速变化率从峰值降回 0 所需的过渡距离，避免恒定减速假设在 Jerk 受限时低估制动段。当路径太短，轨迹在达到巡航速度前就进入减速，自动退化成三角速度剖面。Minimum Snap 段使用原生时间参数化，不走普通弧长梯形剖面。
 
 ### 11.2 路径制导
 
