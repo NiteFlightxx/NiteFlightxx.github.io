@@ -49,6 +49,7 @@ export default function ProjectsView({ projects, onSelectProject, lang }: Projec
 
           <div className="flex flex-wrap items-center gap-1.5 bg-brand-charcoal/40 p-1.5 border border-white/5 rounded-lg">
             <button
+              type="button"
               onClick={() => setSelectedCategory("All")}
               className={`px-4 py-2 text-xs font-mono tracking-wider uppercase rounded-md cursor-pointer transition-all duration-200 ${
                 selectedCategory === "All"
@@ -63,6 +64,7 @@ export default function ProjectsView({ projects, onSelectProject, lang }: Projec
               const isActive = selectedCategory === id;
               return (
                 <button
+                  type="button"
                   key={id}
                   onClick={() => setSelectedCategory(id)}
                   className={`px-4 py-2 text-xs font-mono tracking-wider uppercase rounded-md cursor-pointer transition-all duration-200 ${
@@ -88,7 +90,8 @@ export default function ProjectsView({ projects, onSelectProject, lang }: Projec
         >
           <AnimatePresence mode="popLayout">
             {filteredProjects.map((proj) => (
-              <motion.div
+              <motion.button
+                type="button"
                 layout
                 key={proj.id}
                 initial={{ opacity: 0, scale: 0.95 }}
@@ -96,7 +99,7 @@ export default function ProjectsView({ projects, onSelectProject, lang }: Projec
                 exit={{ opacity: 0, scale: 0.95 }}
                 transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
                 onClick={() => onSelectProject(proj)}
-                className="group cursor-pointer"
+                className="group cursor-pointer text-left w-full rounded-[20px] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-brand-accent-lime"
               >
                 <BorderGlow
                   edgeSensitivity={35}
@@ -171,7 +174,7 @@ export default function ProjectsView({ projects, onSelectProject, lang }: Projec
                     </div>
                   </div>
                 </BorderGlow>
-              </motion.div>
+              </motion.button>
             ))}
           </AnimatePresence>
         </motion.div>

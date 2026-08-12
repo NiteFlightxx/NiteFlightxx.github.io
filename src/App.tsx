@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
 
 // Sub-components
@@ -33,22 +33,23 @@ const HERO_IMAGE_AVIF: string = heroAvif.src;
 const HERO_IMAGE_WEBP: string = heroWebp.src;
 
 interface AppProps {
-  // Markdown-backed content (pre-rendered HTML + KaTeX at build time by Astro)
+  // Lightweight Markdown metadata; full bodies stay on their article routes.
   knowledgeArticles?: ContentArticle[];
 }
 
+const VALID_TABS = ["home", "projects", "knowledge", "archive"];
+
 export default function App({ knowledgeArticles = [] }: AppProps) {
-  // Initial tab from the URL hash (e.g. "#knowledge") so article-page "back" links
-  // land on the originating feed tab. Falls back to "home" for unknown/empty hashes.
-  const validTabs = ["home", "projects", "knowledge", "archive"];
-  const hashTab = typeof window !== "undefined"
-    ? window.location.hash.replace(/^#/, "")
-    : "";
-  const [activeTab, setActiveTab] = useState<string>(
-    validTabs.includes(hashTab) ? hashTab : "home"
-  );
+  const [activeTab, setActiveTab] = useState("home");
   const [theme, setTheme] = useState<"dark" | "light">("dark");
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
+
+  const navigateToTab = useCallback((tab: string) => {
+    if (!VALID_TABS.includes(tab)) return;
+    setActiveTab(tab);
+    const nextHash = tab === "home" ? "" : `#${tab}`;
+    history.pushState(null, "", `${location.pathname}${location.search}${nextHash}`);
+  }, []);
 
   // Fixed locale: the English datasets were removed during migration.
   const lang = "zh" as const;
@@ -75,6 +76,20 @@ export default function App({ knowledgeArticles = [] }: AppProps) {
     document.documentElement.classList.toggle("light-theme", theme === "light");
   }, [theme]);
 
+  useEffect(() => {
+    const syncFromUrl = () => {
+      const tab = window.location.hash.replace(/^#/, "");
+      setActiveTab(VALID_TABS.includes(tab) ? tab : "home");
+    };
+    syncFromUrl();
+    window.addEventListener("popstate", syncFromUrl);
+    window.addEventListener("hashchange", syncFromUrl);
+    return () => {
+      window.removeEventListener("popstate", syncFromUrl);
+      window.removeEventListener("hashchange", syncFromUrl);
+    };
+  }, []);
+
   // Smooth scroll to top on page switches
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -89,7 +104,7 @@ export default function App({ knowledgeArticles = [] }: AppProps) {
             projects={projects}
             knowledgeArticles={knowledge}
             onSelectProject={(proj) => setSelectedProjectId(proj.id)}
-            setActiveTab={setActiveTab}
+            setActiveTab={navigateToTab}
             heroImageAvif={HERO_IMAGE_AVIF}
             heroImageWebp={HERO_IMAGE_WEBP}
             lang={lang}
@@ -156,7 +171,7 @@ export default function App({ knowledgeArticles = [] }: AppProps) {
       {/* Primary Sticky Header */}
       <Header
         activeTab={activeTab}
-        setActiveTab={setActiveTab}
+        setActiveTab={navigateToTab}
         theme={theme}
         setTheme={setTheme}
       />

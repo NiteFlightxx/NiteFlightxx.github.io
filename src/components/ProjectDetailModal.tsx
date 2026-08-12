@@ -1,6 +1,7 @@
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { motion } from "motion/react";
-import { X, Check, Copy, FileCode, ArrowRight, ArrowUpRight, BookOpen, Github, ExternalLink } from "lucide-react";
+import { X, Check, Copy, FileCode, ArrowRight, ArrowUpRight, BookOpen, ExternalLink } from "lucide-react";
+import GithubIcon from "./GithubIcon";
 import type { Project } from "../types";
 import { projectCategoryZh, projectStatusZh } from "../lib/taxonomy";
 import { UI_TRANSLATIONS } from "../translations";
@@ -25,6 +26,47 @@ interface ProjectDetailModalProps {
 export default function ProjectDetailModal({ project, onClose, lang }: ProjectDetailModalProps) {
   const t = UI_TRANSLATIONS[lang];
   const [copied, setCopied] = useState(false);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    const previousFocus = document.activeElement as HTMLElement | null;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    closeButtonRef.current?.focus();
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        onClose();
+        return;
+      }
+      if (event.key !== "Tab" || !dialogRef.current) return;
+
+      const focusable = Array.from(
+        dialogRef.current.querySelectorAll<HTMLElement>(
+          'a[href], button:not([disabled]), iframe, [tabindex]:not([tabindex="-1"])',
+        ),
+      );
+      if (!focusable.length) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("keydown", handleKeyDown);
+      document.body.style.overflow = previousOverflow;
+      previousFocus?.focus();
+    };
+  }, [onClose]);
 
   const copyCode = () => {
     if (project.codeSnippet) {
@@ -47,12 +89,16 @@ export default function ProjectDetailModal({ project, onClose, lang }: ProjectDe
       transition={{ duration: 0.2 }}
       className="fixed inset-0 z-50 flex items-center justify-center bg-brand-black/90 backdrop-blur-md p-4 md:p-8 overflow-y-auto"
       id="project-detail-modal"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) onClose();
+      }}
     >
-      {/* Background closer */}
-      <div className="absolute inset-0 -z-10 cursor-pointer" onClick={onClose} />
-
       {/* Modal Card wrapper */}
       <motion.div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="project-dialog-title"
         initial={{ scale: 0.95, y: 15, opacity: 0 }}
         animate={{ scale: 1, y: 0, opacity: 1 }}
         exit={{ scale: 0.95, y: 15, opacity: 0 }}
@@ -68,9 +114,11 @@ export default function ProjectDetailModal({ project, onClose, lang }: ProjectDe
             </span>
           </div>
           <button
+            ref={closeButtonRef}
+            type="button"
             onClick={onClose}
             className="p-1.5 rounded-lg border border-white/5 hover:border-white/10 text-gray-400 hover:text-white bg-brand-black/20 hover:bg-white/5 transition-all cursor-pointer"
-            aria-label="Close modal"
+            aria-label={lang === "zh" ? "关闭项目详情" : "Close project details"}
             id="project-close-btn"
           >
             <X className="w-4 h-4" />
@@ -92,7 +140,7 @@ export default function ProjectDetailModal({ project, onClose, lang }: ProjectDe
                 <span className="text-[10px] font-mono text-gray-500">{project.year}</span>
               )}
             </div>
-            <h2 className="font-display font-medium text-xl md:text-3xl text-white tracking-tight">
+            <h2 id="project-dialog-title" className="font-display font-bold text-xl md:text-3xl text-white tracking-tight">
               {project.title}
             </h2>
             {/* Tech stack */}
@@ -123,8 +171,6 @@ export default function ProjectDetailModal({ project, onClose, lang }: ProjectDe
                     src={src}
                     title={project.title}
                     loading="lazy"
-                    scrolling="no"
-                    frameBorder={0}
                     allowFullScreen
                     className="block w-full aspect-video"
                     referrerPolicy="no-referrer"
@@ -180,6 +226,7 @@ export default function ProjectDetailModal({ project, onClose, lang }: ProjectDe
                   {lang === "zh" ? "核心代码实现" : "CORE IMPLEMENTATION"}
                 </span>
                 <button
+                  type="button"
                   onClick={copyCode}
                   className="px-2.5 py-1 text-[10px] font-mono border border-white/5 hover:border-white/10 bg-brand-black hover:bg-white/5 rounded text-gray-400 hover:text-white transition-all cursor-pointer flex items-center gap-1"
                 >
@@ -230,7 +277,7 @@ export default function ProjectDetailModal({ project, onClose, lang }: ProjectDe
                     const isExternal = /^https?:\/\//.test(url);
                     const href = isExternal ? url : `${BASE_URL}${url.replace(/^\/+/, "")}`;
                     const isGitHub = /github\.com/i.test(url);
-                    const Icon = isGitHub ? Github : ExternalLink;
+                    const Icon = isGitHub ? GithubIcon : ExternalLink;
                     return (
                       <a key={idx} href={href} target="_blank" rel="noopener noreferrer"
                          className="group flex items-center justify-between gap-4 p-4 rounded-xl border border-white/10 bg-brand-black/30 hover:bg-brand-black/50 hover:border-white/20 transition-all">
@@ -251,7 +298,7 @@ export default function ProjectDetailModal({ project, onClose, lang }: ProjectDe
                     const url = bare[1];
                     const [before, after] = ref.split(url);
                     const isGitHub = /github\.com/i.test(url);
-                    const Icon = isGitHub ? Github : ExternalLink;
+                    const Icon = isGitHub ? GithubIcon : ExternalLink;
                     return (
                       <a key={idx} href={url} target="_blank" rel="noopener noreferrer"
                          className="group flex items-center justify-between gap-4 p-4 rounded-xl border border-white/10 bg-brand-black/30 hover:bg-brand-black/50 hover:border-white/20 transition-all">
@@ -284,8 +331,6 @@ export default function ProjectDetailModal({ project, onClose, lang }: ProjectDe
           <div className="pt-4 border-t border-white/5">
             <a
               href={articleUrl}
-              target="_blank"
-              rel="noopener noreferrer"
               className="group flex items-center justify-between gap-4 p-5 rounded-xl border border-brand-accent-lime/30 bg-brand-accent-lime/5 hover:bg-brand-accent-lime/10 hover:border-brand-accent-lime/50 transition-all"
               id="project-read-deep-dive"
             >
@@ -309,6 +354,7 @@ export default function ProjectDetailModal({ project, onClose, lang }: ProjectDe
         <div className="glass-panel border-t border-white/5 py-4 px-6 md:px-8 flex items-center justify-between text-[10px] font-mono text-gray-500">
           <span>NITE ENGINE EXTENSION PROTOCOL // 0x7FBA</span>
           <button
+            type="button"
             onClick={onClose}
             className="text-white hover:text-brand-accent-orange transition-colors cursor-pointer uppercase"
           >

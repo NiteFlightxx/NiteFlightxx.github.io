@@ -1,8 +1,9 @@
 import React, { useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { Menu, X, Github, Sun, Moon } from "lucide-react";
+import { Menu, X, Sun, Moon } from "lucide-react";
 import Logo from "./Logo";
 import BilibiliIcon from "./BilibiliIcon";
+import GithubIcon from "./GithubIcon";
 import { UI_TRANSLATIONS } from "../translations";
 
 interface HeaderProps {
@@ -32,7 +33,8 @@ export default function Header({
     <header className="sticky top-0 z-50 w-full glass-panel border-b border-white/10 px-6 py-4.5 md:px-12 select-none shadow-[0_8px_30px_rgba(0,0,0,0.45)]">
       <div className="max-w-7xl mx-auto flex items-center justify-between">
         {/* Left: Branding */}
-        <div 
+        <button
+          type="button"
           onClick={() => setActiveTab("home")}
           className="flex items-center gap-3 cursor-pointer group"
           id="nav-logo"
@@ -46,7 +48,7 @@ export default function Header({
               NITE
             </span>
           </div>
-        </div>
+        </button>
 
         {/* Center: Navigation Links */}
         <nav className="hidden md:flex items-center gap-3 bg-brand-black/80 border border-brand-accent-lime/20 rounded-full px-3 py-2 shadow-[0_8px_32px_rgba(0,0,0,0.8)]">
@@ -54,6 +56,7 @@ export default function Header({
             const isActive = activeTab === item.id;
             return (
               <button
+                type="button"
                 key={item.id}
                 id={`nav-${item.id}`}
                 onClick={() => setActiveTab(item.id)}
@@ -79,14 +82,14 @@ export default function Header({
         {/* Right: Actions / Socials */}
         <div className="hidden md:flex items-center gap-3">
           <a
-            href="https://github.com"
+            href="https://github.com/NiteFlightxx"
             target="_blank"
             rel="noopener noreferrer"
             className="p-2 text-gray-400 hover:text-white transition-colors duration-200 rounded-lg hover:bg-white/5"
             aria-label="GitHub Profile"
             id="social-github"
           >
-            <Github className="w-4 h-4" />
+            <GithubIcon className="w-4 h-4" />
           </a>
           <a
             href="https://space.bilibili.com/101356800"
@@ -101,6 +104,7 @@ export default function Header({
 
           {/* Theme switcher */}
           <button
+            type="button"
             onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
             className="p-2 text-gray-400 hover:text-white transition-colors duration-200 rounded-lg hover:bg-white/5 cursor-pointer"
             aria-label="Toggle Theme"
@@ -123,9 +127,12 @@ export default function Header({
             UE5.8
           </div>
           <button
+            type="button"
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
             className="p-2 text-gray-400 hover:text-white transition-colors duration-200"
-            aria-label="Toggle Mobile Menu"
+            aria-label={mobileMenuOpen ? "关闭导航菜单" : "打开导航菜单"}
+            aria-expanded={mobileMenuOpen}
+            aria-controls="mobile-navigation"
             id="mobile-menu-toggle"
           >
             {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
@@ -137,6 +144,7 @@ export default function Header({
       <AnimatePresence>
         {mobileMenuOpen && (
           <motion.div
+            id="mobile-navigation"
             initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -10 }}
@@ -148,6 +156,7 @@ export default function Header({
                 const isActive = activeTab === item.id;
                 return (
                   <button
+                    type="button"
                     key={item.id}
                     id={`mobile-nav-${item.id}`}
                     onClick={() => {
@@ -172,6 +181,7 @@ export default function Header({
               <div className="flex items-center gap-2">
                 {/* Theme switcher */}
                 <button
+                  type="button"
                   onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
                   className="p-1.5 border border-white/10 hover:border-white/20 bg-brand-black/30 hover:bg-white/5 rounded text-gray-300 hover:text-white transition-colors cursor-pointer"
                   aria-label="Toggle Theme"
@@ -187,18 +197,20 @@ export default function Header({
               <span className="font-mono">LINKS</span>
               <div className="flex items-center gap-3">
                 <a
-                  href="https://github.com"
+                  href="https://github.com/NiteFlightxx"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-gray-400 hover:text-white transition-colors"
+                  aria-label="GitHub Profile"
                 >
-                  <Github className="w-4 h-4" />
+                  <GithubIcon className="w-4 h-4" />
                 </a>
                 <a
                   href="https://space.bilibili.com/101356800"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-gray-400 hover:text-white transition-colors"
+                  aria-label="Bilibili 主页"
                 >
                   <BilibiliIcon className="w-4 h-4" />
                 </a>

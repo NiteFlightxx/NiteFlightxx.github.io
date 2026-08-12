@@ -64,8 +64,3 @@ const imageUrl = new URL(image, `${SITE.url}/`).href;
 <meta name="twitter:description" content={description} />
 <meta name="twitter:image" content={imageUrl} />
 <meta name="twitter:image:alt" content={imageAlt} />
-
-<!-- Fonts: preconnect before the stylesheet request so the CSS isn't queued
-     behind a cold DNS/TLS handshake on first paint. -->
-<link rel="preconnect" href="https://fonts.googleapis.com" />
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />

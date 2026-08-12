@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { motion } from "motion/react";
 import { Search, Calendar, Clock, ArrowRight, Tag } from "lucide-react";
 import type { ContentArticle } from "../types";
@@ -18,6 +18,25 @@ export default function KnowledgeView({ articles, lang }: KnowledgeViewProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategoryKey, setSelectedCategoryKey] = useState<string | null>(null);
   const [selectedSubtopic, setSelectedSubtopic] = useState<string | null>(null);
+  const [bodyIndex, setBodyIndex] = useState<Record<string, string> | null>(null);
+
+  useEffect(() => {
+    if (!searchQuery.trim() || bodyIndex) return;
+
+    const controller = new AbortController();
+    fetch(`${BASE_URL}knowledge-index.json`, { signal: controller.signal })
+      .then((response) => {
+        if (!response.ok) throw new Error(`Search index request failed: ${response.status}`);
+        return response.json() as Promise<Record<string, string>>;
+      })
+      .then(setBodyIndex)
+      .catch((error: unknown) => {
+        if (error instanceof DOMException && error.name === "AbortError") return;
+        console.error(error);
+      });
+
+    return () => controller.abort();
+  }, [searchQuery, bodyIndex]);
 
   // Categories present in the data, in the canonical KNOWLEDGE_CATEGORIES order.
   const availableCategories = useMemo(() => {
@@ -36,7 +55,7 @@ export default function KnowledgeView({ articles, lang }: KnowledgeViewProps) {
     const matchesSearch =
       art.title.toLowerCase().includes(q) ||
       (art.excerpt ?? "").toLowerCase().includes(q) ||
-      (art.searchText ?? "").includes(q);
+      (bodyIndex?.[art.slug] ?? "").includes(q);
 
     const matchesCategory = selectedCategoryKey
       ? art.categoryKey === selectedCategoryKey
@@ -73,6 +92,7 @@ export default function KnowledgeView({ articles, lang }: KnowledgeViewProps) {
     pulse?: boolean;
   }) => (
     <button
+      type="button"
       onClick={onClick}
       className={`px-2.5 py-1 rounded text-[9px] font-mono uppercase transition-colors cursor-pointer ${
         active
@@ -114,12 +134,14 @@ export default function KnowledgeView({ articles, lang }: KnowledgeViewProps) {
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full bg-brand-charcoal text-white pl-10 pr-4 py-2.5 rounded-lg border border-white/5 focus:border-brand-accent-orange/40 focus:outline-none text-xs font-mono transition-all duration-300 shadow-inner"
               id="search-input"
+              aria-label={t.searchPlaceholder}
             />
           </div>
 
           {/* Clear controls */}
           {hasFilters && (
             <button
+              type="button"
               onClick={resetFilters}
               className="text-[10px] font-mono text-brand-accent-orange hover:text-white transition-colors cursor-pointer self-center border border-brand-accent-orange/20 bg-brand-accent-orange/5 px-3 py-2 rounded-lg"
               id="clear-filters-btn"
@@ -171,8 +193,6 @@ export default function KnowledgeView({ articles, lang }: KnowledgeViewProps) {
           filteredArticles.map((art) => (
             <motion.a
               href={`${BASE_URL}knowledge/${art.slug}`}
-              target="_blank"
-              rel="noopener noreferrer"
               key={art.id}
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
