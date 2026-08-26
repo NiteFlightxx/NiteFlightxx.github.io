@@ -43,8 +43,6 @@ function toArticleShape(slug: string, data: Record<string, any>): ContentArticle
     subtopic: subtopicKey ? knowledgeSubtopicZh(categoryKey, subtopicKey) : undefined,
     tags: Array.isArray(data.tags) ? (data.tags as string[]) : [],
     readTime: data.readTime ? String(data.readTime) : undefined,
-    html: '',
-    searchText: '',
   };
 }
 

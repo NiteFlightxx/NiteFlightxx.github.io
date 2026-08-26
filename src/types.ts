@@ -40,6 +40,7 @@ export interface ContentArticle {
   subtopic?: string; // localized subtopic label (e.g. "飞控系统")
   tags: string[];
   readTime?: string; // estimated reading time
+  searchText?: string; // lowercased body text, lazily loaded for full-text search
 }
 
 // ---- Skill matrix (Archive) ----

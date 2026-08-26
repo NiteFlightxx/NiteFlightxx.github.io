@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import Fuse from "fuse.js";
 import { motion } from "motion/react";
 import { Search, Calendar, Clock, ArrowRight, Tag } from "lucide-react";
@@ -52,13 +52,25 @@ export default function KnowledgeView({ articles, lang }: KnowledgeViewProps) {
     return Object.entries(knowledgeSubtopicsFor(selectedCategoryKey));
   }, [selectedCategoryKey]);
 
-  // Fuse instance is stable across re-renders (depends only on the article
-  // list). Weighted keys: title is the strongest signal, then tags, excerpt,
-  // and finally the full text body. ignoreLocation + low threshold make Fuse
-  // work for long Chinese text where the match may be far from the start.
+  // Once the lazily-fetched body index arrives, merge searchText into the
+  // articles so Fuse can match against full body text. Until then (or when no
+  // query has been typed yet) articles carry no searchText and search falls
+  // back to title/tags/excerpt only.
+  const searchableArticles = useMemo(() => {
+    if (!bodyIndex) return articles;
+    return articles.map((a) =>
+      bodyIndex[a.slug] ? { ...a, searchText: bodyIndex[a.slug] } : a,
+    );
+  }, [articles, bodyIndex]);
+
+  // Fuse instance is rebuilt when the searchable article set changes (i.e. when
+  // the body index loads). Weighted keys: title is the strongest signal, then
+  // tags, excerpt, and finally the full text body. ignoreLocation + low
+  // threshold make Fuse work for long Chinese text where the match may be far
+  // from the start.
   const fuse = useMemo(
     () =>
-      new Fuse(articles, {
+      new Fuse(searchableArticles, {
         keys: [
           { name: "title", weight: 0.5 },
           { name: "tags", weight: 0.3 },
@@ -70,7 +82,7 @@ export default function KnowledgeView({ articles, lang }: KnowledgeViewProps) {
         includeScore: true,
         minMatchCharLength: 1,
       }),
-    [articles],
+    [searchableArticles],
   );
 
   // Search runs through Fuse when there is a query; otherwise the full list
