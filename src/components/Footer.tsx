@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { ArrowUpRight } from "lucide-react";
 import Logo from "./Logo";
-import { UI_TRANSLATIONS } from "../translations";
 
 interface FooterProps {
   lang: "zh" | "en";
@@ -81,7 +80,7 @@ export default function Footer({ lang, theme }: FooterProps) {
             </a>
             <span className="text-white/10 select-none">•</span>
             <a
-              href="https://github.com"
+              href="https://github.com/NiteFlightxx"
               target="_blank"
               rel="noopener noreferrer"
               className="flex items-center gap-0.5 hover:text-white transition-colors duration-200 group"

@@ -1,93 +1,33 @@
-import { unified } from 'unified';
-import remarkParse from 'remark-parse';
-import remarkMath from 'remark-math';
-import remarkRehype from 'remark-rehype';
-import rehypeKatex from 'rehype-katex';
-import rehypeStringify from 'rehype-stringify';
-import matter from 'gray-matter';
+import { getCollection } from 'astro:content';
 import { knowledgeCategoryZh, knowledgeSubtopicZh } from './taxonomy';
 import type { ContentArticle } from '../types';
 
-// Shared Markdown -> HTML pipeline (remark-math + rehype-katex at build time).
-const processor = unified()
-  .use(remarkParse)
-  .use(remarkMath)
-  .use(remarkRehype)
-  .use(rehypeKatex)
-  .use(rehypeStringify);
-
-/** Render a Markdown body to { html, searchText }. */
-async function renderMarkdown(body: string): Promise<{ html: string; searchText: string }> {
-  const file = await processor.process(body);
-  return { html: String(file), searchText: body.toLowerCase() };
-}
-
-/** Map an ISO frontmatter date to the localized display string the UI expects. */
 function formatZhDate(iso: string): string {
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return iso;
-  return `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日`;
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return iso;
+  return `${date.getFullYear()}年${date.getMonth() + 1}月${date.getDate()}日`;
 }
 
-interface LoadedEntry {
-  slug: string;
-  isoDate: string; // kept for sorting (avoids re-parsing the localized string)
-  data: Record<string, unknown>;
-  html: string;
-  searchText: string;
-}
-
-/** Read all .md files for a pre-resolved glob, skipping `_`-prefixed templates.
- *  The glob itself must be a static literal at each call site (Vite analyzes it at build time). */
-async function loadRaw(modules: Record<string, () => Promise<string>>): Promise<LoadedEntry[]> {
-  const entries = await Promise.all(
-    Object.entries(modules).map(async ([path, loader]) => {
-      const slug = path.split('/').pop()!.replace(/\.md$/, '');
-      // Skip template files (underscore-prefixed).
-      if (slug.startsWith('_')) return null;
-      const raw = (await loader()) as string;
-      const { data, content } = matter(raw);
-      const { html, searchText } = await renderMarkdown(content);
-      return { slug, isoDate: String(data.date ?? ''), data, html, searchText };
-    }),
-  );
-  return entries.filter((e): e is LoadedEntry => e !== null);
-}
-
-/** Sort newest-first by ISO date (stable fallback for equal/invalid dates). */
-function sortByDateDesc(entries: LoadedEntry[]): LoadedEntry[] {
-  return entries.sort((a, b) => {
-    const ad = new Date(a.isoDate).getTime();
-    const bd = new Date(b.isoDate).getTime();
-    if (Number.isNaN(ad) || Number.isNaN(bd)) return 0;
-    return bd - ad;
-  });
-}
-
-/** Load knowledge articles (知识库). */
+/** Load only the metadata required by the homepage and knowledge feed. */
 export async function loadKnowledge(): Promise<ContentArticle[]> {
-  const modules = import.meta.glob<string>('/src/content/knowledge/*.md', {
-    query: '?raw',
-    import: 'default',
-  });
-  const entries = sortByDateDesc(await loadRaw(modules));
-  return entries.map((e) => {
-    const categoryKey = String(e.data.category ?? '');
-    const subtopicKey = e.data.subtopic ? String(e.data.subtopic) : '';
+  const entries = await getCollection('knowledge', (entry) => !entry.data.draft);
+  entries.sort((a, b) => new Date(b.data.date).getTime() - new Date(a.data.date).getTime());
+
+  return entries.map((entry) => {
+    const categoryKey = entry.data.category;
+    const subtopicKey = entry.data.subtopic ?? '';
+
     return {
-      id: e.slug,
-      slug: e.slug,
-      title: String(e.data.title ?? ''),
-      excerpt: String(e.data.excerpt ?? ''),
-      date: formatZhDate(e.isoDate),
+      id: entry.slug,
+      slug: entry.slug,
+      title: entry.data.title,
+      excerpt: entry.data.excerpt,
+      date: formatZhDate(entry.data.date),
       category: knowledgeCategoryZh(categoryKey),
-      categoryKey, // 原始英文枚举值，供 subtopic 级联查询使用
+      categoryKey,
       subtopic: subtopicKey ? knowledgeSubtopicZh(categoryKey, subtopicKey) : undefined,
-      tags: Array.isArray(e.data.tags) ? (e.data.tags as string[]) : [],
-      readTime: e.data.readTime ? String(e.data.readTime) : undefined,
-      html: e.html,
-      searchText: e.searchText,
+      tags: entry.data.tags,
+      readTime: entry.data.readTime,
     };
   });
 }
-

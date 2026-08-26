@@ -58,7 +58,7 @@ export default function HomeView({
       id="home-view-container"
     >
       {/* ===== Hero ===== */}
-      <section className="relative min-h-[85vh] flex items-center justify-center pt-12 select-none">
+      <section className="relative min-h-[75svh] md:min-h-[85vh] flex items-center justify-center pt-6 md:pt-12 select-none">
         <div className="absolute inset-0 overflow-hidden -z-10 flex items-center justify-center">
           <div className="absolute w-[500px] h-[500px] bg-brand-accent-orange/5 glow-ambient -top-20" />
           <div className="absolute w-[600px] h-[400px] bg-white/5 glow-ambient bottom-10" />
@@ -100,13 +100,14 @@ export default function HomeView({
 
           <motion.p
             variants={itemVariants}
-            className="font-sans text-2xl md:text-4xl text-gray-100 max-w-4xl mx-auto font-normal leading-relaxed tracking-wide italic font-serif"
+            className="font-sans text-2xl md:text-4xl text-gray-100 max-w-4xl mx-auto font-medium leading-relaxed tracking-wide italic"
           >
             {t.statement}
           </motion.p>
 
           <motion.div variants={itemVariants} className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-6">
             <button
+              type="button"
               onClick={() => setActiveTab("projects")}
               className="w-full sm:w-auto px-8 py-4 rounded-full bg-brand-accent-lime hover:bg-white text-black font-extrabold text-sm tracking-widest uppercase transition-all duration-300 shadow-[0_4px_25px_rgba(188,253,73,0.25)] flex items-center justify-center gap-2 cursor-pointer"
               id="hero-explore-projects"
@@ -114,6 +115,7 @@ export default function HomeView({
               {t.exploreWork} <ArrowRight className="w-4.5 h-4.5 stroke-[2.5]" />
             </button>
             <button
+              type="button"
               onClick={() => setActiveTab("archive")}
               className="w-full sm:w-auto px-8 py-4 rounded-full border border-brand-accent-lime/40 bg-brand-charcoal hover:bg-brand-gray-900/80 hover:border-brand-accent-lime transition-all duration-300 text-sm text-brand-accent-lime font-bold tracking-widest uppercase flex items-center justify-center gap-2 cursor-pointer shadow-lg"
               id="hero-view-profile"
@@ -131,6 +133,7 @@ export default function HomeView({
             <h2 className="font-display font-black text-2xl md:text-4.5xl text-white tracking-tight">{t.featuredSystems}</h2>
           </div>
           <button
+            type="button"
             onClick={() => setActiveTab("projects")}
             className="group flex items-center gap-1.5 text-xs font-mono text-gray-400 hover:text-white transition-colors cursor-pointer"
             id="view-all-projects-btn"
@@ -141,11 +144,12 @@ export default function HomeView({
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           {featured.map((proj) => (
-            <motion.div
+            <motion.button
+              type="button"
               key={proj.id}
               variants={itemVariants}
               onClick={() => onSelectProject(proj)}
-              className="group cursor-pointer"
+              className="group cursor-pointer text-left w-full rounded-[20px] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-brand-accent-lime"
             >
               <BorderGlow
                 edgeSensitivity={35}
@@ -186,7 +190,7 @@ export default function HomeView({
                   </div>
                 </div>
               </BorderGlow>
-            </motion.div>
+            </motion.button>
           ))}
         </div>
       </section>
@@ -198,6 +202,7 @@ export default function HomeView({
             <h2 className="font-display font-black text-2xl md:text-4.5xl text-white tracking-tight">{t.recentKnowledge}</h2>
           </div>
           <button
+            type="button"
             onClick={() => setActiveTab("knowledge")}
             className="group flex items-center gap-1.5 text-xs font-mono text-gray-400 hover:text-white transition-colors cursor-pointer"
             id="view-all-knowledge-btn"
@@ -221,7 +226,7 @@ export default function HomeView({
               fillOpacity={0.15}
               className="group cursor-pointer"
             >
-              <a href={`${BASE_URL}knowledge/${art.slug}`} target="_blank" rel="noopener noreferrer" className="block p-6 flex flex-col justify-between gap-4">
+              <a href={`${BASE_URL}knowledge/${art.slug}`} className="block p-6 flex flex-col justify-between gap-4">
                 <div className="flex items-center justify-between text-xs font-mono">
                   <span className="text-brand-accent-lime">{art.category.toUpperCase()}</span>
                   <span className="text-gray-500">{art.date}</span>

@@ -176,7 +176,7 @@ export default function DynamicLinesBg({ theme }: DynamicLinesBgProps) {
       }
 
       // Draw continuous vector waves
-      waves.forEach((wave, waveIdx) => {
+      waves.forEach((wave) => {
         wave.phase += wave.speed;
 
         ctx.beginPath();

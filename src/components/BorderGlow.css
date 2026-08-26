@@ -175,6 +175,12 @@
   height: 100%;
 }
 
+@media (max-width: 767px) {
+  .border-glow-card > .edge-light {
+    inset: 0;
+  }
+}
+
 /* ---- Light mode: cards become light surfaces ----
    --card-bg is set via inline style (always dark hex), so we
    override it with !important. Inline normal-priority styles
