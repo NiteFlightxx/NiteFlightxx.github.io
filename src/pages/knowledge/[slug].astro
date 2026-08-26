@@ -1,7 +1,9 @@
 ---
 import { getCollection, render } from 'astro:content';
 import ArticleLayout from '../../layouts/ArticleLayout.astro';
-import { knowledgeCategoryZh } from '../../lib/taxonomy';
+import { knowledgeCategoryZh, knowledgeSubtopicZh } from '../../lib/taxonomy';
+import { getRelatedArticles } from '../../lib/relatedArticles';
+import type { ContentArticle } from '../../types';
 
 export async function getStaticPaths() {
   const entries = await getCollection('knowledge', (entry) => !entry.data.draft);
@@ -22,6 +24,35 @@ function formatZhDate(iso: string): string {
   if (Number.isNaN(d.getTime())) return iso;
   return `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日`;
 }
+
+// Build a ContentArticle-shaped object from a collection entry so the
+// relatedness scorer (which reads categoryKey / subtopic / tags) works
+// without re-loading the full HTML body. html/searchText are left empty —
+// they're only needed for the SPA search, not for related-article scoring.
+function toArticleShape(slug: string, data: Record<string, any>): ContentArticle {
+  const categoryKey = String(data.category ?? '');
+  const subtopicKey = data.subtopic ? String(data.subtopic) : '';
+  return {
+    id: slug,
+    slug,
+    title: String(data.title ?? ''),
+    excerpt: String(data.excerpt ?? ''),
+    date: formatZhDate(String(data.date ?? '')),
+    category: knowledgeCategoryZh(categoryKey),
+    categoryKey,
+    subtopic: subtopicKey ? knowledgeSubtopicZh(categoryKey, subtopicKey) : undefined,
+    tags: Array.isArray(data.tags) ? (data.tags as string[]) : [],
+    readTime: data.readTime ? String(data.readTime) : undefined,
+    html: '',
+    searchText: '',
+  };
+}
+
+// Load every published article to score relatedness against the current one.
+const allEntries = await getCollection('knowledge', (e) => !e.data.draft);
+const allArticles: ContentArticle[] = allEntries.map((e) => toArticleShape(e.slug, e.data as Record<string, any>));
+const currentArticle = toArticleShape(entry.slug, entry.data as Record<string, any>);
+const relatedArticles = getRelatedArticles(currentArticle, allArticles, 3);
 ---
 
 <ArticleLayout
@@ -35,6 +66,7 @@ function formatZhDate(iso: string): string {
   backHref={`${baseURL}#knowledge`}
   backLabel="返回知识库"
   lang="zh"
+  relatedArticles={relatedArticles}
 >
   <Content />
 </ArticleLayout>

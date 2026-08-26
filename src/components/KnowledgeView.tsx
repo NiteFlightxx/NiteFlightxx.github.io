@@ -1,10 +1,12 @@
 import React, { useState, useMemo } from "react";
+import Fuse from "fuse.js";
 import { motion } from "motion/react";
 import { Search, Calendar, Clock, ArrowRight, Tag } from "lucide-react";
 import type { ContentArticle } from "../types";
 import BorderGlow from "./BorderGlow";
 import { UI_TRANSLATIONS } from "../translations";
 import { KNOWLEDGE_CATEGORIES, knowledgeSubtopicsFor } from "../lib/taxonomy";
+import { highlight } from "../lib/highlight";
 
 const BASE_URL = import.meta.env.BASE_URL;
 
@@ -31,20 +33,44 @@ export default function KnowledgeView({ articles, lang }: KnowledgeViewProps) {
     return Object.entries(knowledgeSubtopicsFor(selectedCategoryKey));
   }, [selectedCategoryKey]);
 
-  const filteredArticles = articles.filter((art) => {
-    const q = searchQuery.toLowerCase();
-    const matchesSearch =
-      art.title.toLowerCase().includes(q) ||
-      (art.excerpt ?? "").toLowerCase().includes(q) ||
-      (art.searchText ?? "").includes(q);
+  // Fuse instance is stable across re-renders (depends only on the article
+  // list). Weighted keys: title is the strongest signal, then tags, excerpt,
+  // and finally the full text body. ignoreLocation + low threshold make Fuse
+  // work for long Chinese text where the match may be far from the start.
+  const fuse = useMemo(
+    () =>
+      new Fuse(articles, {
+        keys: [
+          { name: "title", weight: 0.5 },
+          { name: "tags", weight: 0.3 },
+          { name: "excerpt", weight: 0.2 },
+          { name: "searchText", weight: 0.1 },
+        ],
+        threshold: 0.4,
+        ignoreLocation: true,
+        includeScore: true,
+        minMatchCharLength: 1,
+      }),
+    [articles],
+  );
 
+  // Search runs through Fuse when there is a query; otherwise the full list
+  // is used (category/subtopic filters still apply). Results are then narrowed
+  // by the active category/subtopic chips.
+  const searchResults = useMemo(() => {
+    const q = searchQuery.trim();
+    if (!q) return articles;
+    return fuse.search(q).map((r) => r.item);
+  }, [searchQuery, fuse, articles]);
+
+  const filteredArticles = searchResults.filter((art) => {
     const matchesCategory = selectedCategoryKey
       ? art.categoryKey === selectedCategoryKey
       : true;
 
     const matchesSubtopic = selectedSubtopic ? art.subtopic === selectedSubtopic : true;
 
-    return matchesSearch && matchesCategory && matchesSubtopic;
+    return matchesCategory && matchesSubtopic;
   });
 
   const hasFilters = searchQuery || selectedCategoryKey || selectedSubtopic;
@@ -216,12 +242,12 @@ export default function KnowledgeView({ articles, lang }: KnowledgeViewProps) {
                   </div>
 
                   <h2 className="font-display font-semibold text-lg md:text-xl text-white group-hover:text-brand-accent-lime transition-colors tracking-wide">
-                    {art.title}
+                    {highlight(art.title, searchQuery)}
                   </h2>
 
                   {art.excerpt && (
                     <p className="text-xs md:text-sm text-gray-400 leading-relaxed font-sans font-light">
-                      {art.excerpt}
+                      {highlight(art.excerpt, searchQuery)}
                     </p>
                   )}
 

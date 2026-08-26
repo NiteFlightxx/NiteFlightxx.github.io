@@ -4,7 +4,10 @@ import { SITE } from '../consts';
 import 'katex/dist/katex.min.css';
 import '../index.css';
 import ArticleToc from '../components/ArticleToc';
+import RelatedArticles from '../components/RelatedArticles';
+import ArticleEnhancements from '../components/ArticleEnhancements';
 import { Calendar, Clock, ArrowLeft } from 'lucide-react';
+import type { ContentArticle } from '../types';
 
 interface TocHeading {
   depth: number;
@@ -23,6 +26,7 @@ interface Props {
   backHref: string; // absolute URL back to the feed tab, e.g. "/#knowledge"
   backLabel: string; // e.g. "返回知识库"
   lang: 'zh' | 'en';
+  relatedArticles?: ContentArticle[];
 }
 
 const {
@@ -36,6 +40,7 @@ const {
   backHref,
   backLabel,
   lang = 'zh',
+  relatedArticles = [],
 } = Astro.props;
 ---
 
@@ -54,6 +59,10 @@ const {
     />
   </head>
   <body class="bg-brand-black text-gray-100">
+    {/* Progressive enhancements: reading progress bar + code copy buttons.
+        Hydrated as a client component; no-ops if .article-body isn't present. */}
+    <ArticleEnhancements client:load />
+
     {/* Static background — reading pages keep the dark base + subtle grain only,
         no animated layers (SideRays / DynamicLinesBg) to reduce visual fatigue. */}
     <div class="fixed inset-0 -z-20 bg-brand-black"></div>
@@ -129,6 +138,11 @@ const {
             </span>
           ))}
         </div>
+
+        {/* Related articles — computed at build time, hydrated for hover states */}
+        {relatedArticles.length > 0 && (
+          <RelatedArticles client:load articles={relatedArticles} lang={lang} />
+        )}
       </article>
     </div>
   </body>

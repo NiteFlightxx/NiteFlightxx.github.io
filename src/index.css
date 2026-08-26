@@ -306,6 +306,22 @@ body {
   text-align: center;
 }
 
+/* Search highlight: <mark> wrapping matched query terms in KnowledgeView.
+   Lime-tinted background + dark text so it pops on the dark card surface
+   without clashing with the lime accent palette. */
+.search-highlight {
+  background: rgba(188, 253, 73, 0.25);
+  color: #d9f99d;
+  border-radius: 0.2rem;
+  padding: 0 0.15rem;
+  font-weight: 900;
+}
+
+.light-theme .search-highlight {
+  background: rgba(77, 124, 15, 0.18);
+  color: #4d7c0f;
+}
+
 /* Inline code */
 .article-body code {
   font-family: var(--font-mono);
@@ -324,6 +340,8 @@ body {
   border: 1px solid rgba(255, 255, 255, 0.05);
   border-radius: 0.5rem;
   overflow-x: auto;
+  /* Anchor for the injected copy button (position:absolute). */
+  position: relative;
 }
 
 .article-body pre code {
@@ -333,6 +351,60 @@ body {
   padding: 0;
   color: #c9c9c9;
   line-height: 1.65;
+}
+
+/* Copy button injected into each <pre> by ArticleEnhancements. Sits in the
+   top-right corner, fades in on hover, shows a check mark for 2s after copy. */
+.code-copy-btn {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  padding: 0;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 0.375rem;
+  background: rgba(255, 255, 255, 0.04);
+  color: #6b7280;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.2s ease, color 0.2s ease, background 0.2s ease, border-color 0.2s ease;
+  z-index: 1;
+}
+
+.article-body pre:hover .code-copy-btn,
+.code-copy-btn:focus-visible,
+.code-copy-btn.copied {
+  opacity: 1;
+}
+
+.code-copy-btn:hover {
+  color: #bcfd49;
+  background: rgba(188, 253, 73, 0.08);
+  border-color: rgba(188, 253, 73, 0.3);
+}
+
+.code-copy-btn.copied {
+  color: #bcfd49;
+  border-color: rgba(188, 253, 73, 0.4);
+}
+
+.light-theme .code-copy-btn {
+  border-color: rgba(15, 23, 42, 0.1);
+  background: rgba(15, 23, 42, 0.04);
+  color: #64748b;
+}
+.light-theme .code-copy-btn:hover {
+  color: #4d7c0f;
+  background: rgba(77, 124, 15, 0.08);
+  border-color: rgba(77, 124, 15, 0.3);
+}
+.light-theme .code-copy-btn.copied {
+  color: #4d7c0f;
+  border-color: rgba(77, 124, 15, 0.4);
 }
 
 /* Images (static + GIF): responsive baseline — never overflow the column,
