@@ -648,71 +648,201 @@ $$
 
 ## 11. LCP / NCP / KKT 和物理约束是什么关系
 
-### KKT
+上一节讲到接触约束的互补条件：分离时力为零，接触时穿透为零。这组条件在数学优化理论中有精确的对应物——KKT 条件。当动力学方程被线性化后，求解接触力的问题就变成 LCP；若保留非线性，则变成 NCP。三者构成一条从”一般优化理论”到”刚体接触求解”的递进链路。
 
-约束优化：
+### 11.1 KKT 条件是什么
+
+KKT（Karush-Kuhn-Tucker conditions）是**约束优化**领域的核心定理，由 Karush（1939）和 Kuhn-Tucker（1951）独立提出。它给出了一般约束优化问题取得最优解的**必要条件**——类似于无约束优化中”导数为零”的角色，但推广到了带不等式约束的情形。
+
+考虑优化问题：
 
 $$
-\min f(x)
+\min_{x} f(x)
 $$
 
 subject to
 
 $$
-g_i(x)\ge0
+g_i(x) \ge 0 \quad (i = 1, \ldots, m)
 $$
 
-KKT 条件包含：
-
-- stationarity；
-- primal feasibility；
-- dual feasibility；
-- complementarity。
-
-其中后两者正是接触约束：
+其中 $f(x)$ 是目标函数，$g_i(x) \ge 0$ 是不等式约束。为每个约束引入 Lagrange 乘子 $\lambda_i$，构造 Lagrangian：
 
 $$
-\lambda_i\ge0
+\mathcal{L}(x, \lambda) = f(x) - \sum_{i=1}^{m} \lambda_i g_i(x)
+$$
+
+KKT 条件包含四组条件，每组的含义如下：
+
+#### 条件 1：Stationarity（平稳性）
+
+$$
+\nabla_x \mathcal{L} = 0 \quad \Longleftrightarrow \quad \nabla f(x) = \sum_{i=1}^{m} \lambda_i \nabla g_i(x)
+$$
+
+含义：在最优点处，目标函数的下降方向被约束梯度完全抵消——不存在既能减小目标又不违反约束的”自由方向”。这相当于把无约束优化中的 $\nabla f = 0$ 推广到了约束情形：目标梯度被各约束梯度的线性组合平衡。
+
+#### 条件 2：Primal feasibility（原始可行性）
+
+$$
+g_i(x) \ge 0 \quad (i = 1, \ldots, m)
+$$
+
+含义：最优解必须满足原始约束——这是最基本的”解必须在可行域内”。
+
+#### 条件 3：Dual feasibility（对偶可行性）
+
+$$
+\lambda_i \ge 0 \quad (i = 1, \ldots, m)
+$$
+
+含义：每个不等式约束对应的 Lagrange 乘子非负。直觉上，$\lambda_i$ 衡量约束 $g_i$ 对目标函数的”压力”或”影子价格”——约束越紧，乘子越大；但乘子不能为负，否则意味着”放松约束反而让目标更差”，这违背优化方向。
+
+#### 条件 4：Complementarity（互补松弛条件）
+
+$$
+\lambda_i \, g_i(x) = 0 \quad (i = 1, \ldots, m)
+$$
+
+含义：对每个约束，要么约束处于**活跃**状态（$g_i(x) = 0$，恰好取等号），此时乘子可以大于零；要么约束**不活跃**（$g_i(x) > 0$，严格满足），此时乘子必须为零。两者不能同时非零——这就是”互补”的含义。直观理解：如果一个约束对最优解没有限制作用（约束松弛），那么它对目标也没有贡献（乘子为零）；反之，如果约束在积极限制解（取等号），那么它才允许产生非零乘子。
+
+#### KKT 与接触约束的对应
+
+将 KKT 条件映射到物理接触：
+
+| KKT 条件 | 数学形式 | 物理含义 |
+|---------|---------|---------|
+| Primal feasibility | $C(q) \ge 0$ | 物体不互相穿透（分离或恰好接触） |
+| Dual feasibility | $\lambda \ge 0$ | 接触力只能推不能拉（法向力非负） |
+| Complementarity | $C(q) \cdot \lambda = 0$ | 分离时无力，接触时无穿透（§10 的互补条件） |
+| Stationarity | $\nabla \mathcal{L} = 0$ | 接触力与运动方程平衡（牛顿第二定律成立） |
+
+可见，**接触约束的互补条件正是 KKT 条件中互补松弛和双重可行性的物理体现**。KKT 理论告诉我们：接触力的求解本质上是求解一个约束优化问题的 KKT 条件，而不是凭空发明的物理规则。
+
+> [!NOTE]
+> KKT 是**必要条件**而非充分条件。对于凸优化问题（目标函数凸、约束凸），KKT 条件同时也是充分条件——满足 KKT 的点必是全局最优解。但刚体接触通常不满足凸性（摩擦锥非凸、多接触组合可能非凸），因此 KKT 只提供”候选最优解”而非保证。
+
+### 11.2 LCP 是什么
+
+LCP（Linear Complementarity Problem，线性互补问题）是一类特殊的数学问题：给定矩阵 $\mathbf{A}$ 和向量 $\vec{b}$，求向量 $\vec{w}$ 和 $\vec{\lambda}$ 使得：
+
+$$
+\vec{w} = \mathbf{A}\vec{\lambda} + \vec{b}
 $$
 
 $$
-\lambda_i g_i(x)=0
+\vec{w} \ge 0, \quad \vec{\lambda} \ge 0, \quad \vec{w}^T \vec{\lambda} = 0
 $$
 
-### LCP
+三个条件同时成立：
 
-如果系统线性化后得到：
+- $\vec{w} \ge 0$：辅助变量非负
+- $\vec{\lambda} \ge 0$：未知量（乘子/力）非负
+- $\vec{w}^T \vec{\lambda} = 0$：互补条件——$\vec{w}$ 和 $\vec{\lambda}$ 的各分量逐对不能同时非零
+
+#### LCP 怎么从刚体接触中产生
+
+将刚体动力学在接触点处离散化并线性化后，加速度与接触力的关系为：
 
 $$
-w=A\lambda+b
+\vec{a} = \mathbf{M}^{-1}(\mathbf{J}^T \vec{\lambda} + \vec{F}_{\text{ext}})
 $$
 
-并要求：
+其中 $\mathbf{J}$ 是接触约束的 Jacobian，$\vec{\lambda}$ 是接触力（法向冲量/力），$\mathbf{M}$ 是质量矩阵。对加速度施加互补条件（分离时加速度不指向穿透方向，接触时加速度为零），令 $\vec{w} = \vec{a}$（法向加速度），整理得：
 
 $$
-w\ge0,\quad \lambda\ge0,\quad w^T\lambda=0
+\vec{w} = \underbrace{\mathbf{J} \mathbf{M}^{-1} \mathbf{J}^T}_{\mathbf{A}} \vec{\lambda} + \underbrace{\mathbf{J} \mathbf{M}^{-1} \vec{F}_{\text{ext}} + \vec{b}_{\text{bias}}}_{\vec{b}}
 $$
 
-这就是 Linear Complementarity Problem。
+其中 $\mathbf{A} = \mathbf{J} \mathbf{M}^{-1} \mathbf{J}^T$ 正是有效质量矩阵（§6），$\vec{b}$ 包含外力产生的加速度和偏置项（如 Baumgarte 稳定化）。互补条件变为：
 
-刚体接触在某些经典形式下可以转化成 LCP。
+$$
+\vec{w} \ge 0 \quad \text{（不加速穿透）}
+$$
 
-### NCP
+$$
+\vec{\lambda} \ge 0 \quad \text{（接触力非负）}
+$$
 
-如果约束或动力学本身是非线性的，则形成 Nonlinear Complementarity Problem。
+$$
+\vec{w}^T \vec{\lambda} = 0 \quad \text{（分离时无力，接触时无穿透加速度）}
+$$
 
-### 为什么现代游戏引擎不直接“精确解 LCP”
+这正是标准 LCP 形式。因此，**线性化后的刚体接触求解在数学上等价于求解一个 LCP**。
 
-主要因为：
+#### 一个具体例子：球在地板上
 
-- 接触数目大；
-- 摩擦会增加复杂度；
-- 稠密直接解成本高；
-- 每帧拓扑变化；
-- 需要 Warm Start 和并行；
-- 游戏更需要稳定和可控性能，而不是严格数学最优。
+一个球静止在地板上，只有一个接触点。设球质量 $m$，重力加速度 $g$，法向接触力 $\lambda$。法向加速度 $w = -g + \lambda/m$。LCP 条件：
 
-所以实际更多采用迭代投影近似 complementarity。
+$$
+w = \frac{\lambda}{m} - g \ge 0
+$$
+
+$$
+\lambda \ge 0
+$$
+
+$$
+w \cdot \lambda = 0
+$$
+
+两种情况：
+
+- 若球被支撑住（$\lambda > 0$），则 $w = 0$，即 $\lambda = mg$（接触力等于重力）。
+- 若球悬空（$\lambda = 0$），则 $w = -g < 0$，不满足 $w \ge 0$，故此情况不成立。
+
+解为 $\lambda = mg$，符合物理直觉。
+
+#### LCP 的求解方法
+
+LCP 有多种经典解法：
+
+- **Lemke 算法**：基于单纯形法的推广，能保证在有限步内求解，但实现复杂，对稀疏问题不友好。
+- **Projected Gauss-Seidel（PGS）**：迭代投影法，每次更新一个分量并投影到非负象限——这正是游戏引擎中 Sequential Impulse 求解器的基础（§15）。
+- **Projected Gradient / Splitting 方法**：适用于大规模稀疏问题，可结合 Warm Starting。
+
+### 11.3 NCP 是什么
+
+NCP（Nonlinear Complementarity Problem，非线性互补问题）是 LCP 的推广：当 $\vec{w}$ 与 $\vec{\lambda}$ 的关系是非线性的，即：
+
+$$
+\vec{w} = \mathbf{F}(\vec{\lambda})
+$$
+
+其中 $\mathbf{F}$ 是非线性函数，互补条件为：
+
+$$
+\vec{w} \ge 0, \quad \vec{\lambda} \ge 0, \quad \vec{w}^T \vec{\lambda} = 0
+$$
+
+#### NCP 在什么情况下产生
+
+LCP 假设动力学可线性化为 $\vec{w} = \mathbf{A}\vec{\lambda} + \vec{b}$。但以下情形会引入非线性：
+
+- **Coulomb 摩擦锥**：摩擦力的大小被限制在 $\mu \lambda_n$ 以内（$\mu$ 为摩擦系数），法向和切向力通过摩擦锥耦合。摩擦锥是圆锥约束，无法写成线性形式，使整体问题变为 NCP。
+- **大变形接触**：接触点的 Jacobian 随位置变化，$\mathbf{J}$ 本身依赖于 $\vec{\lambda}$，无法预先固定。
+- **非线性约束函数**：如距离约束 $|\vec{p}_1 - \vec{p}_2| = d$ 对位置非线性，其二阶导数（加速度层）含有非线性项。
+- **有限旋转**：旋转矩阵或四元数的约束在全局坐标下是非线性的。
+
+因此，**包含 Coulomb 摩擦的完整刚体接触问题本质上是 NCP**，而非 LCP。许多物理引擎在实践中将摩擦锥线性化为多边形锥（pyramid approximation），从而将 NCP 近似为 LCP——这是精度与计算成本的工程权衡。
+
+> [!NOTE]
+> LCP 与 NCP 的区分不在于约束本身是否非线性，而在于**整个互补系统的关系是否线性**。即使约束函数 $C(q)$ 是非线性的，只要在当前时刻线性化后 $\vec{w} = \mathbf{A}\vec{\lambda} + \vec{b}$ 成立（$\mathbf{A}$ 可在当前位形处固定），仍是 LCP。NCP 出现在 $\mathbf{A}$ 或 $\vec{b}$ 依赖于 $\vec{\lambda}$ 本身时。
+
+### 11.4 为什么现代游戏引擎不直接”精确解 LCP”
+
+理论上 LCP 有精确解法（如 Lemke 算法），但实时物理引擎几乎不用，原因如下：
+
+| 原因 | 说明 |
+|------|------|
+| **接触数目大** | 单帧可有数百到数千个接触点，构造的 $\mathbf{A}$ 矩阵虽稀疏，但精确解的复杂度随规模增长 |
+| **摩擦使问题变为 NCP** | Coulomb 摩擦锥是非线性的，精确解 NCP 比解 LCP 困难得多 |
+| **稠密直接解成本高** | Lemke 等方法本质上是稠密算法，不利用稀疏结构，内存和计算量在 $O(n^3)$ 量级 |
+| **每帧拓扑变化** | 接触图每帧都在变，无法预分解（如 LU 分解）；而迭代法天然适应变化的结构 |
+| **需要 Warm Start 和并行** | 迭代法（PGS/SI）可利用上一帧的 $\lambda$ 作初值，且每行约束可并行处理；精确解难以并行 |
+| **游戏偏好稳定可控** | 游戏需要确定的时间预算和可预测的行为，而非数学上严格最优但耗时不可控的解 |
+
+因此，实时引擎普遍采用**迭代投影**方法（Sequential Impulse / PGS）来近似满足互补条件：每轮迭代将违反约束的冲量投影回去，多轮后收敛。这牺牲了数学精确性，换取了速度、稳定性和可控性——正是 §15 详述的 Jacobi / Gauss-Seidel 求解思路。
 
 ---
 
