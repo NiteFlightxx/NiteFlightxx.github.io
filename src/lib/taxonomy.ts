@@ -42,6 +42,7 @@ export const KNOWLEDGE_SUBTOPICS: Record<KnowledgeCategory, Record<string, strin
     JobSystem: "任务系统",
     AssetPipeline: "资产管线",
     ReflectionSerialization: "反射与序列化",
+    VFXSystem: "VFX 与粒子系统",
   },
   Physics: {
     ConstraintSolver: "约束求解器",

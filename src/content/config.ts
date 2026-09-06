@@ -23,6 +23,7 @@ const KNOWLEDGE_SUBTOPICS = {
     'JobSystem',
     'AssetPipeline',
     'ReflectionSerialization',
+    'VFXSystem',
   ],
   Physics: [
     'ConstraintSolver',
