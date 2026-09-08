@@ -58,20 +58,21 @@ const {
       canonicalPath={Astro.url.pathname}
     />
   </head>
-  <body class="bg-brand-black text-gray-100">
+  <body class="bg-surface-base text-text-secondary">
     {/* Progressive enhancements: reading progress bar + code copy buttons.
-        Hydrated as a client component; no-ops if .article-body isn't present. */}
+        Hydrated as a client component; no-ops if .article-body isn't present.
+        Also hosts the article-page theme toggle (no React SPA on these routes). */}
     <ArticleEnhancements client:load />
 
     {/* Static background — reading pages keep the dark base + subtle grain only,
         no animated layers (SideRays / DynamicLinesBg) to reduce visual fatigue. */}
-    <div class="fixed inset-0 -z-20 bg-brand-black"></div>
+    <div class="fixed inset-0 -z-20 bg-surface-base"></div>
     <div class="grain-overlay" aria-hidden="true"></div>
 
     {/* Sticky minimal top bar */}
-    <header class="sticky top-0 z-50 glass-panel border-b border-white/10 px-6 md:px-12 py-3.5 flex items-center justify-between select-none">
+    <header class="sticky top-0 z-50 glass-panel border-b border-border-subtle px-6 md:px-12 py-3.5 flex items-center justify-between select-none">
       <div class="flex items-center gap-4">
-        <a href="/" class="flex items-center gap-2 font-display font-black text-base tracking-widest text-white hover:text-brand-accent-lime transition-colors">
+        <a href="/" class="flex items-center gap-2 font-display font-black text-base tracking-widest text-text-primary hover:text-accent-primary transition-colors">
           <svg class="w-5 h-5" viewBox="132 92 284 296" fill="currentColor" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
             <path d="M150 150L170 170L170 350L150 370Z"/>
             <path transform="translate(10, 0)" d="M340 120L360 100L360 300L340 280Z"/>
@@ -79,15 +80,45 @@ const {
           </svg>
           NITE
         </a>
-        <span class="hidden sm:block text-[10px] font-mono text-gray-600 tracking-widest">/ {category}</span>
+        <span class="hidden sm:block text-[10px] font-mono text-text-faint tracking-widest">/ {category}</span>
       </div>
-      <a
-        href={backHref}
-        class="flex items-center gap-2 text-xs font-mono text-gray-400 hover:text-white transition-colors group"
-      >
-        <ArrowLeft className="w-4 h-4 transition-transform group-hover:-translate-x-1" />
-        {backLabel}
-      </a>
+      <div class="flex items-center gap-4">
+        <a
+          href={backHref}
+          class="flex items-center gap-2 text-xs font-mono text-text-muted hover:text-text-primary transition-colors group"
+        >
+          <ArrowLeft className="w-4 h-4 transition-transform group-hover:-translate-x-1" />
+          {backLabel}
+        </a>
+        {/* Theme toggle — mirrors the SPA Header's behavior. The persisted
+            choice lives in localStorage('theme'); BaseHead's inline script
+            applies it pre-paint, this button flips it live. */}
+        <button
+          type="button"
+          id="article-theme-toggle"
+          class="p-2 text-text-muted hover:text-text-primary transition-colors duration-200 rounded-lg hover:bg-surface-raised/20 cursor-pointer"
+          aria-label="切换主题"
+        />
+        <script is:inline>
+          // Article pages are static (no SPA), so the theme toggle renders the
+          // same Sun/Moon glyphs as inline SVG and flips the html class directly.
+          (function () {
+            var btn = document.getElementById('article-theme-toggle');
+            if (!btn) return;
+            var sunSVG = '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg>';
+            var moonSVG = '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg>';
+            function render() {
+              btn.innerHTML = document.documentElement.classList.contains('light-theme') ? sunSVG : moonSVG;
+            }
+            render();
+            btn.addEventListener('click', function () {
+              var isLight = document.documentElement.classList.toggle('light-theme');
+              try { localStorage.setItem('theme', isLight ? 'light' : 'dark'); } catch (e) {}
+              render();
+            });
+          })();
+        </script>
+      </div>
     </header>
 
     {/* Main: the TOC rail is pinned to the viewport's left edge as a fixed

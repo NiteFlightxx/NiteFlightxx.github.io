@@ -6,46 +6,73 @@
   --font-sans: "Noto Sans SC Variable", sans-serif;
   --font-display: "Noto Sans SC Variable", sans-serif;
   --font-mono: "JetBrains Mono Variable", monospace;
-  
-  --color-brand-black: #000000;
-  --color-brand-charcoal: #080808;
-  --color-brand-gray-900: #0d0d0d;
-  --color-brand-gray-800: #141414;
+
+  /* ==== Semantic surface scale (page → card → raised chip) ==== */
+  --color-surface-base: #060606;      /* page background (was pure #000 — softened for OLED halo) */
+  --color-surface-card: #141414;      /* cards, glass panels */
+  --color-surface-raised: #1f1f1f;    /* chips, active nav, nested panels */
+
+  /* ==== Semantic text scale (each step down = one contrast tier) ==== */
+  --color-text-primary: #f3f4f6;      /* headings, primary copy */
+  --color-text-secondary: #c9c9c9;    /* body copy, secondary UI */
+  --color-text-muted: #9ca3af;        /* meta info (dates, read-time) — AA on dark */
+  --color-text-faint: #9ca3af;        /* smallest labels — lifted from #4b5563 (2.78:1) to AA */
+
+  /* ==== Semantic accents ==== */
+  --color-accent-primary: #bcfd49;        /* cyber lime — active nav, CTA, links */
+  --color-accent-primary-hover: #d9f99d;  /* hover state */
+  --color-accent-secondary: #96c8ff;      /* ice blue — experimental status, secondary info */
+  --color-accent-warm: #fbbf24;           /* amber — reserved for warnings/highlights */
+
+  /* ==== Semantic borders (single token replaces border-white/* ladder) ==== */
+  --color-border-subtle: rgba(255, 255, 255, 0.08);
+  --color-border-strong: rgba(255, 255, 255, 0.16);
+
+  /* Legacy brand aliases — kept so untouched imports still resolve.
+     Mapped onto the semantic scale; new code must not reference these. */
+  --color-brand-black: #060606;
+  --color-brand-charcoal: #141414;
+  --color-brand-gray-900: #1f1f1f;
+  --color-brand-gray-800: #2a2a2a;
   --color-brand-gray-700: #1f1f1f;
   --color-brand-gray-600: #2a2a2a;
-  --color-brand-gray-400: #a1a1a1;
-  
-  --color-brand-accent-orange: #bcfd49; /* High-fashion Cyber Lime */
-  --color-brand-accent-gold: #bcfd49;   /* High-fashion Cyber Lime */
-  --color-brand-accent-gold-light: #d9f99d; /* Soft youthful lime */
+  --color-brand-gray-400: #9ca3af;
   --color-brand-accent-lime: #bcfd49;
-  --color-brand-accent-indigo: #6366f1; /* Deep high-tech indigo */
-  --color-brand-accent-silver: #e2e8f0; /* Apple/Vercel silver */
+  --color-brand-accent-orange: #bcfd49;
+  --color-brand-accent-gold: #bcfd49;
+  --color-brand-accent-gold-light: #d9f99d;
+  --color-brand-accent-indigo: #6366f1;
+  --color-brand-accent-silver: #e2e8f0;
 }
 
-/* Custom Scrollbar */
+/* Custom Scrollbar — thumb raised from #222 (1.2:1 on black) so the position
+   cue is visible at rest, not only on hover. */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
 }
 
 ::-webkit-scrollbar-track {
-  background: #000000;
+  background: var(--color-surface-base);
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #222222;
+  background: #3f3f3f;
   border-radius: 3px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #333333;
+  background: #5a5a5a;
 }
 
 /* Base Body Style */
+html {
+  color-scheme: dark;
+}
+
 body {
-  background-color: #000000;
-  color: #f3f4f6;
+  background-color: var(--color-surface-base);
+  color: var(--color-text-primary);
   font-family: var(--font-sans);
   overflow-x: hidden;
   font-weight: 400;
@@ -58,10 +85,10 @@ article {
 
 /* Glassmorphism utility */
 .glass-panel {
-  background: rgba(8, 8, 8, 0.45);
+  background: color-mix(in srgb, var(--color-surface-card) 45%, transparent);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
-  border: 1px solid rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--color-border-subtle);
 }
 
 .glass-panel-hover {
@@ -69,8 +96,8 @@ article {
 }
 
 .glass-panel-hover:hover {
-  background: rgba(14, 14, 14, 0.85);
-  border-color: rgba(255, 255, 255, 0.09);
+  background: color-mix(in srgb, var(--color-surface-card) 85%, transparent);
+  border-color: var(--color-border-strong);
   box-shadow: 0 10px 35px -15px rgba(0, 0, 0, 0.8);
 }
 
@@ -122,12 +149,12 @@ article {
   font-weight: 900;
   font-size: 1.375rem;
   line-height: 1.9rem;
-  color: #fff;
+  color: var(--color-text-primary);
   margin-top: 3rem;
   margin-bottom: 1.25rem;
   letter-spacing: 0.02em;
   padding-top: 0.5rem;
-  border-top: 1px solid rgba(188, 253, 73, 0.18);
+  border-top: 1px solid color-mix(in srgb, var(--color-accent-primary) 18%, transparent);
 }
 
 .article-body h3 {
@@ -135,7 +162,7 @@ article {
   font-weight: 900;
   font-size: 1.125rem;
   line-height: 1.75rem;
-  color: #fff;
+  color: var(--color-text-primary);
   margin-top: 2.5rem;
   margin-bottom: 1rem;
   letter-spacing: 0.025em;
@@ -147,7 +174,7 @@ article {
   font-family: var(--font-display);
   font-weight: 900;
   font-size: 1rem;
-  color: #e5e7eb;
+  color: var(--color-text-secondary);
   margin-top: 1.5rem;
   margin-bottom: 0.75rem;
   letter-spacing: 0.025em;
@@ -158,7 +185,7 @@ article {
   font-family: var(--font-display);
   font-weight: 900;
   font-size: 0.875rem;
-  color: #9ca3af;
+  color: var(--color-text-muted);
   margin-top: 1.25rem;
   margin-bottom: 0.5rem;
   letter-spacing: 0.02em;
@@ -168,8 +195,8 @@ article {
 .article-body blockquote {
   margin: 1.5rem 0;
   padding: 0.5rem 0 0.5rem 1rem;
-  border-left: 2px solid rgba(188, 253, 73, 0.4);
-  color: #9ca3af;
+  border-left: 2px solid color-mix(in srgb, var(--color-accent-primary) 40%, transparent);
+  color: var(--color-text-muted);
   font-size: 0.85rem;
   line-height: 1.75;
   font-weight: 400;
@@ -181,15 +208,15 @@ article {
 
 /* Links: lime, brighten on hover. */
 .article-body a {
-  color: #bcfd49;
+  color: var(--color-accent-primary);
   text-decoration: none;
-  border-bottom: 1px solid rgba(188, 253, 73, 0.3);
+  border-bottom: 1px solid color-mix(in srgb, var(--color-accent-primary) 30%, transparent);
   transition: color 0.2s ease, border-color 0.2s ease;
 }
 
 .article-body a:hover {
-  color: #d9f99d;
-  border-bottom-color: #d9f99d;
+  color: var(--color-accent-primary-hover);
+  border-bottom-color: var(--color-accent-primary-hover);
 }
 
 /* Tables: dark panel with subtle borders, horizontal scroll on overflow. */
@@ -206,40 +233,40 @@ article {
 .article-body td {
   padding: 0.6rem 0.85rem;
   text-align: left;
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--color-border-subtle);
   line-height: 1.6;
 }
 
 .article-body th {
   font-family: var(--font-mono);
   font-size: 0.7rem;
-  color: #fff;
-  background: rgba(255, 255, 255, 0.03);
+  color: var(--color-text-primary);
+  background: color-mix(in srgb, var(--color-surface-raised) 30%, transparent);
   text-transform: uppercase;
   letter-spacing: 0.05em;
   font-weight: 900;
 }
 
 .article-body td {
-  color: #c9c9c9;
+  color: var(--color-text-secondary);
   font-weight: 400;
 }
 
 .article-body tr:nth-child(even) td {
-  background: rgba(255, 255, 255, 0.015);
+  background: color-mix(in srgb, var(--color-surface-raised) 15%, transparent);
 }
 
 /* Horizontal rule: thin lime-tinted divider. */
 .article-body hr {
   margin: 2.5rem 0;
   border: none;
-  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  border-top: 1px solid var(--color-border-subtle);
 }
 
 .article-body p {
   font-size: 0.9rem;
   line-height: 1.85;
-  color: #c9c9c9;
+  color: var(--color-text-secondary);
   margin: 1.25rem 0;
   font-weight: 400;
   letter-spacing: 0.01em;
@@ -261,7 +288,7 @@ article {
 .article-body li {
   font-size: 0.9rem;
   line-height: 1.85;
-  color: #c9c9c9;
+  color: var(--color-text-secondary);
   margin: 0.5rem 0;
   padding-left: 0.5rem;
   font-weight: 400;
@@ -269,7 +296,7 @@ article {
 
 .article-body ul li::before {
   content: "▪";
-  color: #6b7280;
+  color: var(--color-text-muted);
   margin-right: 0.5rem;
   font-size: 0.7rem;
   vertical-align: middle;
@@ -302,26 +329,26 @@ article {
    Lime-tinted background + dark text so it pops on the dark card surface
    without clashing with the lime accent palette. */
 .search-highlight {
-  background: rgba(188, 253, 73, 0.25);
-  color: #d9f99d;
+  background: color-mix(in srgb, var(--color-accent-primary) 25%, transparent);
+  color: var(--color-accent-primary-hover);
   border-radius: 0.2rem;
   padding: 0 0.15rem;
   font-weight: 900;
 }
 
 .light-theme .search-highlight {
-  background: rgba(77, 124, 15, 0.18);
-  color: #4d7c0f;
+  background: color-mix(in srgb, var(--color-accent-primary) 18%, transparent);
+  color: var(--color-accent-primary);
 }
 
 /* Inline code */
 .article-body code {
   font-family: var(--font-mono);
   font-size: 0.75rem;
-  background: rgba(255, 255, 255, 0.05);
+  background: color-mix(in srgb, var(--color-surface-raised) 50%, transparent);
   padding: 0.1rem 0.35rem;
   border-radius: 0.25rem;
-  color: #d4d4d4;
+  color: var(--color-text-secondary);
 }
 
 .article-body :not(pre) > code {
@@ -345,7 +372,7 @@ article {
   font-size: 0.75rem;
   background: none;
   padding: 0;
-  color: #c9c9c9;
+  color: var(--color-text-secondary);
   line-height: 1.65;
 }
 
@@ -378,14 +405,14 @@ article {
 }
 
 .code-copy-btn:hover {
-  color: #bcfd49;
-  background: rgba(188, 253, 73, 0.08);
-  border-color: rgba(188, 253, 73, 0.3);
+  color: var(--color-accent-primary);
+  background: color-mix(in srgb, var(--color-accent-primary) 8%, transparent);
+  border-color: color-mix(in srgb, var(--color-accent-primary) 30%, transparent);
 }
 
 .code-copy-btn.copied {
-  color: #bcfd49;
-  border-color: rgba(188, 253, 73, 0.4);
+  color: var(--color-accent-primary);
+  border-color: color-mix(in srgb, var(--color-accent-primary) 40%, transparent);
 }
 
 .light-theme .code-copy-btn {
@@ -394,13 +421,13 @@ article {
   color: #64748b;
 }
 .light-theme .code-copy-btn:hover {
-  color: #4d7c0f;
-  background: rgba(77, 124, 15, 0.08);
-  border-color: rgba(77, 124, 15, 0.3);
+  color: var(--color-accent-primary);
+  background: color-mix(in srgb, var(--color-accent-primary) 8%, transparent);
+  border-color: color-mix(in srgb, var(--color-accent-primary) 30%, transparent);
 }
 .light-theme .code-copy-btn.copied {
-  color: #4d7c0f;
-  border-color: rgba(77, 124, 15, 0.4);
+  color: var(--color-accent-primary);
+  border-color: color-mix(in srgb, var(--color-accent-primary) 40%, transparent);
 }
 
 /* Images (static + GIF): responsive baseline — never overflow the column,
@@ -455,207 +482,35 @@ pre code {
   font-weight: 400;
 }
 
-@media (max-width: 767px) {
-  .glow-ambient {
-    max-width: 100vw;
-  }
-}
-
 /* ============================================================
-   LIGHT MODE — comprehensive overrides applied via .light-theme
-   on <html>. Brand palette CSS variables are remapped so all
-   bg-brand-*, text-brand-*, border-brand-* utilities update
-   automatically. Tailwind built-in utilities (text-white,
-   text-gray-*, border-white/*, bg-white/*) are overridden at
-   the class level since --color-white is shared by bg-white
-   (page background) and text-white (headings) and can't be
-   repurposed for both simultaneously.
+   LIGHT SKIN — the small concrete set. Everything else resolves
+   through the semantic tokens remapped above, so components that
+   reference tokens need no per-skin CSS at all.
    ============================================================ */
-
-.light-theme {
-  /* Surfaces: black/charcoal → white/light-slate */
-  --color-brand-black: #ffffff;
-  --color-brand-charcoal: #f8fafc;   /* slate-50 — card/glass bg */
-  --color-brand-gray-900: #f1f5f9;   /* slate-100 */
-  --color-brand-gray-800: #e2e8f0;   /* slate-200 — active states, chips */
-  --color-brand-gray-700: #cbd5e1;   /* slate-300 */
-  --color-brand-gray-600: #94a3b8;   /* slate-400 */
-  --color-brand-gray-400: #64748b;   /* slate-500 */
-
-  /* Accents: bright cyber-lime #bcfd49 → dark lime #4d7c0f
-     (lime-700) for ~5:1 contrast on white. The same token is
-     used for text, borders and button fills. */
-  --color-brand-accent-lime: #4d7c0f;
-  --color-brand-accent-orange: #4d7c0f;
-  --color-brand-accent-gold: #4d7c0f;
-  --color-brand-accent-gold-light: #65a30d; /* lime-600 */
-  --color-brand-accent-indigo: #4f46e5;
-  --color-brand-accent-silver: #475569;     /* slate-600 */
-}
-
-/* ---- Body & global surface ---- */
-.light-theme body {
-  background-color: #ffffff;
-  color: #1e293b;
-}
-
-/* ---- Custom scrollbar ---- */
-.light-theme ::-webkit-scrollbar-track {
-  background: #f1f5f9;
-}
-.light-theme ::-webkit-scrollbar-thumb {
-  background: #cbd5e1;
-}
-.light-theme ::-webkit-scrollbar-thumb:hover {
-  background: #94a3b8;
-}
-
-/* ---- Glassmorphism: dark glass → light glass ---- */
 .light-theme .glass-panel {
-  background: rgba(255, 255, 255, 0.72);
-  border: 1px solid rgba(15, 23, 42, 0.08);
+  background: color-mix(in srgb, var(--color-surface-card) 72%, transparent);
+  box-shadow: 0 8px 24px -18px rgba(15, 23, 42, 0.35);
 }
+
 .light-theme .glass-panel-hover:hover {
-  background: rgba(241, 245, 249, 0.9);
-  border-color: rgba(15, 23, 42, 0.12);
-  box-shadow: 0 10px 35px -15px rgba(0, 0, 0, 0.12);
+  box-shadow: 0 10px 30px -18px rgba(15, 23, 42, 0.45);
 }
 
-/* ---- Code container ---- */
-.light-theme .code-block {
-  background: #f8fafc;
-  border: 1px solid rgba(15, 23, 42, 0.08);
-}
-
-/* ---- Cinematic grain: slightly more visible on white ---- */
+/* Cinematic grain: subtle on paper — too strong reads as "dirty" on white */
 .light-theme .grain-overlay {
-  opacity: 0.025;
+  opacity: 0.012;
 }
 
-/* ---- Ambient glow blobs: dim on light ---- */
+/* Ambient glow blobs: dim on light so they stay pastel, not muddy */
 .light-theme .glow-ambient {
-  opacity: 0.25;
+  opacity: 0.18;
 }
 
-/* ---- bg-brand-black tints: variable is now white, so opacity
-   variants would be invisible. Override to subtle dark-slate tints
-   so panels-within-cards (code headers, tags, quote blocks) remain
-   visible. bg-brand-black (no opacity) stays white via the variable. ---- */
-.light-theme .bg-brand-black\/90 { background-color: rgba(15, 23, 42, 0.5); }
-.light-theme .bg-brand-black\/80 { background-color: rgba(15, 23, 42, 0.05); }
-.light-theme .bg-brand-black\/60 { background-color: rgba(15, 23, 42, 0.04); }
-.light-theme .bg-brand-black\/50 { background-color: rgba(15, 23, 42, 0.04); }
-.light-theme .bg-brand-black\/40 { background-color: rgba(15, 23, 42, 0.03); }
-.light-theme .bg-brand-black\/30 { background-color: rgba(15, 23, 42, 0.03); }
-.light-theme .bg-brand-black\/20 { background-color: rgba(15, 23, 42, 0.02); }
-
-/* ---- bg-brand-charcoal low-opacity variants: variable is now
-   slate-50, so these are near-invisible on white. Override to
-   dark-slate tints for panel-within-card subtlety. ---- */
-.light-theme .bg-brand-charcoal\/40 { background-color: rgba(15, 23, 42, 0.03); }
-.light-theme .bg-brand-charcoal\/30 { background-color: rgba(15, 23, 42, 0.03); }
-
-/* ---- Text color overrides (Tailwind built-in palette).
-   --color-white can't be repurposed (bg-white needs #fff), so
-   remap at the class level. The gray scale is inverted: bright
-   text on dark → dark text on light, preserving relative contrast. ---- */
-.light-theme .text-white { color: #0f172a; }
-.light-theme .text-gray-100 { color: #0f172a; }   /* slate-900 */
-.light-theme .text-gray-200 { color: #1e293b; }   /* slate-800 */
-.light-theme .text-gray-300 { color: #334155; }   /* slate-700 */
-.light-theme .text-gray-400 { color: #475569; }   /* slate-600 */
-.light-theme .text-gray-500 { color: #64748b; }   /* slate-500 */
-.light-theme .text-gray-600 { color: #94a3b8; }   /* slate-400 */
-
-.light-theme .hover\:text-white:hover { color: #0f172a; }
-.light-theme .hover\:text-gray-200:hover { color: #1e293b; }
-.light-theme .hover\:text-gray-300:hover { color: #334155; }
-.light-theme .hover\:text-gray-400:hover { color: #475569; }
-
-/* White text at opacity (separators, dividers in Footer) */
-.light-theme .text-white\/10 { color: rgba(15, 23, 42, 0.15); }
-
-/* ---- Border overrides: white-tinted → dark-slate-tinted ---- */
-.light-theme .border-white\/5 { border-color: rgba(15, 23, 42, 0.08); }
-.light-theme .border-white\/10 { border-color: rgba(15, 23, 42, 0.12); }
-.light-theme .border-white\/15 { border-color: rgba(15, 23, 42, 0.15); }
-.light-theme .border-white\/20 { border-color: rgba(15, 23, 42, 0.2); }
-
-.light-theme .hover\:border-white\/10:hover { border-color: rgba(15, 23, 42, 0.15); }
-.light-theme .hover\:border-white\/20:hover { border-color: rgba(15, 23, 42, 0.25); }
-
-/* ---- Background overrides: white-tinted → dark-slate-tinted ---- */
-.light-theme .bg-white\/5 { background-color: rgba(15, 23, 42, 0.04); }
-.light-theme .bg-white\/10 { background-color: rgba(15, 23, 42, 0.06); }
-
-.light-theme .hover\:bg-white\/5:hover { background-color: rgba(15, 23, 42, 0.04); }
-
-/* ---- Gradient stop: from-white would be invisible on white.
-   Override --tw-gradient-from to dark slate (lazy-resolved by
-   --tw-gradient-stops → background-image). ---- */
-.light-theme .from-white {
-  --tw-gradient-from: #1e293b var(--tw-gradient-from-position, 0%) !important;
-}
-
-/* ---- Hero CTA button: bg-brand-accent-lime text-black.
-   In light mode the lime is dark green (#4d7c0f), so black text
-   becomes white for contrast; hover transitions to a light slate
-   surface instead of pure white (which would be white-on-white). ---- */
-.light-theme .bg-brand-accent-lime.text-black {
-  color: #ffffff;
-}
-.light-theme .bg-brand-accent-lime.text-black:hover {
-  background-color: #e2e8f0;
-  color: #0f172a;
-}
-
-/* ---- Article body (Markdown + KaTeX) ---- */
-.light-theme .article-body h2 {
-  color: #0f172a;
-  border-top-color: rgba(77, 124, 15, 0.2);
-}
-.light-theme .article-body h3 {
-  color: #0f172a;
-  border-bottom-color: rgba(15, 23, 42, 0.1);
-}
-.light-theme .article-body h4 {
-  color: #1e293b;
-}
-.light-theme .article-body h5,
-.light-theme .article-body h6 {
-  color: #64748b;
-}
-.light-theme .article-body p {
-  color: #334155;
-}
-.light-theme .article-body li {
-  color: #334155;
-}
-.light-theme .article-body ul li::before {
-  color: #94a3b8;
-}
-.light-theme .article-body ol li::before {
-  color: #4d7c0f;
-}
-.light-theme .article-body a {
-  color: #4d7c0f;
-  border-bottom-color: rgba(77, 124, 15, 0.3);
-}
-.light-theme .article-body a:hover {
-  color: #65a30d;
-  border-bottom-color: #65a30d;
-}
-.light-theme .article-body blockquote {
-  color: #64748b;
-  border-left-color: rgba(77, 124, 15, 0.4);
-}
-.light-theme .article-body code {
-  background: rgba(15, 23, 42, 0.06);
-  color: #1e293b;
-}
+/* Code blocks get a real surface on paper */
 .light-theme .article-body pre {
-  background: rgba(15, 23, 42, 0.03);
-  border-color: rgba(15, 23, 42, 0.08);
+  background: #f8fafc;
+  border-color: rgba(15, 23, 42, 0.1);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.6);
 }
 .light-theme .article-body pre code {
   color: #334155;
@@ -675,5 +530,110 @@ pre code {
 .light-theme .article-body hr {
   border-top-color: rgba(15, 23, 42, 0.1);
 }
+
+/* Inline code chips on paper */
+.light-theme .article-body code {
+  background: rgba(15, 23, 42, 0.07);
+  color: #1e293b;
+}
+
+/* Images float on a hairline frame instead of sinking into the paper */
+.light-theme .article-body img {
+  border: 1px solid rgba(15, 23, 42, 0.08);
+}
+
+/* Scrollbar on paper */
+.light-theme ::-webkit-scrollbar-track {
+  background: #f1f5f9;
+}
+.light-theme ::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+}
+.light-theme ::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* KaTeX on paper: math inherits the light text color via its own cascade,
+   but display blocks get a touch less weight to sit well on white. */
+.light-theme .article-body .katex-display {
+  background: rgba(15, 23, 42, 0.015);
+  border-radius: 0.5rem;
+}
+
+/* Hero CTA on paper: filled button flips to white-on-dark-lime */
+.light-theme .bg-accent-primary.text-black {
+  background-color: var(--color-accent-primary);
+  color: #ffffff;
+}
+.light-theme .bg-accent-primary.text-black:hover {
+  background-color: var(--color-accent-primary-hover);
+  color: #ffffff;
+}
+
+/* Focus-visible rings stay visible on paper */
+.light-theme :focus-visible {
+  outline-color: var(--color-accent-primary);
+}
+
+@media (max-width: 767px) {
+  .glow-ambient {
+    max-width: 100vw;
+  }
+}
+
+/* ============================================================
+   LIGHT MODE — a skin, not an inversion table. Semantic tokens
+   are remapped here; the (much shorter) concrete rules below keep
+   the handful of bespoke elements (white-tinted utility classes
+   still present in legacy components) legible on paper.
+   ============================================================ */
+
+.light-theme {
+  /* Surfaces: dark graphite → paper whites */
+  --color-surface-base: #ffffff;
+  --color-surface-card: #f8fafc;   /* slate-50 */
+  --color-surface-raised: #e2e8f0; /* slate-200 */
+
+  /* Text: warm dark slate ramp (kept below pure black for softness) */
+  --color-text-primary: #0f172a;   /* slate-900 */
+  --color-text-secondary: #334155; /* slate-700 */
+  --color-text-muted: #475569;     /* slate-600 */
+  --color-text-faint: #64748b;     /* slate-500 */
+
+  /* Accents: dark lime for 4.5:1+ on paper; ice blue → deep blue */
+  --color-accent-primary: #4d7c0f;        /* lime-700 */
+  --color-accent-primary-hover: #3f6212;  /* lime-800 — darker hover for legibility */
+  --color-accent-secondary: #2563eb;      /* blue-600 */
+  --color-accent-warm: #b45309;           /* amber-700 */
+
+  /* Borders */
+  --color-border-subtle: rgba(15, 23, 42, 0.08);
+  --color-border-strong: rgba(15, 23, 42, 0.16);
+
+  /* Legacy aliases */
+  --color-brand-black: #ffffff;
+  --color-brand-charcoal: #f8fafc;
+  --color-brand-gray-900: #f1f5f9;
+  --color-brand-gray-800: #e2e8f0;
+  --color-brand-gray-700: #cbd5e1;
+  --color-brand-gray-600: #94a3b8;
+  --color-brand-gray-400: #64748b;
+  --color-brand-accent-lime: #4d7c0f;
+  --color-brand-accent-orange: #4d7c0f;
+  --color-brand-accent-gold: #4d7c0f;
+  --color-brand-accent-gold-light: #65a30d;
+  --color-brand-accent-indigo: #4f46e5;
+  --color-brand-accent-silver: #475569;
+}
+
+html.light-theme {
+  color-scheme: light;
+}
+
+/* ---- Legacy class-level override table REMOVED ----
+   The old .text-gray-* / .border-white/* / .bg-white/* remapping
+   ladder lived here. Components now reference semantic tokens
+   (text-primary/secondary/…, border-subtle/strong, surface-*), so
+   both skins resolve purely through the CSS variables above. */
 
 

@@ -114,13 +114,13 @@ export default function ArticleToc({ headings, lang }: ArticleTocProps) {
 
   return (
     <nav
-      className="glass-panel border border-white/5 rounded-xl select-none overflow-hidden"
+      className="glass-panel border border-border-subtle rounded-xl select-none overflow-hidden"
       aria-label="table of contents"
     >
       {/* Header label (static — folding happens per H2 below, not here) */}
-      <div className="flex items-center gap-2 px-5 py-4 border-b border-white/5">
-        <List className="w-3.5 h-3.5 text-brand-accent-lime" />
-        <span className="font-mono text-[13px] text-gray-400 uppercase tracking-widest">
+      <div className="flex items-center gap-2 px-5 py-4 border-b border-border-subtle">
+        <List className="w-3.5 h-3.5 text-accent-primary" />
+        <span className="font-mono text-[13px] text-text-muted uppercase tracking-widest">
           {lang === "zh" ? "目录" : "Contents"}
         </span>
       </div>
@@ -138,7 +138,7 @@ export default function ArticleToc({ headings, lang }: ArticleTocProps) {
                   <button
                     type="button"
                     onClick={() => toggle(group.h2.slug)}
-                    className="mt-1 flex-shrink-0 text-gray-500 hover:text-brand-accent-lime transition-colors"
+                    className="mt-1 flex-shrink-0 text-text-faint hover:text-accent-primary transition-colors"
                     aria-label={isCollapsed ? "展开" : "折叠"}
                     aria-expanded={!isCollapsed}
                   >
@@ -156,8 +156,8 @@ export default function ArticleToc({ headings, lang }: ArticleTocProps) {
                   onClick={(e) => scrollTo(e, group.h2.slug)}
                   className={`flex-1 block py-2 pr-2 pl-2 text-[15px] font-sans leading-relaxed transition-all duration-300 border-l-2 ${
                     isH2Active
-                      ? "text-brand-accent-lime border-brand-accent-lime drop-shadow-[0_0_8px_rgba(188,253,73,0.35)]"
-                      : "text-gray-200 border-transparent hover:text-white"
+                      ? "text-accent-primary border-accent-primary drop-shadow-[0_0_8px_rgba(188,253,73,0.35)]"
+                      : "text-text-secondary border-transparent hover:text-text-primary"
                   }`}
                 >
                   {group.h2.text}
@@ -183,8 +183,8 @@ export default function ArticleToc({ headings, lang }: ArticleTocProps) {
                             onClick={(e) => scrollTo(e, child.slug)}
                             className={`block py-2 pr-2 pl-3 text-[14px] font-sans leading-relaxed transition-all duration-300 border-l-2 ${
                               isActive
-                                ? "text-brand-accent-lime border-brand-accent-lime drop-shadow-[0_0_8px_rgba(188,253,73,0.35)]"
-                                : "text-gray-400 border-transparent hover:text-gray-200 hover:border-white/20"
+                                ? "text-accent-primary border-accent-primary drop-shadow-[0_0_8px_rgba(188,253,73,0.35)]"
+                                : "text-text-muted border-transparent hover:text-text-secondary hover:border-border-strong"
                             }`}
                           >
                             {child.text}

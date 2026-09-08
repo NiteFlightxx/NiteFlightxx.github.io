@@ -50,22 +50,22 @@ export default function ArchiveView({ skills, lang }: ArchiveViewProps) {
       {/* Profile Overview — 技术方向 / 研究兴趣 / 专业领域 */}
       <section className="max-w-4xl mx-auto px-6">
         <div className="space-y-4">
-          <span className="font-mono text-[10px] text-brand-accent-orange uppercase tracking-widest block">
+          <span className="font-mono text-[10px] text-accent-primary uppercase tracking-widest block">
             {t.profileOverview}
           </span>
-          <h1 className="font-display font-black text-4xl md:text-5xl text-white tracking-tighter leading-tight">
+          <h1 className="font-display font-black text-4xl md:text-5xl text-text-primary tracking-tighter leading-tight">
             {t.narrativeHeadline}
           </h1>
           <div className="space-y-5">
             {PROFILE_PILLARS.map((p) => (
               <div key={p.labelZh} className="space-y-1.5">
                 <div className="flex items-center gap-2">
-                  <span className="w-1 h-1 rounded-full bg-brand-accent-lime" />
-                  <span className="font-mono text-[10px] text-brand-accent-lime uppercase tracking-widest">
+                  <span className="w-1 h-1 rounded-full bg-accent-primary" />
+                  <span className="font-mono text-[10px] text-accent-primary uppercase tracking-widest">
                     {lang === "zh" ? p.labelZh : p.labelEn}
                   </span>
                 </div>
-                <p className="text-xs text-gray-400 leading-relaxed font-sans font-light pl-3">
+                <p className="text-xs text-text-muted leading-relaxed font-sans font-light pl-3">
                   {lang === "zh" ? p.zh : p.en}
                 </p>
               </div>
@@ -76,11 +76,11 @@ export default function ArchiveView({ skills, lang }: ArchiveViewProps) {
 
       {/* Skill Matrix — 6 categories */}
       <section className="max-w-5xl mx-auto px-6 space-y-10">
-        <div className="space-y-2 border-b border-white/5 pb-4">
-          <span className="font-mono text-[10px] text-brand-accent-orange uppercase tracking-widest block">
+        <div className="space-y-2 border-b border-border-subtle pb-4">
+          <span className="font-mono text-[10px] text-accent-primary uppercase tracking-widest block">
             {t.systemProficiencies}
           </span>
-          <h2 className="font-display font-medium text-2xl text-white tracking-tight">
+          <h2 className="font-display font-medium text-2xl text-text-primary tracking-tight">
             {t.techStackProfile}
           </h2>
         </div>
@@ -89,7 +89,7 @@ export default function ArchiveView({ skills, lang }: ArchiveViewProps) {
           {skills.map((cat) => (
             <div key={cat.name} className="space-y-6">
               <h3 className="font-display font-semibold text-xs text-brand-accent-silver tracking-widest uppercase flex items-center gap-2">
-                <Cpu className="w-4 h-4 text-brand-accent-orange" />
+                <Cpu className="w-4 h-4 text-accent-primary" />
                 {cat.name}
               </h3>
 
@@ -97,10 +97,10 @@ export default function ArchiveView({ skills, lang }: ArchiveViewProps) {
                 {cat.skills.map((skill) => (
                   <div key={skill.name} className="space-y-1.5 group">
                     <div className="flex items-center gap-2 text-xs font-mono">
-                      <span className="text-brand-accent-lime select-none">›</span>
-                      <span className="text-gray-300 group-hover:text-white transition-colors">{skill.name}</span>
+                      <span className="text-accent-primary select-none">›</span>
+                      <span className="text-text-secondary group-hover:text-text-primary transition-colors">{skill.name}</span>
                     </div>
-                    <p className="text-[10px] text-gray-500 leading-relaxed font-sans group-hover:text-gray-400 transition-colors pl-4">
+                    <p className="text-[10px] text-text-faint leading-relaxed font-sans group-hover:text-text-muted transition-colors pl-4">
                       {skill.details}
                     </p>
                   </div>

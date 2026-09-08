@@ -41,7 +41,14 @@ const VALID_TABS = ["home", "projects", "knowledge", "archive"];
 
 export default function App({ knowledgeArticles = [] }: AppProps) {
   const [activeTab, setActiveTab] = useState("home");
-  const [theme, setTheme] = useState<"dark" | "light">("dark");
+  // Lazy initial theme: read the persisted value (or system preference) once
+  // at first render so the rays layer never flashes dark→light on load.
+  const [theme, setTheme] = useState<"dark" | "light">(() => {
+    if (typeof window === "undefined") return "dark";
+    const stored = localStorage.getItem("theme");
+    if (stored === "light" || stored === "dark") return stored;
+    return window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
+  });
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
 
   const navigateToTab = useCallback((tab: string) => {
@@ -60,19 +67,10 @@ export default function App({ knowledgeArticles = [] }: AppProps) {
 
   const selectedProject = selectedProjectId ? projects.find(p => p.id === selectedProjectId) || null : null;
 
-  // Persist + restore theme. SSR renders "dark" (no localStorage on server),
-  // then this effect reconciles to the stored value on mount and on every
-  // toggle. Toggling writes back so the choice survives reloads.
-  useEffect(() => {
-    const stored = localStorage.getItem("theme");
-    if (stored === "light" || stored === "dark") {
-      setTheme(stored);
-    }
-  }, []);
+  // Persist + sync to <html> on every toggle so global CSS (body bg,
+  // scrollbar, article-body) applies everywhere.
   useEffect(() => {
     localStorage.setItem("theme", theme);
-    // Sync to <html> so global CSS overrides (body bg, scrollbar, article-body)
-    // apply everywhere — the React root div alone can't reach those elements.
     document.documentElement.classList.toggle("light-theme", theme === "light");
   }, [theme]);
 
@@ -138,13 +136,11 @@ export default function App({ knowledgeArticles = [] }: AppProps) {
   };
 
   return (
-    <div className={`relative min-h-screen flex flex-col justify-between transition-colors duration-300 selection:bg-brand-accent-orange/30 selection:text-white ${
-      theme === "light" ? "light-theme text-slate-900" : "text-gray-100"
+    <div className={`relative min-h-screen flex flex-col justify-between transition-colors duration-300 selection:bg-accent-primary/30 selection:text-text-primary text-text-primary ${
+      theme === "light" ? "light-theme" : ""
     }`}>
       {/* Fixed Background Color Layer (solves canvas stacking context) */}
-      <div className={`fixed inset-0 -z-20 transition-colors duration-300 ${
-        theme === "light" ? "bg-white" : "bg-brand-black"
-      }`} />
+      <div className="fixed inset-0 -z-20 transition-colors duration-300 bg-surface-base" />
 
       {/* Global Seamless WebGL Rays Background */}
       <div className={`fixed inset-0 -z-15 pointer-events-none transition-opacity duration-300 ${
@@ -193,7 +189,7 @@ export default function App({ knowledgeArticles = [] }: AppProps) {
       </main>
 
       {/* Standard Footer */}
-      <Footer lang={lang} theme={theme} />
+      <Footer lang={lang} />
 
       {/* Immersive Modal: Project Specifications */}
       <AnimatePresence>

@@ -87,7 +87,7 @@ export default function ProjectDetailModal({ project, onClose, lang }: ProjectDe
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       transition={{ duration: 0.2 }}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-brand-black/90 backdrop-blur-md p-4 md:p-8 overflow-y-auto"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-surface-base/90 backdrop-blur-md p-4 md:p-8 overflow-y-auto"
       id="project-detail-modal"
       onMouseDown={(event) => {
         if (event.target === event.currentTarget) onClose();
@@ -103,13 +103,13 @@ export default function ProjectDetailModal({ project, onClose, lang }: ProjectDe
         animate={{ scale: 1, y: 0, opacity: 1 }}
         exit={{ scale: 0.95, y: 15, opacity: 0 }}
         transition={{ type: "spring", stiffness: 350, damping: 28 }}
-        className="w-full max-w-5xl bg-brand-charcoal border border-white/10 rounded-2xl overflow-hidden shadow-2xl flex flex-col md:max-h-[90vh]"
+        className="w-full max-w-5xl bg-surface-card border border-border-subtle rounded-2xl overflow-hidden shadow-2xl flex flex-col md:max-h-[90vh]"
       >
         {/* Header toolbar */}
-        <div className="glass-panel border-b border-white/5 py-4 px-6 md:px-8 flex items-center justify-between sticky top-0 z-10">
+        <div className="glass-panel border-b border-border-subtle py-4 px-6 md:px-8 flex items-center justify-between sticky top-0 z-10">
           <div className="flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-brand-accent-orange animate-pulse" />
-            <span className="font-mono text-[10px] text-gray-400 tracking-widest uppercase">
+            <span className="w-2 h-2 rounded-full bg-accent-primary animate-pulse" />
+            <span className="font-mono text-[10px] text-text-muted tracking-widest uppercase">
               {t.engineeringLog} // {catLabel.toUpperCase()}
             </span>
           </div>
@@ -117,7 +117,7 @@ export default function ProjectDetailModal({ project, onClose, lang }: ProjectDe
             ref={closeButtonRef}
             type="button"
             onClick={onClose}
-            className="p-1.5 rounded-lg border border-white/5 hover:border-white/10 text-gray-400 hover:text-white bg-brand-black/20 hover:bg-white/5 transition-all cursor-pointer"
+            className="p-1.5 rounded-lg border border-border-subtle hover:border-border-subtle text-text-muted hover:text-text-primary bg-surface-base/20 hover:bg-surface-raised/20 transition-all cursor-pointer"
             aria-label={lang === "zh" ? "关闭项目详情" : "Close project details"}
             id="project-close-btn"
           >
@@ -128,19 +128,19 @@ export default function ProjectDetailModal({ project, onClose, lang }: ProjectDe
         {/* Modal content body — 8-section structure */}
         <div className="flex-1 overflow-y-auto p-6 md:p-8 space-y-8">
           {/* Title + category + status */}
-          <div className="space-y-3 border-b border-white/5 pb-6">
+          <div className="space-y-3 border-b border-border-subtle pb-6">
             <div className="flex items-center gap-2">
-              <span className="text-[10px] font-mono text-brand-accent-lime uppercase tracking-widest">
+              <span className="text-[10px] font-mono text-accent-primary uppercase tracking-widest">
                 {catLabel}
               </span>
-              <span className="px-1.5 py-0.5 rounded border text-[9px] uppercase tracking-wider text-gray-400 border-gray-500/30 bg-gray-500/15">
+              <span className="px-1.5 py-0.5 rounded border text-[9px] uppercase tracking-wider text-text-muted border-gray-500/30 bg-gray-500/15">
                 {statusLabel}
               </span>
               {project.year && (
-                <span className="text-[10px] font-mono text-gray-500">{project.year}</span>
+                <span className="text-[10px] font-mono text-text-faint">{project.year}</span>
               )}
             </div>
-            <h2 id="project-dialog-title" className="font-display font-bold text-xl md:text-3xl text-white tracking-tight">
+            <h2 id="project-dialog-title" className="font-display font-bold text-xl md:text-3xl text-text-primary tracking-tight">
               {project.title}
             </h2>
             {/* Tech stack */}
@@ -148,7 +148,7 @@ export default function ProjectDetailModal({ project, onClose, lang }: ProjectDe
               {project.tech.map((techItem) => (
                 <span
                   key={techItem}
-                  className="px-2 py-0.5 text-[9px] font-mono bg-brand-black text-gray-400 border border-white/5 rounded"
+                  className="px-2 py-0.5 text-[9px] font-mono bg-surface-base text-text-muted border border-border-subtle rounded"
                 >
                   {techItem}
                 </span>
@@ -163,10 +163,10 @@ export default function ProjectDetailModal({ project, onClose, lang }: ProjectDe
             const src = `https://player.bilibili.com/player.html?bvid=${bvid}&page=1&high_quality=1&autoplay=0`;
             return (
               <div className="space-y-2">
-                <h3 className="font-mono text-[10px] text-brand-accent-lime uppercase tracking-widest">
+                <h3 className="font-mono text-[10px] text-accent-primary uppercase tracking-widest">
                   {lang === "zh" ? "演示视频" : "Demo Video"}
                 </h3>
-                <div className="relative w-full overflow-hidden rounded-xl border border-white/10 bg-brand-black">
+                <div className="relative w-full overflow-hidden rounded-xl border border-border-subtle bg-surface-base">
                   <iframe
                     src={src}
                     title={project.title}
@@ -182,36 +182,36 @@ export default function ProjectDetailModal({ project, onClose, lang }: ProjectDe
 
           {/* 1. Overview */}
           <div className="space-y-2">
-            <h3 className="font-mono text-[10px] text-brand-accent-orange uppercase tracking-widest">{t.overview}</h3>
-            <p className="text-sm text-gray-300 leading-relaxed font-sans font-light">{project.overview}</p>
+            <h3 className="font-mono text-[10px] text-accent-primary uppercase tracking-widest">{t.overview}</h3>
+            <p className="text-sm text-text-secondary leading-relaxed font-sans font-light">{project.overview}</p>
           </div>
 
           {/* 2. Architecture */}
           <div className="space-y-2">
-            <h3 className="font-mono text-[10px] text-brand-accent-orange uppercase tracking-widest">{t.architecture}</h3>
-            <p className="text-sm text-gray-300 leading-relaxed font-sans font-light">{project.architecture}</p>
+            <h3 className="font-mono text-[10px] text-accent-primary uppercase tracking-widest">{t.architecture}</h3>
+            <p className="text-sm text-text-secondary leading-relaxed font-sans font-light">{project.architecture}</p>
           </div>
 
           {/* 3. Challenges & 4. Solution split */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="space-y-2">
-              <h3 className="font-mono text-[10px] text-brand-accent-orange uppercase tracking-widest">{t.challenges}</h3>
-              <p className="text-sm text-gray-300 leading-relaxed font-sans font-light">{project.challenges}</p>
+              <h3 className="font-mono text-[10px] text-accent-primary uppercase tracking-widest">{t.challenges}</h3>
+              <p className="text-sm text-text-secondary leading-relaxed font-sans font-light">{project.challenges}</p>
             </div>
             <div className="space-y-2">
-              <h3 className="font-mono text-[10px] text-brand-accent-lime uppercase tracking-widest">{t.solution}</h3>
-              <p className="text-sm text-gray-300 leading-relaxed font-sans font-light">{project.solution}</p>
+              <h3 className="font-mono text-[10px] text-accent-primary uppercase tracking-widest">{t.solution}</h3>
+              <p className="text-sm text-text-secondary leading-relaxed font-sans font-light">{project.solution}</p>
             </div>
           </div>
 
           {/* 5. Performance metrics */}
           <div className="space-y-3">
-            <span className="font-mono text-[9px] text-gray-500 tracking-wider block uppercase">{t.metricsTitle}</span>
+            <span className="font-mono text-[9px] text-text-faint tracking-wider block uppercase">{t.metricsTitle}</span>
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
               {project.metrics.map((metric) => (
-                <div key={metric.label} className="p-4 rounded-xl bg-brand-gray-900 border border-white/5 flex flex-col justify-between">
-                  <span className="text-[10px] font-mono text-gray-500 uppercase">{metric.label}</span>
-                  <span className="text-base md:text-lg font-display font-medium text-white tracking-wide mt-1">{metric.value}</span>
+                <div key={metric.label} className="p-4 rounded-xl bg-surface-raised border border-border-subtle flex flex-col justify-between">
+                  <span className="text-[10px] font-mono text-text-faint uppercase">{metric.label}</span>
+                  <span className="text-base md:text-lg font-display font-medium text-text-primary tracking-wide mt-1">{metric.value}</span>
                 </div>
               ))}
             </div>
@@ -221,14 +221,14 @@ export default function ProjectDetailModal({ project, onClose, lang }: ProjectDe
           {project.codeSnippet && (
             <div className="space-y-3">
               <div className="flex items-center justify-between">
-                <span className="font-mono text-[9px] text-gray-500 tracking-wider uppercase flex items-center gap-1.5">
-                  <FileCode className="w-3 h-3 text-brand-accent-orange" />
+                <span className="font-mono text-[9px] text-text-faint tracking-wider uppercase flex items-center gap-1.5">
+                  <FileCode className="w-3 h-3 text-accent-primary" />
                   {lang === "zh" ? "核心代码实现" : "CORE IMPLEMENTATION"}
                 </span>
                 <button
                   type="button"
                   onClick={copyCode}
-                  className="px-2.5 py-1 text-[10px] font-mono border border-white/5 hover:border-white/10 bg-brand-black hover:bg-white/5 rounded text-gray-400 hover:text-white transition-all cursor-pointer flex items-center gap-1"
+                  className="px-2.5 py-1 text-[10px] font-mono border border-border-subtle hover:border-border-subtle bg-surface-base hover:bg-surface-raised/20 rounded text-text-muted hover:text-text-primary transition-all cursor-pointer flex items-center gap-1"
                 >
                   {copied ? (
                     <><Check className="w-3 h-3 text-emerald-500" /> {t.copied}</>
@@ -238,14 +238,14 @@ export default function ProjectDetailModal({ project, onClose, lang }: ProjectDe
                 </button>
               </div>
 
-              <div className="rounded-xl border border-white/5 bg-brand-black/40 overflow-hidden shadow-lg">
-                <div className="px-4 py-2 bg-brand-black/80 border-b border-white/5 flex items-center gap-2">
-                  <span className="w-1.5 h-1.5 rounded-full bg-brand-accent-orange" />
-                  <span className="font-mono text-[10px] text-gray-500">
+              <div className="rounded-xl border border-border-subtle bg-surface-base/40 overflow-hidden shadow-lg">
+                <div className="px-4 py-2 bg-surface-base/80 border-b border-border-subtle flex items-center gap-2">
+                  <span className="w-1.5 h-1.5 rounded-full bg-accent-primary" />
+                  <span className="font-mono text-[10px] text-text-faint">
                     {project.tech.includes("HLSL") ? "ComputeShader.hlsl" : "SkeletalSolverNode.cpp"}
                   </span>
                 </div>
-                <pre className="p-4 overflow-x-auto text-xs font-mono text-gray-300 leading-relaxed bg-brand-charcoal/30 select-text max-h-[300px]">
+                <pre className="p-4 overflow-x-auto text-xs font-mono text-text-secondary leading-relaxed bg-surface-card/30 select-text max-h-[300px]">
                   <code>{project.codeSnippet}</code>
                 </pre>
               </div>
@@ -254,14 +254,14 @@ export default function ProjectDetailModal({ project, onClose, lang }: ProjectDe
 
           {/* 7. Outcomes */}
           <div className="space-y-2">
-            <h3 className="font-mono text-[10px] text-brand-accent-lime uppercase tracking-widest">{t.outcomes}</h3>
-            <p className="text-sm text-gray-300 leading-relaxed font-sans font-light">{project.outcomes}</p>
+            <h3 className="font-mono text-[10px] text-accent-primary uppercase tracking-widest">{t.outcomes}</h3>
+            <p className="text-sm text-text-secondary leading-relaxed font-sans font-light">{project.outcomes}</p>
           </div>
 
           {/* 8. References — external links render as cards, plain text stays as list */}
           {project.references.length > 0 && (
             <div className="space-y-3">
-              <h3 className="font-mono text-[10px] text-brand-accent-orange uppercase tracking-widest">{t.references}</h3>
+              <h3 className="font-mono text-[10px] text-accent-primary uppercase tracking-widest">{t.references}</h3>
               <div className="space-y-2">
                 {project.references.map((ref, idx) => {
                   // Resolve a link from the reference string. Supports:
@@ -280,17 +280,17 @@ export default function ProjectDetailModal({ project, onClose, lang }: ProjectDe
                     const Icon = isGitHub ? GithubIcon : ExternalLink;
                     return (
                       <a key={idx} href={href} target="_blank" rel="noopener noreferrer"
-                         className="group flex items-center justify-between gap-4 p-4 rounded-xl border border-white/10 bg-brand-black/30 hover:bg-brand-black/50 hover:border-white/20 transition-all">
+                         className="group flex items-center justify-between gap-4 p-4 rounded-xl border border-border-subtle bg-surface-base/30 hover:bg-surface-base/50 hover:border-border-strong transition-all">
                         <div className="flex items-center gap-3 min-w-0">
-                          <Icon className="w-4 h-4 text-gray-400 group-hover:text-white transition-colors shrink-0" />
+                          <Icon className="w-4 h-4 text-text-muted group-hover:text-text-primary transition-colors shrink-0" />
                           <div className="flex flex-col min-w-0">
-                            <span className="font-mono text-xs text-white truncate">
-                              {before}<span className="text-brand-accent-lime">{text}</span>{after}
+                            <span className="font-mono text-xs text-text-primary truncate">
+                              {before}<span className="text-accent-primary">{text}</span>{after}
                             </span>
-                            <span className="font-mono text-[9px] text-gray-500 truncate mt-0.5">{href}</span>
+                            <span className="font-mono text-[9px] text-text-faint truncate mt-0.5">{href}</span>
                           </div>
                         </div>
-                        <ArrowUpRight className="w-4 h-4 text-gray-400 group-hover:text-brand-accent-lime group-hover:translate-x-0.5 transition-all shrink-0" />
+                        <ArrowUpRight className="w-4 h-4 text-text-muted group-hover:text-accent-primary group-hover:translate-x-0.5 transition-all shrink-0" />
                       </a>
                     );
                   }
@@ -301,24 +301,24 @@ export default function ProjectDetailModal({ project, onClose, lang }: ProjectDe
                     const Icon = isGitHub ? GithubIcon : ExternalLink;
                     return (
                       <a key={idx} href={url} target="_blank" rel="noopener noreferrer"
-                         className="group flex items-center justify-between gap-4 p-4 rounded-xl border border-white/10 bg-brand-black/30 hover:bg-brand-black/50 hover:border-white/20 transition-all">
+                         className="group flex items-center justify-between gap-4 p-4 rounded-xl border border-border-subtle bg-surface-base/30 hover:bg-surface-base/50 hover:border-border-strong transition-all">
                         <div className="flex items-center gap-3 min-w-0">
-                          <Icon className="w-4 h-4 text-gray-400 group-hover:text-white transition-colors shrink-0" />
+                          <Icon className="w-4 h-4 text-text-muted group-hover:text-text-primary transition-colors shrink-0" />
                           <div className="flex flex-col min-w-0">
-                            <span className="font-mono text-xs text-white truncate">
-                              <span className="text-gray-400">{before}</span><span className="text-brand-accent-lime">{url}</span><span className="text-gray-400">{after}</span>
+                            <span className="font-mono text-xs text-text-primary truncate">
+                              <span className="text-text-muted">{before}</span><span className="text-accent-primary">{url}</span><span className="text-text-muted">{after}</span>
                             </span>
-                            <span className="font-mono text-[9px] text-gray-500 truncate mt-0.5">{(() => { try { return new URL(url).hostname; } catch { return url; } })()}</span>
+                            <span className="font-mono text-[9px] text-text-faint truncate mt-0.5">{(() => { try { return new URL(url).hostname; } catch { return url; } })()}</span>
                           </div>
                         </div>
-                        <ArrowUpRight className="w-4 h-4 text-gray-400 group-hover:text-brand-accent-lime group-hover:translate-x-0.5 transition-all shrink-0" />
+                        <ArrowUpRight className="w-4 h-4 text-text-muted group-hover:text-accent-primary group-hover:translate-x-0.5 transition-all shrink-0" />
                       </a>
                     );
                   }
                   // Plain-text reference — no link, keep the original list style.
                   return (
-                    <div key={idx} className="text-xs text-gray-400 font-mono flex items-start gap-2 px-1">
-                      <span className="text-gray-600 select-none">›</span>
+                    <div key={idx} className="text-xs text-text-muted font-mono flex items-start gap-2 px-1">
+                      <span className="text-text-faint select-none">›</span>
                       <span>{ref}</span>
                     </div>
                   );
@@ -328,35 +328,35 @@ export default function ProjectDetailModal({ project, onClose, lang }: ProjectDe
           )}
 
           {/* 9. Deep-dive exit — prominent link to the knowledge article */}
-          <div className="pt-4 border-t border-white/5">
+          <div className="pt-4 border-t border-border-subtle">
             <a
               href={articleUrl}
-              className="group flex items-center justify-between gap-4 p-5 rounded-xl border border-brand-accent-lime/30 bg-brand-accent-lime/5 hover:bg-brand-accent-lime/10 hover:border-brand-accent-lime/50 transition-all"
+              className="group flex items-center justify-between gap-4 p-5 rounded-xl border border-accent-primary/30 bg-accent-primary/5 hover:bg-accent-primary/10 hover:border-accent-primary/50 transition-all"
               id="project-read-deep-dive"
             >
               <div className="flex items-center gap-3">
-                <BookOpen className="w-5 h-5 text-brand-accent-lime shrink-0" />
+                <BookOpen className="w-5 h-5 text-accent-primary shrink-0" />
                 <div className="flex flex-col">
-                  <span className="font-display font-bold text-base text-white">
+                  <span className="font-display font-bold text-base text-text-primary">
                     {lang === "zh" ? "阅读完整技术详解" : "Read the Full Deep Dive"}
                   </span>
-                  <span className="font-mono text-[10px] text-gray-400 mt-0.5">
+                  <span className="font-mono text-[10px] text-text-muted mt-0.5">
                     {lang === "zh" ? "数学推导 · 代码落地 · 设计决策" : "Math derivations · code · design rationale"}
                   </span>
                 </div>
               </div>
-              <ArrowRight className="w-5 h-5 text-brand-accent-lime group-hover:translate-x-1 transition-transform shrink-0" />
+              <ArrowRight className="w-5 h-5 text-accent-primary group-hover:translate-x-1 transition-transform shrink-0" />
             </a>
           </div>
         </div>
 
         {/* Footer toolbar */}
-        <div className="glass-panel border-t border-white/5 py-4 px-6 md:px-8 flex items-center justify-between text-[10px] font-mono text-gray-500">
+        <div className="glass-panel border-t border-border-subtle py-4 px-6 md:px-8 flex items-center justify-between text-[10px] font-mono text-text-faint">
           <span>NITE ENGINE EXTENSION PROTOCOL // 0x7FBA</span>
           <button
             type="button"
             onClick={onClose}
-            className="text-white hover:text-brand-accent-orange transition-colors cursor-pointer uppercase"
+            className="text-text-primary hover:text-accent-primary transition-colors cursor-pointer uppercase"
           >
             {t.closeStream}
           </button>

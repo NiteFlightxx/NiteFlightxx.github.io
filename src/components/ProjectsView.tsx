@@ -8,10 +8,12 @@ import { UI_TRANSLATIONS } from "../translations";
 import BorderGlow from "./BorderGlow";
 
 // Status → badge styling. Exported so HomeView featured cards reuse the same look.
+// Three statuses, three hues: primary lime (done), ice-blue secondary (experimental),
+// neutral muted gray (archived).
 export const STATUS_BADGE: Record<ProjectStatus, string> = {
-  completed: "bg-brand-accent-lime/15 text-brand-accent-lime border-brand-accent-lime/30",
-  experimental: "bg-brand-accent-orange/15 text-brand-accent-orange border-brand-accent-orange/30",
-  archived: "bg-gray-500/15 text-gray-400 border-gray-500/30",
+  completed: "bg-accent-primary/15 text-accent-primary border-accent-primary/30",
+  experimental: "bg-accent-secondary/15 text-accent-secondary border-accent-secondary/30",
+  archived: "bg-text-faint/10 text-text-faint border-text-faint/25",
 };
 
 interface ProjectsViewProps {
@@ -34,27 +36,27 @@ export default function ProjectsView({ projects, onSelectProject, lang }: Projec
     <div className="space-y-12 pb-20 select-none" id="projects-view-container">
       {/* Intro Header */}
       <div className="max-w-4xl mx-auto text-center space-y-4 px-6">
-        <h1 className="font-display font-black text-4xl md:text-6xl text-white tracking-tighter">
+        <h1 className="font-display font-black text-4xl md:text-6xl text-text-primary tracking-tighter">
           {lang === "zh" ? "项目" : "Projects"}
         </h1>
       </div>
 
       {/* Categories Toolbar Filter */}
       <div className="max-w-5xl mx-auto px-6">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-white/5 pb-4">
-          <div className="flex items-center gap-2 text-sm font-mono text-gray-300">
-            <Sliders className="w-4.5 h-4.5 text-brand-accent-lime" />
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-border-subtle pb-4">
+          <div className="flex items-center gap-2 text-sm font-mono text-text-secondary">
+            <Sliders className="w-4.5 h-4.5 text-accent-primary" />
             <span>{t.filterSpecialization}</span>
           </div>
 
-          <div className="flex flex-wrap items-center gap-1.5 bg-brand-charcoal/40 p-1.5 border border-white/5 rounded-lg">
+          <div className="flex flex-wrap items-center gap-1.5 bg-surface-card/40 p-1.5 border border-border-subtle rounded-lg">
             <button
               type="button"
               onClick={() => setSelectedCategory("All")}
               className={`px-4 py-2 text-xs font-mono tracking-wider uppercase rounded-md cursor-pointer transition-all duration-200 ${
                 selectedCategory === "All"
-                  ? "bg-brand-gray-800 text-brand-accent-lime border border-brand-accent-lime/30 shadow-lg"
-                  : "text-gray-400 hover:text-gray-200 hover:bg-white/5"
+                  ? "bg-surface-raised text-accent-primary border border-accent-primary/30 shadow-lg"
+                  : "text-text-muted hover:text-text-secondary hover:bg-surface-raised/20"
               }`}
               id="filter-btn-all"
             >
@@ -69,8 +71,8 @@ export default function ProjectsView({ projects, onSelectProject, lang }: Projec
                   onClick={() => setSelectedCategory(id)}
                   className={`px-4 py-2 text-xs font-mono tracking-wider uppercase rounded-md cursor-pointer transition-all duration-200 ${
                     isActive
-                      ? "bg-brand-gray-800 text-brand-accent-lime border border-brand-accent-lime/30 shadow-lg"
-                      : "text-gray-400 hover:text-gray-200 hover:bg-white/5"
+                      ? "bg-surface-raised text-accent-primary border border-accent-primary/30 shadow-lg"
+                      : "text-text-muted hover:text-text-secondary hover:bg-surface-raised/20"
                   }`}
                   id={`filter-btn-${id.toLowerCase()}`}
                 >
@@ -122,27 +124,27 @@ export default function ProjectsView({ projects, onSelectProject, lang }: Projec
                             <span className={`px-1.5 py-0.5 rounded border text-[9px] uppercase tracking-wider ${STATUS_BADGE[proj.status]}`}>
                               {lang === "zh" ? projectStatusZh(proj.status) : proj.status}
                             </span>
-                            <span className="text-brand-accent-lime uppercase tracking-wider font-semibold">
+                            <span className="text-accent-primary uppercase tracking-wider font-semibold">
                               {lang === "zh" ? projectCategoryZh(proj.category) : proj.category}
                             </span>
-                            {proj.year && <span className="text-gray-500">{proj.year}</span>}
+                            {proj.year && <span className="text-text-faint">{proj.year}</span>}
                           </div>
-                          <span className="text-gray-400 group-hover:text-white transition-colors flex items-center gap-1">
-                            {t.examine} <ArrowUpRight className="w-3.5 h-3.5 text-brand-accent-lime" />
+                          <span className="text-text-muted group-hover:text-text-primary transition-colors flex items-center gap-1">
+                            {t.examine} <ArrowUpRight className="w-3.5 h-3.5 text-accent-primary" />
                           </span>
                         </div>
 
-                        <h3 className="font-display font-bold text-xl md:text-2xl text-white group-hover:text-brand-accent-lime transition-colors">
+                        <h3 className="font-display font-bold text-xl md:text-2xl text-text-primary group-hover:text-accent-primary transition-colors">
                           {proj.title}
                         </h3>
 
-                        <p className="text-sm text-gray-300 leading-relaxed font-sans line-clamp-3">
+                        <p className="text-sm text-text-secondary leading-relaxed font-sans line-clamp-3">
                           {proj.overview}
                         </p>
 
                         {/* Visual Prompt Quote block */}
                         {proj.visualPrompt && (
-                          <div className="text-xs text-gray-400 italic border-l-2 border-brand-accent-lime/40 pl-3 py-0.5 leading-relaxed bg-brand-black/20 rounded-r pr-2 font-serif">
+                          <div className="text-xs text-text-muted border-l-2 border-accent-primary/40 pl-3 py-0.5 leading-relaxed bg-surface-base/20 rounded-r pr-2">
                             "{proj.visualPrompt}"
                           </div>
                         )}
@@ -150,11 +152,11 @@ export default function ProjectsView({ projects, onSelectProject, lang }: Projec
 
                       <div className="space-y-4 pt-4 mt-auto">
                         {/* Split metric grid */}
-                        <div className="grid grid-cols-2 gap-2 pt-2 border-t border-white/5">
+                        <div className="grid grid-cols-2 gap-2 pt-2 border-t border-border-subtle">
                           {proj.metrics.slice(0, 2).map((m) => (
                             <div key={m.label} className="flex flex-col">
-                              <span className="text-[9px] font-mono text-gray-500 uppercase tracking-wider">{m.label}</span>
-                              <span className="text-xs font-mono text-white font-semibold">{m.value}</span>
+                              <span className="text-[9px] font-mono text-text-faint uppercase tracking-wider">{m.label}</span>
+                              <span className="text-xs font-mono text-text-primary font-semibold">{m.value}</span>
                             </div>
                           ))}
                         </div>
@@ -164,7 +166,7 @@ export default function ProjectsView({ projects, onSelectProject, lang }: Projec
                           {proj.tech.map((techItem) => (
                             <span
                               key={techItem}
-                              className="px-2 py-0.5 text-[9px] font-mono bg-brand-black text-gray-400 border border-white/5 rounded"
+                              className="px-2 py-0.5 text-[9px] font-mono bg-surface-base text-text-muted border border-border-subtle rounded"
                             >
                               {techItem}
                             </span>
