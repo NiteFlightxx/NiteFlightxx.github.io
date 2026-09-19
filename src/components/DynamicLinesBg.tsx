@@ -15,28 +15,6 @@ interface Particle {
   alpha: number;
 }
 
-interface FloatingFormula {
-  text: string;
-  label: string;
-  x: number;
-  y: number;
-  alpha: number;
-  targetAlpha: number;
-  state: "fadeIn" | "visible" | "fadeOut" | "idle";
-  timer: number;
-}
-
-const EQUATIONS = [
-  { text: "iℏ ∂/∂t Ψ = ĤΨ", label: "Quantum Wavefront" },
-  { text: "G_μν + Λg_μν = 8πG/c⁴ T_μν", label: "Topological Spacetime" },
-  { text: "∇ · E = ρ / ε₀", label: "Electrodynamics" },
-  { text: "ρ(∂u/∂t + u · ∇u) = -∇p + μ∇²u + f", label: "Fluid Vector Solver" },
-  { text: "d/dt(∂L/∂q̇_i) - ∂L/∂q_i = 0", label: "Analytical Dynamics" },
-  { text: "x_new = 2x - x_old + a · Δt²", label: "Kinetic Integration" },
-  { text: "F(ω) = ∫ f(t) e^(-iωt) dt", label: "Frequency Transform" },
-  { text: "E_n = (n + 1/2) ℏ ω", label: "Harmonic Oscillator" }
-];
-
 export default function DynamicLinesBg({ theme }: DynamicLinesBgProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const mouseRef = useRef({ x: -1000, y: -1000, targetX: -1000, targetY: -1000 });
@@ -80,24 +58,6 @@ export default function DynamicLinesBg({ theme }: DynamicLinesBgProps) {
         waveIndex: Math.floor(Math.random() * numWaves),
         offsetY: (Math.random() - 0.5) * 12,
         alpha: 0.15 + Math.random() * 0.4,
-      });
-    }
-
-    // Initialize floating formulas
-    const numFormulas = 3;
-    const activeFormulas: FloatingFormula[] = [];
-
-    for (let i = 0; i < numFormulas; i++) {
-      const eq = EQUATIONS[Math.floor(Math.random() * EQUATIONS.length)];
-      activeFormulas.push({
-        text: eq.text,
-        label: eq.label,
-        x: Math.random() * (width - 320) + 40,
-        y: Math.random() * (height - 140) + 70,
-        alpha: 0,
-        targetAlpha: 0,
-        state: "idle",
-        timer: Math.random() * 180,
       });
     }
 
@@ -263,67 +223,6 @@ export default function DynamicLinesBg({ theme }: DynamicLinesBgProps) {
         ctx.beginPath();
         ctx.arc(p.x, targetY, p.size, 0, Math.PI * 2);
         ctx.fill();
-      });
-
-      // Update & Draw Floating Formulas in Minimalist Elegant Style
-      activeFormulas.forEach((formula) => {
-        formula.timer--;
-
-        if (formula.state === "idle" && formula.timer <= 0) {
-          const eq = EQUATIONS[Math.floor(Math.random() * EQUATIONS.length)];
-          formula.text = eq.text;
-          formula.label = eq.label;
-          formula.x = Math.random() * (width - 340) + 40;
-          formula.y = Math.random() * (height - 160) + 80;
-          formula.state = "fadeIn";
-          formula.targetAlpha = isDark ? 0.35 : 0.25;
-        }
-
-        if (formula.state === "fadeIn") {
-          formula.alpha += 0.0035;
-          if (formula.alpha >= formula.targetAlpha) {
-            formula.alpha = formula.targetAlpha;
-            formula.state = "visible";
-            formula.timer = 220 + Math.random() * 250;
-          }
-        } else if (formula.state === "visible") {
-          if (formula.timer <= 0) {
-            formula.state = "fadeOut";
-            formula.targetAlpha = 0;
-          }
-        } else if (formula.state === "fadeOut") {
-          formula.alpha -= 0.0035;
-          if (formula.alpha <= 0) {
-            formula.alpha = 0;
-            formula.state = "idle";
-            formula.timer = 160 + Math.random() * 260;
-          }
-        }
-
-        if (formula.alpha > 0) {
-          ctx.save();
-          ctx.globalAlpha = formula.alpha;
-
-          // Technical proof identifier (acid-lime accent color)
-          ctx.font = '500 9px "JetBrains Mono", monospace';
-          ctx.fillStyle = "#bcfd49"; // Young, high-end acid-lime color
-          ctx.fillText(`// COMPUTE_FIELD: ${formula.label.toUpperCase()}`, formula.x, formula.y - 12);
-
-          // Mathematical text line
-          ctx.font = '400 12px "JetBrains Mono", monospace';
-          ctx.fillStyle = isDark ? "rgba(255, 255, 255, 0.85)" : "rgba(15, 23, 42, 0.85)";
-          ctx.fillText(formula.text, formula.x + 8, formula.y + 8);
-
-          // Minimal corner lines (restrained visual structure)
-          ctx.strokeStyle = "rgba(188, 253, 73, 0.35)";
-          ctx.lineWidth = 1;
-          ctx.beginPath();
-          ctx.moveTo(formula.x, formula.y - 6);
-          ctx.lineTo(formula.x, formula.y + 14);
-          ctx.stroke();
-
-          ctx.restore();
-        }
       });
 
       animationFrameId = requestAnimationFrame(draw);

@@ -14,11 +14,16 @@ export const UI_TRANSLATIONS = {
     statement: "探索动画、物理与世界的实时交互",
     exploreWork: "探索项目",
     viewProfile: "查看档案",
+    scrollHint: "向下探索",
     // Home sections
     featuredSystems: "精选系统",
     recentKnowledge: "最新知识",
     viewAllProjects: "查看全部项目",
     viewAllKnowledge: "查看全部知识",
+    // Knowledge section labels
+    knowledgeTag: "分类",
+    knowledgeDate: "日期",
+    knowledgeReadTime: "阅读时间",
     // Projects
     filterSpecialization: "筛选分类:",
     all: "全部",
@@ -73,11 +78,16 @@ export const UI_TRANSLATIONS = {
     statement: "Exploring real-time interaction between animation, physics, and the world",
     exploreWork: "Explore Projects",
     viewProfile: "View Archive",
+    scrollHint: "Scroll to explore",
     // Home sections
     featuredSystems: "Featured Systems",
     recentKnowledge: "Recent Knowledge",
     viewAllProjects: "View All Projects",
     viewAllKnowledge: "View All Knowledge",
+    // Knowledge section labels
+    knowledgeTag: "Category",
+    knowledgeDate: "Date",
+    knowledgeReadTime: "Read Time",
     // Projects
     filterSpecialization: "Filter Category:",
     all: "All",
@@ -158,6 +168,36 @@ export const PROJECTS_ZH = [
     ],
     visualPrompt: "从牛顿-欧拉方程到电机指令，一条可推导、可验证的飞控翻译链。",
     mediaUrl: "https://www.bilibili.com/video/BV1xQja61EQU/",
+  },
+  {
+    id: "drone-basics-interactive",
+    title: "无人机基础原理 — 3D 交互沙盒",
+    category: "Simulation" as const,
+    status: "completed" as const,
+    year: "2026",
+    articleSlug: "quadcopter-basics-interactive",
+    overview:
+      "面向所有读者的无人机科普：一个可以拖拽旋转的 3D 沙盒贯穿全文，五个页签对应五个知识章节——悬停（推力 vs 重力）、姿态（倾斜移动与差速转向）、受力（按住地面体验牛顿定律）、PID（真实积分的定高调参台）与混控（4×4 符号矩阵）。把抽象公式变成看得见、摸得到的物理直觉。",
+    architecture:
+      "单一 WebGL 沙盒基于 OGL 构建：手写轨道相机（拖拽旋转/滚轮缩放/页签预设视角动画）、四旋翼分层模型（机身/臂/电机/差速旋翼动画/按转速变色的发光盘）、3D 箭头矢量（推力/重力/速度/外力）、程序化网格地面（着色器绘制格线与降落环）、地面射线拾取（指针反投影实现按住施力）。五种模式的物理仿真（牛顿积分/定高 PID/混控矩阵）与渲染共用单 rAF 循环；PID 响应曲线为 2D 叠加条。组件经文章占位符由通用 DemoMount 渐进挂载，文章保持纯静态 Markdown + KaTeX。",
+    challenges:
+      "科普的难点不是写公式，而是让没学过控制理论的读者在 30 秒内建立直觉；同时单个沙盒要在五个知识模式间无缝切换且互不干扰状态，3D 相机的拖拽旋转又要与「按住地面施力」的手势不冲突。",
+    solution:
+      "每个页签只保留一条可操作的因果链（一个滑块或一次按住对应一个物理量），相机在受力页签自动让位给施力手势并锁定到俯视预设；物理模型做真实数值积分但量纲刻意简化为可读节奏；PID 面板还原测量微分与积分限幅等真实工程细节，让「只有 P 的稳态误差」和「风扰下 I 项回推」成为可观察现象。",
+    outcomes:
+      "一个沙盒讲完四旋翼入门的全部核心因果链：升力 → 姿态 → 牛顿定律 → PID → 混控，作为深度文章（AircraftLab 技术详解）的科普前哨；通用挂载机制可被后续任何文章复用以嵌入交互组件。",
+    references: [
+      "交互式文章：/knowledge/quadcopter-basics-interactive/",
+      "进阶阅读：/knowledge/quadcopter-flight-control-math/",
+    ],
+    tech: ["React", "OGL/WebGL", "KaTeX", "数值积分"],
+    metrics: [
+      { label: "3D 沙盒", value: "1 个 · 5 模式" },
+      { label: "渲染技术", value: "WebGL (OGL)" },
+      { label: "物理仿真", value: "实时数值积分" },
+      { label: "阅读门槛", value: "零基础" },
+    ],
+    visualPrompt: "把『倾斜才能移动』和『P 有稳态误差』这类只有动手才记得住的物理直觉，做成网页上转得动的 3D 沙盒。",
   },
 ];
 

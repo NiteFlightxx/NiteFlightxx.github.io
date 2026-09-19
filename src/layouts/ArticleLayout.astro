@@ -6,6 +6,7 @@ import '../index.css';
 import ArticleToc from '../components/ArticleToc';
 import RelatedArticles from '../components/RelatedArticles';
 import ArticleEnhancements from '../components/ArticleEnhancements';
+import DemoMount from '../components/demos/DemoMount';
 import { Calendar, Clock, ArrowLeft } from 'lucide-react';
 import type { ContentArticle } from '../types';
 
@@ -63,6 +64,10 @@ const {
         Hydrated as a client component; no-ops if .article-body isn't present.
         Also hosts the article-page theme toggle (no React SPA on these routes). */}
     <ArticleEnhancements client:load />
+
+    {/* Interactive demo mount for articles that embed data-demo placeholders
+        (see components/demos/DemoMount.tsx). No-op when the article has none. */}
+    <DemoMount client:load />
 
     {/* Static background — reading pages keep the dark base + subtle grain only,
         no animated layers (SideRays / DynamicLinesBg) to reduce visual fatigue. */}

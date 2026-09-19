@@ -24,14 +24,6 @@ import {
 } from "./translations";
 import type { Project, ContentArticle } from "./types";
 
-// Asset references — modern formats only. AVIF (56KB) is ~6% of the original
-// JPEG (875KB); WebP covers browsers without AVIF. Both formats are supported
-// by every browser released since 2020, so no JPEG fallback is shipped.
-import heroAvif from "./assets/images/hero.avif";
-import heroWebp from "./assets/images/hero.webp";
-const HERO_IMAGE_AVIF: string = heroAvif.src;
-const HERO_IMAGE_WEBP: string = heroWebp.src;
-
 interface AppProps {
   // Lightweight Markdown metadata; full bodies stay on their article routes.
   knowledgeArticles?: ContentArticle[];
@@ -103,8 +95,6 @@ export default function App({ knowledgeArticles = [] }: AppProps) {
             knowledgeArticles={knowledge}
             onSelectProject={(proj) => setSelectedProjectId(proj.id)}
             setActiveTab={navigateToTab}
-            heroImageAvif={HERO_IMAGE_AVIF}
-            heroImageWebp={HERO_IMAGE_WEBP}
             lang={lang}
           />
         );
