@@ -1,1276 +1,1864 @@
 ---
 title: "AircraftLab 无人机插件技术详解 — 物理、飞控、自动驾驶、Simulation LOD 与网络同步"
-excerpt: "基于当前 AircraftLab 源码，系统说明多旋翼刚体与旋翼模型、级联飞控、控制分配、自动驾驶轨迹管线、Simulation LOD、服务器权威网络同步、参数资产和工程调试方法。"
-date: "2026-07-15"
+excerpt: "基于 AircraftLab 当前技术文档与源码结构，系统说明从 MovementIntent、轨迹与预测跟踪，到串级飞控、旋翼分配、Chaos 执行、LOD、网络和多机避让的完整链路。"
+date: "2026-09-21"
 category: "Physics"
 subtopic: "FlightController"
-tags: ["无人机", "飞控", "Chaos", "Autopilot", "Simulation LOD", "网络同步"]
-readTime: "阅读约55分钟"
+tags: ["无人机", "飞控", "Chaos", "Autopilot", "MPCC", "ORCA", "Simulation LOD", "网络同步"]
+readTime: "阅读约70分钟"
 ---
 
-> 本文以当前 `AircraftLab` 插件源码为唯一事实来源，面向需要维护、扩展和调试该系统的程序同事。文中的“当前实现”特指本文日期对应的代码版本，而不是通用飞控理论的理想形态。
+> 本文以当前 `AircraftLab` 插件技术文档和工作区源码为事实来源，面向需要维护、扩展和调试该系统的程序同事。文中的“当前实现”特指 2026-09-21 的代码快照；理论背景、外部算法和待验收项会明确标注，不把理想模型写成已落地能力。
 >
-> 当前插件服务于以服务器控制的 NPC 无人机为主、4 人以下联机 PVE 的场景。无人机由 Chaos 刚体真实受力驱动；客户端默认只接收服务器物理状态并做预测插值。玩家直接控制无人机属于预留玩法，尚未接入 `UNetworkPhysicsComponent` 的输入预测与重模拟链路。
+> 这不是“调几个 PID 就能飞”的黑盒说明，而是一条可追踪的工程链：**MovementIntent → 轨迹与时间规划 → 预测跟踪 / 制导 → 串级飞控 → Wrench 控制分配 → 旋翼执行器 → Chaos**。文章同时说明替代驱动、LOD、网络代理、多机避让和诊断边界。
+
+---
+## 阅读路线
+
+本文按"由浅入深、由概念到公式"组织；每章内部先讲"是什么、为什么"，再进入公式推导，各式均附变量含义与源码对应：
+
+- **第一部分 系统定位**（第 1～3 章）：插件定位与边界、解决什么问题、技术选型。无公式，适合所有读者。
+- **第二部分 模块与数据流**（第 4～6 章）：模块职责、配置流、运行流与运动意图契约。
+- **第三、四部分 数学与飞控**（第 7～10 章）：坐标单位、刚体与执行器模型、串级 PID、控制分配。这是后面所有公式的共同前提，先读一遍可避免在规划章节中反复回头。
+- **第五部分 自动驾驶**（第 11～14 章）：安全走廊、空间路径、时间规划、预测跟踪与任务完成——目标如何变成轨迹。难度递增：11～12 章偏几何，13 章偏数值，14 章最综合。
+- **第六部分 避让与协同原语**（第 15～18 章）：3D ORCA 求解器、邻居数据源契约、到达分配、速度引导构建。
+- **第七部分 工程决策记录**（第 19～24 章）：每个关键设计"为什么"的沉淀。
+- **第八部分 引擎与游戏接入**（第 25～26 章）：线程边界、Backend/LOD/网络/Preview——系统如何在真实项目中运行。
+- **第九部分 诊断、性能与边界**（第 27～29 章）：排查路线、性能评估与验收边界。
+
+| 读者 | 建议路径 |
+|---|---|
+| 15 分钟总览 | 第一部分 + 第 25、29 章 |
+| 移动任务接入 | 第一、二部分 + 第 15～18 章 |
+| 自动驾驶开发 | 第一～五部分（第 1～14 章） |
+| 飞控开发 | 第一～四部分（第 1～10 章）+ 第 25 章线程边界 |
+| 分享主线 | "目标如何变成轨迹，轨迹如何变成力，力如何变成运动"：第 6→11→12→13→9 章顺序走读 |
+
+公式采用 Markdown 数学语法。建议使用支持 LaTeX 的阅读器；各式均附变量含义和对应源码，避免仅依赖公式渲染。
 
 ---
 
-## 1. 系统定位与当前边界
+# 第一部分 系统定位
 
-AircraftLab 是一个基于 Unreal Engine 5 Chaos 的多旋翼飞行仿真插件。它没有自己积分刚体方程，而是计算每个旋翼在当前控制周期应产生的推力和反扭矩，再把力与力矩施加到 Chaos 刚体，由 Chaos 完成碰撞、约束和运动积分。
+## 1. 概述
 
-从上到下，系统可以划分为六层：
+AircraftLab 是一套面向游戏表现的旋翼无人机飞行插件：输入为运动意图（MovementIntent），经轨迹规划与预测跟踪、串级飞控与旋翼控制分配，由世界 Chaos 物理引擎驱动物理机体的运动表现；同时提供多机协同所需的避让求解与到达分配原语。
 
-1. **玩法/AI 决策层**：决定巡逻、追击、攻击、撤退等行为，并提交一个移动命令。
-2. **Autopilot 层**：把“去哪里、沿什么路径、以多快速度、机头朝哪里”转换为连续且物理可达的 P/V/A/Yaw 设定值。
-3. **Flight Controller 层**：用位置、速度、姿态、角速度级联控制，把设定值转换为总距和三轴力矩请求。
-4. **Control Allocation 层**：根据任意数量旋翼的位置、推力方向、旋向和健康度，把四维控制请求分配成每桨推力。
-5. **Airscrew/Actuator 层**：模拟指令斜率、电机一阶响应、转速平方推力和反扭矩。
-6. **Chaos 刚体层**：处理质量、惯量、阻尼、重力、碰撞、约束以及最终位姿。
+**定位边界**：本插件的物理与控制模型面向游戏实时表现设计——串级 PID、控制分配与旋翼效能均为轻量化的实时模型，目标是在游戏帧预算内产生可信、可控的飞行表现；**不构成工程级飞行仿真能力**，不可用于真实飞行器的控制设计、参数整定或适航验证。
 
-这套分层有两个重要工程含义：
+全文严格区分以下三个概念，混用会掩盖减速距离、执行器延迟与控制权限约束：
 
-- AI 不应该直接改 PID 或电机转速；它只提交移动意图。
-- Autopilot 不直接施力；它生成设定值。唯一接触 Chaos 刚体句柄并施力的是飞控/旋翼物理边界。
+1. **几何路径**：空间中经过的位置序列，不含时间信息。
+2. **轨迹**：位置、速度、加速度、航向随时间的变化。
+3. **执行控制**：为跟踪轨迹所需的推力、力矩或位置更新。
 
-### 1.1 当前已经实现
+插件将上述三层实现为显式、可替换、可观测的流水线，而非"输入目标点、输出位置"的单步黑盒接口。
 
-- 四旋翼以及 N 旋翼通用布局。
-- 每个 Chaos 异步物理步运行一次飞控。
-- 位置/速度、姿态/角速度、垂直速度级联控制。
-- 二阶姿态参考模型和四元数姿态误差。
-- 线性阻尼、垂直阻尼和角阻尼前馈。
-- 阻尼伪逆与主动集旋翼推力分配。
-- 单桨/多桨失效、部分降效和剩余控制权限评估。
-- MoveTo、FollowPath、Velocity、Orbit、CircleArc、Hold 命令。
-- 分段直线、Bezier、Minimum Snap、圆弧和持续环绕轨迹。
-- Pure Pursuit、Vector Field、Direct 三种路径制导模式。
-- 加速度、减速度、Jerk、偏航速率/加速度/Jerk 运动整形。
-- 数据驱动的四级 Simulation LOD。
-- 服务器权威的 UE 刚体移动复制和 `PredictiveInterpolation`。
+## 2. 设计目标与解决的核心问题
 
-### 1.2 当前没有实现
-
-- 没有真实 IMU/GPS/气压计传感器链和状态估计器；飞控直接读取 Chaos 真值。
-- 没有 `UNetworkPhysicsComponent`、客户端输入历史或物理重模拟。
-- 没有为 Autopilot 命令提供内建 Server RPC；联网游戏必须由服务器提交命令。
-- 没有单独复制 Autopilot 意图、每桨 RPM、旋翼健康数组和 PID 状态。
-
----
-
-## 2. 模块架构与依赖方向
-
-插件被拆分为三个 Runtime 模块：
-
-```text
-AircraftCore
-├─ 公共数据契约
-├─ FlightController 接口
-├─ Autopilot Provider 接口
-└─ Simulation LOD 类型与 Consumer 接口
-
-AircraftAutopilot -> AircraftCore
-├─ 移动命令与意图执行
-├─ 轨迹生成/路径制导/Motion Profile
-├─ 前馈、协调转弯、悬停推力估计
-└─ 不依赖 AircraftLab 的具体飞控类
-
-AircraftLab -> AircraftCore + AircraftAutopilot
-├─ AAircraftPawn
-├─ UFlightControllerComponent
-├─ UAirscrewComponent
-├─ UAircraftSimulationLODComponent
-└─ UAircraftSimulationWorldSubsystem
-```
-
-`AircraftCore` 的意义不是存放算法，而是打断模块循环依赖。`AircraftAutopilot` 只通过 `IAircraftFlightControllerInterface` 获取运动状态、物理限制和启停控制；`AircraftLab` 通过 `IAutopilotProvider` 拉取纯数据形式的 `FAutopilotInjection`。因此 Autopilot 可以替换飞控实现，飞控也不需要包含 Autopilot 的具体类。
-
-`UAircraftSimulationWorldSubsystem` 同样不依赖具体飞控或自动驾驶类。它只向实现 `IAircraftSimulationLODConsumer` 的组件广播 `FAircraftSimulationBudget`，这是 LOD 系统保持低耦合的关键。
-
----
-
-## 3. AAircraftPawn 的组件组合与初始化
-
-`AAircraftPawn` 在 C++ 构造函数中创建五个默认子对象：
-
-```text
-AAircraftPawn
-├─ BodyMesh            USkeletalMeshComponent
-├─ DroneInput          UDroneInputComponent
-├─ FlightController    UFlightControllerComponent
-├─ AutopilotComponent  UAutopilotComponent
-└─ SimulationLOD       UAircraftSimulationLODComponent
-```
-
-### 3.1 BodyMesh
-
-`BodyMesh` 是根组件和主 Chaos 刚体，构造时启用：
-
-- `PhysicsActor` 碰撞配置；
-- `SetSimulatePhysics(true)`；
-- `SetEnableGravity(true)`。
-
-真实质量、质心、惯量和 Chaos 阻尼来自 Skeletal Mesh/Physics Asset/BodyInstance。飞控在物理线程通过刚体句柄读取：
-
-- `M()`：质量 kg；
-- `CenterOfMass()`：机体局部质心偏移 cm；
-- `I()`：Chaos 惯量，转换为 kg·m²；
-- `LinearEtherDrag()` / `AngularEtherDrag()`：阻尼。
-
-### 3.2 Autopilot 与 FlightController 的绑定
-
-`UAutopilotComponent::BeginPlay()` 会查找实现 `IAircraftFlightControllerInterface` 的组件，并把自己注册为 Autopilot Provider。Autopilot Tick 被设置为 FlightController 游戏线程 Tick 的前置条件，因此同一游戏帧中先生成设定值，再由飞控拉取缓存。
-
-激活 Autopilot 时：
-
-1. 保存原飞行模式；
-2. 把飞控切到 `Mission`；
-3. 开启 `bUseAutopilotSetpoint`；
-4. 用当前 P/V/A/Yaw 初始化 Motion Profile；
-5. 先进入当前位置 Hold。
-
-停用时取消活动意图、清空轨迹、关闭 Autopilot 注入并恢复先前飞行模式。
-
-### 3.3 必需与可选配置
-
-- `UFlightControllerProfileAsset` 是飞控的**必需资产**。未设置或校验失败时，组件会停止游戏线程 Tick 和异步物理 Tick，不会继续使用隐式默认值。
-- `UAutopilotProfileAsset` 是可选资产；未设置时使用类默认对象中的配置。
-- `UAircraftSimulationLODProfileAsset` 是可选资产；未设置时同样使用类默认配置。
-
-### 3.4 当前启动状态
-
-飞控 `BeginPlay()` 成功初始化后，当前代码默认：
-
-- 飞行模式设为 `PositionHold`；
-- `ArmState` 直接设为 `Armed`；
-- 用当前位姿初始化估计状态与 Hold 目标。
-
-若项目需要安全的 Disarmed 启动流程，应统一修改飞控初始化状态机。
-
----
-
-## 4. 执行时序与线程模型
-
-### 4.1 游戏线程：慢逻辑与跨线程快照
-
-`UAutopilotComponent` 和 `UFlightControllerComponent` 都位于 `TG_PrePhysics`。
-
-Autopilot 游戏线程 Tick：
-
-```text
-捕获当前飞行状态
-  -> 更新/重建轨迹
-  -> 路径制导
-  -> 航向处理
-  -> 协调转弯
-  -> Motion Profile 限制速度/加速度/Jerk
-  -> 计算速度、加速度、推力前馈
-  -> 缓存 FAutopilotInjection
-```
-
-FlightController 游戏线程 Tick：
-
-```text
-缓存世界重力
-  -> 读取玩家输入
-  -> 评估旋翼 FailurePolicy
-  -> 构建手动 MovementIntent
-  -> 从 IAutopilotProvider 拉取 Injection
-  -> 写入供物理线程读取的缓存
-```
-
-### 4.2 物理线程：一物理步一次控制
-
-飞控没有独立控制频率累加器，每个 Chaos 异步物理步运行一次完整控制循环：
-
-```cpp
-AsyncPhysicsTickComponent(DeltaTime, SimTime)
-{
-    UpdateEstimatedState_PhysicsThread(DeltaTime, SimTime, BodyHandle);
-    RunControlLoop(DeltaTime, CachedPilotInput);
-    for (UAirscrewComponent* Rotor : Airscrews)
-    {
-        Rotor->ApplyThrustForce_PhysicsThread(BodyHandle);
-    }
-}
-```
-
-因此：
-
-- **控制更新率 = Chaos 异步物理步率**；
-- PID 使用的 `DeltaTime` 与产生当前测量值的物理步一致；
-- 不会在同一份冻结刚体状态上重复积分 PID；
-- 想改变实际控制率，应统一调整项目 Chaos 异步物理固定步长，而不是给单架无人机增加另一个内部频率。
-
-项目当前启用了 `bTickPhysicsAsync`、`bSubsteppingAsync` 和 `bSubstepping`。具体固定步长仍由项目物理设置/引擎配置决定，文档不假设它永远是 240 Hz 或 250 Hz。
-
-### 4.3 为什么高层逻辑可以降频、飞控不能随意隔步
-
-Autopilot 处理的是路径、目标和设定值，允许 20 Hz、10 Hz 等较慢更新，再由 Motion Profile 与飞控连续跟踪。飞控则直接闭合刚体角速度和姿态，如果简单“每 N 个物理步运行一次”却仍持续施加旧输出，会改变闭环延迟、PID 离散模型和稳定裕度。
-
-所以当前 LOD 的策略是：
-
-- 降低 Autopilot/慢逻辑频率；
-- Kinematic 层完全关闭飞控和 Chaos；
-- 不在 ReducedPhysics 中任意抽帧运行姿态内环。
-
----
-
-## 5. 坐标系与单位约定
-
-### 5.1 Unreal 世界系与飞控机体系
-
-Unreal 世界坐标为 X 前、Y 右、Z 上。Chaos 返回的线速度和角速度是世界系量。飞控把角速度逆旋转到机体系后，对 X/Y 取负、Z 保持：
-
-$$
-\boldsymbol{\omega}_{ctrl}=(-\omega_x^B,-\omega_y^B,\omega_z^B)
-$$
-
-控制器生成的 Roll/Pitch/Yaw 角速度和力矩必须遵守同一符号约定。四元数姿态误差路径也显式对 X/Y 进行了相同转换，否则会把姿态负反馈变成正反馈。
-
-### 5.2 单位
-
-| 物理量 | AircraftLab 对外单位 | Chaos 边界 |
+| # | 问题 | 设计目标 |
 |---|---|---|
-| 位置/力臂 | cm | cm |
-| 速度 | cm/s | cm/s |
-| 加速度 | cm/s² | cm/s² |
-| 角度 | degree | 四元数/内部 rad |
-| 角速度 | degree/s | Chaos `W()` 为 rad/s |
-| 质量 | kg | kg |
-| 惯量 | kg·m²（运行缓存） | Chaos cm 制惯量转换后得到 |
-| 推力 | N | `1 N = 100` Chaos force units |
-| 力矩 | N·m | `1 N·m = 10000` Chaos torque units |
+| 1 | UE 中无人机任务缺乏统一表达——AI、手动操控、编辑器预览各自独立实现 | 类型化 MovementIntent 契约：任务、控制权、版本、完成策略统一表达，三类输入共享 |
+| 2 | 物理驱动的旋翼机体不适用直接设定位置的位移式移动，需经旋翼推力模型产生动力 | 意图 → 轨迹规划 → 串级 PID → 控制分配 → 旋翼推力模型 → Chaos 的完整链路 |
+| 3 | 机型、旋翼布局、控制器参数需要可组合并在编辑器预览 | Dataflow 配置图 → 资产编译 → 只读 SimulationModel |
+| 4 | 不同重要性/距离的机体需要不同的运算成本 | 多执行后端（FlightController / PhysicsConstraint / Kinematic）+ LOD 结构切换 + 每档网络预算 |
+| 5 | 多机协同存在碰撞风险（同目标、路径交叉、编队拥挤） | 3D ORCA 避让求解器 + 确定性到达分配器 + 短视距速度引导构建 |
+| 6 | 避让求解不应绑定特定的邻居发现机制 | 邻居数据源注入契约：求解纯函数化，数据源由消费方实现 |
 
-`AircraftPhysicsUnits` 规定只有进入/离开 Chaos 的边界才能进行 N/N·m 转换。控制器、旋翼标定和诊断内部均保持 SI 力学单位。
+**非目标**：本插件不承担以下职责——全局路径搜索与导航数据（属寻路插件/引擎导航系统，本插件仅消费路径点）；完整环境避障（ORCA 仅处理机-机避让）；任意执行器失效后的可飞性证明（控制分配为阻尼伪逆，非有界 QP）。
 
-计算偏心力矩时，控制分配器把 cm 力臂乘 `0.01` 转为 m：
+## 3. 关键技术选型清单
 
-$$
-\boldsymbol{\tau}_{arm}=\mathbf r_{m}\times\mathbf F_N
-$$
-
-实际施力边界则直接使用 Chaos 的 cm 力臂与 Chaos force，叉积自然得到 Chaos torque，避免重复单位转换。
-
----
-
-## 6. 刚体与旋翼物理模型
-
-### 6.1 牛顿—欧拉方程
-
-无人机的六自由度运动满足：
-
-$$
-m\dot{\mathbf v}=\sum\mathbf F
-$$
-
-$$
-\mathbf I\dot{\boldsymbol\omega}+\boldsymbol\omega\times(\mathbf I\boldsymbol\omega)=\sum\boldsymbol\tau
-$$
-
-AircraftLab 不手写这两组积分器。它只为每个旋翼计算：
-
-$$
-\mathbf F_i=T_i\hat{\mathbf n}_i
-$$
-
-$$
-\boldsymbol\tau_i=\mathbf r_i\times\mathbf F_i+
-\hat{\mathbf n}_i\,T_i k_{\tau,i}\eta_i s_i
-$$
-
-其中 `s_i` 对 CW 为 -1、CCW 为 +1。Chaos 汇总所有旋翼力/力矩、重力、碰撞和约束后完成刚体积分。
-
-### 6.2 电机与桨的五步模型
-
-每个 `UAirscrewComponent` 在控制循环中依次执行：
-
-1. **指令限速**
-
-   $$
-   |dc/dt|\le S_{cmd}
-   $$
-
-2. **归一化指令到目标转速**
-
-   $$
-   RPM_{target}=RPM_{idle}+(RPM_{max}-RPM_{idle})c^p
-   $$
-
-3. **一阶电机响应**
-
-   $$
-   RPM_n=RPM_{n-1}+\left(1-e^{-\Delta t/\tau}\right)
-   (RPM_{target}-RPM_{n-1})
-   $$
-
-   加速和减速分别使用 `SpinUpTimeSeconds` 与 `SpinDownTimeSeconds`。
-
-4. **转速平方推力**
-
-   $$
-   T=T_{max}\eta C_T\left(\frac{RPM}{RPM_{max}}\right)^2
-   $$
-
-5. **反扭矩**
-
-   $$
-   \tau_{reaction}=T\,k_\tau\,\eta\,s
-   $$
-
-`CommandExponent` 是“命令到 RPM”的曲线指数，不是推力平方律本身。两者串联后，忽略 Idle RPM 时近似有 $T\propto c^{2p}$。因此增大指数会让低指令区更软、接近满指令时更陡；它不会自动让推力更线性。
-
-### 6.3 旋翼几何与质心
-
-旋翼组件在注册和 BeginPlay 时从实际组件 Transform 同步：
-
-- 局部位置；
-- 局部旋转；
-- 推力轴；
-- Attach Socket 名称。
-
-控制分配的力臂不是“旋翼相对根组件的位置”，而是：
-
-$$
-\mathbf r_i=\mathbf p_{rotor,i}^{body}-\mathbf p_{COM}^{body}
-$$
-
-因此 Physics Asset 中质心偏移改变后必须重新验证旋翼布局和控制方向。
-
-### 6.4 关键旋翼参数
-
-| 参数 | 当前默认 | 作用与调节影响 |
-|---|---:|---|
-| `MaxThrustForce` | 900 N | 单桨最大静推力。增大提升推重比，也会改变悬停指令和控制权限。 |
-| `ThrustCoefficient` | 1.0 | 推力标定缩放。通常与实测/目标机型一起校准。 |
-| `ReactionTorqueCoefficient` | 0.03 m | 每牛顿推力产生的偏航反扭矩臂。过小会缺偏航权限，过大易偏航过敏。 |
-| `Efficiency` | 1.0 | 物理推力/反扭矩效率，同时影响健康度分配。 |
-| `ControlAuthorityScale` | 1.0 | 仅限制分配器允许使用的最大推力，可用于人为降额。 |
-| `IdleRpm` | 1500 | 非零命令时的起始 RPM。 |
-| `MaxRpm` | 12000 | RPM 归一化上限。 |
-| `SpinUpTimeSeconds` | 0.06 s | 越大推力建立越慢，闭环可用带宽降低。 |
-| `SpinDownTimeSeconds` | 0.10 s | 越大减推越慢，更容易产生制动过冲。 |
-| `CommandExponent` | 2.0 | 命令曲线形状。 |
-| `MaxCommandSlewPerSecond` | 8.0/s | 越小越平顺，但会增加控制延迟。 |
-| `CommandScale` | 1.0 | 组件级输出微调，容易掩盖布局/标定问题，不建议作为常规配平手段。 |
+| 层 | 选型 | 选择依据 | 已评估否决的替代方案 |
+|---|---|---|---|
+| 配置创作 | Dataflow → Collection → 编译 | 机型/旋翼/控制器/LOD 可组合，编辑器可预览 | 手写 C++ 配置类（不可组合） |
+| 运动任务契约 | 类型化 Intent + Handle + Revision | AI/手动/Preview 共享契约；控制权与版本可审计 | 直接速度指令（无法表达到达/朝向/完成策略） |
+| 空间路径 | 重采样 + Catmull-Rom 平滑 + 胶囊走廊构建器 | 几何与时间解耦；三维曲线分段约束 | 路径构建兼做避障（职责混淆） |
+| 时间规划 | 速度包络 + 局部重定时 + 五次时间段 | 表达加减速/jerk/垂直/航向限制 | 全局时间最优（成本高、收益有限） |
+| 预测跟踪 | MPCC 风格：进度调节参考时钟 + 加速度修正有限迭代 | 预见制动/迟滞/走廊偏差；具备修正自由度 | 纯 PID 跟踪（不预测未来误差）；完整 MPCC（联合优化进度变量，成本过高） |
+| 避让求解 | 自研 3D ORCA（能力约束、确定性、无状态） | 引擎 CrowdManager 深绑 NavMesh 且为 2D 贴地模型（见第 21 章） | 引擎 DetourCrowd；EQS 重选点（响应延迟 >0.5s，不满足近距冲突时效） |
+| 到达分配 | 无状态确定性几何分配器 | 不查询 World、可单测、可重放 | 中心协调 Actor（生命周期复杂） |
+| 低层控制 | 串级 PID + 前馈 + 条件积分 | 结构清晰、误差逐层定位 | 全状态 MPC（整定与计算成本） |
+| 控制分配 | 4 维 wrench 阻尼伪逆 + 饱和锁定 | 适配任意旋翼布局与效能变化 | 完整有界 QP |
+| 物理执行 | 世界 Chaos + AsyncPhysicsTick | 碰撞与动态响应与游戏世界同源 | Kinematic 移动（保留为 LOD 降级选项） |
 
 ---
 
-## 7. 状态读取与级联飞控
+# 第二部分 模块与端到端数据流
 
-### 7.1 当前“状态估计”实际上是仿真真值
+## 4. 模块职责
 
-每个物理步直接读取：
+下表是职责分层，**不是完整 Build.cs 依赖 DAG**。
 
-- 位置 `X()`；
-- 姿态 `R()`；
-- 线速度 `V()`；
-- 角速度 `W()`；
-- 质量、惯量和阻尼。
+| 模块 | 职责 |
+|---|---|
+| `AircraftRuntimeInterface` | MovementIntent、轨迹参考、能力快照、Backend 状态、LOD 与组件接口 |
+| `Aircraft` | 坐标绑定、PID、姿态参考、控制分配、旋翼与气动模型 |
+| `AircraftAutopilot` | 任务生命周期、安全走廊构建、路径、时间规划、预测跟踪与共享轨迹运行时 |
+| `AircraftNavigation` | 3D ORCA 求解器、邻居数据源契约、到达分配器、速度引导构建 |
+| `AircraftAsset` | Collection Schema、Facade 与属性访问 |
+| `AircraftAssetEngine` | 资产编译、SimulationModel、UAircraftComponent、Proxy、PreviewActor |
+| `AircraftRuntimeCommon` | Pawn、Enhanced Input 接入、LOD 预算和网络策略组件 |
+| `AircraftDiagnostics` | 调试选择、载荷、快照、语义绘制和日志策略 |
+| `AircraftAssetDataflowNodes` | 配置节点、Terminal、Construction DebugDraw |
+| `AircraftAssetEditor` | Dataflow 编辑器集成、Simulation 可视化与控制面板 |
+| `AircraftEditor` | 编辑器设置与相关支持 |
+| `AircraftAssetEditorTools` | 保留编辑器工具扩展模块；当前不包含旧 Motor Placement/PID Tuning 等工具 |
+| `AircraftAssetTools` | UncookedOnly 资产工厂及模板接入 |
 
-线加速度与角加速度通过相邻物理步速度差分得到：
+依据：`插件描述文件`、各模块 `*.Build.cs`。
 
-$$
-\mathbf a_n=\frac{\mathbf v_n-\mathbf v_{n-1}}{\Delta t}
-$$
-
-估计置信度固定为 1.0。这适合游戏中的确定性 NPC 控制，但不能代表真实传感器噪声、偏置、延迟和融合误差。如果未来要验证真实飞控算法，应在这层引入传感器模型和估计器，而不是直接调大 PID 来掩盖真值与实机的差异。
-
-### 7.2 通用 PID
-
-控制器使用并行形式：
-
-$$
-u=K_pe+K_i\int e\,dt+K_d\dot e+K_{ff}ff
-$$
-
-运行状态包含积分、上一误差/测量和滤波后的导数。实现支持：
-
-- `IntegralLimit`：限制积分状态；
-- `OutputLimit`：限制环输出；
-- `bFreezeIntegralWhenSaturated`：输出饱和时回退本次积分；
-- `DerivativeCutoffHz`：一阶低通滤波导数；
-- 对误差求导与对测量求导两种路径。
-
-角速度和垂直速度内环优先使用测量微分：
-
-$$
-\dot e\approx-\frac{PV_n-PV_{n-1}}{\Delta t}
-$$
-
-这样设定值跳变不会产生 Derivative Kick。
-
-### 7.3 垂直控制
-
-高度保持路径由两层组成：
+## 5. 配置流
 
 ```text
-高度误差
-  -> Altitude PID
-  -> 期望垂直速度
-  -> VerticalVelocity PID
-  -> 总距偏移
-  -> Hover/Thrust 前馈基准
-  -> Collective [Min, Max]
+SkeletalMesh / PhysicsAsset
+  → Dataflow Source
+  → 各配置节点的 Collection 工作副本
+  → Terminal
+  → UAircraftAsset::Build / CompileAndCommitAircraftState
+  → 验证资源、RootBone、旋翼安装与各 LOD
+  → 正式资源引用 + 只读 SimulationModel
+  → UAircraftComponent 应用模型与执行策略
 ```
 
-手动 Hold 使用 `HoverCollectiveCommand` 作为基准。Autopilot 路径使用动态 `ThrustFeedForward`，并叠加垂直阻尼补偿：
+配置节点的求值是事务式的：
 
-$$
-\Delta c_{drag}=c_{hover}\frac{d_{linear}v_{z,des}}{g}
-$$
+1. 读取输入 Collection。
+2. 复制为工作 Collection，初始化 Schema。
+3. 派生节点 `ApplyToAircraftCollection()` 写入配置。
+4. 失败时原样输出输入；成功且 Schema 有效时提交工作副本。
 
-最终总距为：
+**实现细节**：统一求值和连接注册辅助位于基类，但具体节点构造函数仍调用 `RegisterAircraftConnections()`。源码解释是 Dataflow 需要在具体反射类型构造阶段解析连接，不能把"统一基类"误写成"基类构造函数已经注册全部连接"。
 
-$$
-c=Clamp(c_{base}+\Delta c_{drag}+\Delta c_{PID},c_{min},c_{max})
-$$
+资产编译先生成候选资源和模型，再验证并交换资产成员；正式 SkeletalMesh / PhysicsAsset 由资产的 UObject 属性持有。模型构造可以读取资源来编译安装几何，但运行模型不保存旧式裸 Mesh / PhysicsAsset 字段。
 
-### 7.4 水平位置与速度控制
+依据：`配置基类`、`资产编译`。
 
-水平链路为：
+## 6. 运行流与运动意图契约
+
+### 6.1 运动与物理流
 
 ```text
-位置误差 + 速度前馈
-  -> Position PID
-  -> 期望水平速度
-  -> 速度误差 + 加速度前馈 + 阻尼前馈
-  -> Velocity PID
-  -> 期望水平加速度
-  -> 倾斜映射
+AI / Blueprint / Preview / Pilot
+  → MovementIntent 或手动输入
+  → UAircraftComponent 的控制权与输入选择
+  → Proxy 消费配置、输入、实际运动状态
+  → AircraftTrajectoryRuntime
+       ├─ FlightController：MotionPlan + 预测修正
+       ├─ PhysicsConstraint：MotionPlan + 进度调节
+       └─ Kinematic：MotionPlan 的确定时间采样
+  → 轨迹参考 p / v / a / yaw
+       ├─ PID → 分配 → 旋翼 → Chaos 力/力矩
+       ├─ Chaos 线性 Drive + 物理线程姿态力矩
+       └─ GT 应用规划后的组件位置/旋转，可选 Sweep
+  → 输出快照、任务完成判断、诊断绘制
 ```
 
-在当前航向的前/右平面内：
+`UAutopilotComponent::TickComponent()` 负责任务、目标 Actor 解析及结果检查；**它不是物理线程预测求解器的推进入口**。预测求解在 Proxy 的对应执行域内发生。
 
-$$
-\theta_{des}=-\arctan2(a_{forward},g)
-$$
+### 6.2 意图类型与公共字段
 
-$$
-\phi_{des}=\arctan2(a_{right},g)
-$$
+五种类型化意图：`Route`（多点路由 + 可选走廊）、`Hold`（位置保持）、`Velocity`、`Orbit`、`TimedTrajectory`（带时间戳采样序列）。公共字段：
 
-Roll/Pitch 最终限制在 `MaxTiltAngleDegrees`。水平阻尼前馈使用 Chaos 线性阻尼：
+| 字段 | 语义 |
+|---|---|
+| `Handle` | 唯一认领令牌；结果广播携带，监听者以此过滤自身意图 |
+| `Revision` | 版本计数；防止旧广播/旧诊断匹配新意图 |
+| `Completion` | 完成策略：到达模式（Stop/PassThrough）、位置/速度/朝向容差、稳定时间 |
+| `TimeoutSeconds` | 意图级超时（0 = 不限时） |
+| `Limits` + `bOverrideMotionLimits` | 可选运动限制覆盖；缺省使用机体能力快照 |
+| `Heading` | 朝向目标（FaceTarget / FaceVelocity / FixedYaw） |
 
-$$
-\mathbf a_{drag,ff}=d_{linear}\mathbf v_{des}\cdot Scale
-$$
+### 6.3 提交生命周期与监听者契约
 
-系统还根据阻尼和保留余量收紧 Autopilot 的可用速度/加速度：
+```text
+SubmitIntent
+  ├─ 校验（bActive、Intent.IsValid；失败同步广播 Failed）
+  ├─ 已有活动意图 → Finish(Interrupted, Replaced) 同步广播 → 旧意图终结
+  ├─ AcquireFlightControl → 安装意图（Handle / ++Revision）
+  └─ 广播 Accepted
+Tick 循环：控制权检查 → 诊断比对（IntentId/Revision 与飞控侧一致）
+  → 超时检查 → UpdateCompletion（第 14.7 节）
+Finish（所有终态单点）：清状态 → 日志 → 广播 → 可选自动续航
+```
 
-$$
-v_{max,drag}=\frac{a_{physical}(1-r)}{d_{linear}}
-$$
+**监听者契约**：`OnMovementIntentChanged` 可能**同步**触发（提交替换、取消、失败均在调用方栈上完成）。订阅方必须支持重入，不得在回调中假设组件处于稳定状态。设计依据见第 19 章。
 
-其中 $r$ 是 `DampingAccelerationReserveFraction`。这避免无人机把全部水平加速度都用来抵消恒速阻尼，导致转弯或抗扰时没有余量。
-
-### 7.5 姿态参考模型与四元数控制
-
-非直通模式（非 Acro/Manual）的姿态环由三段组成：Roll/Pitch 二阶参考模型、四元数倾斜误差、独立水平航向闭环。Roll/Pitch 与 Yaw 走两条独立路径，避免航向误差泄漏进 Roll/Pitch。
-
-Roll/Pitch 期望角度先经过临界阻尼二阶参考模型（对标 PX4 `AttitudeControl.cpp`）：
-
-$$
-\ddot x+2\omega_n\dot x+\omega_n^2(x-x_{sp})=0
-$$
-
-用 ZOH 半隐式离散积分：
-
-$$
-v_{n+1}=v_n+\left(\omega_n^2(x_{sp}-x_n)-2\omega_n v_n\right)\Delta t,\quad x_{n+1}=x_n+v_{n+1}\Delta t
-$$
-
-它输出平滑姿态目标 $x_{n+1}$ 和角速度前馈 $v_{n+1}$。`RefModelNaturalFrequency`（$\omega_n$，默认 6 rad/s）越高跟踪越快但越接近阶跃；`RefModelRateFFLimitDegPerSec`（默认 100°/s，对标 PX4 `MC_REF_FF_MAX`）限制前馈幅值。前馈直接进入下游角速度设定值（`RollRateFF`/`PitchRateFF`），角速度内环不再开配置期 `Kff` 通道，避免前馈二次叠加（见 14.1）。
-
-Roll/Pitch 误差不在欧拉角空间计算，而是直接用 Chaos 刚体四元数。目标姿态用**当前机头航向**拼接平滑后的 Roll/Pitch，刻意不使用目标 Yaw：
-
-$$
-q_{des}=\text{Rot}(\theta_{sm},\,\psi_{cur},\,\phi_{sm}),\quad q_{err}=q_{cur}^{-1}\,q_{des}
-$$
-
-若 $(q_{err})_W<0$ 取四元数负元保证最短旋转，再归一化。用虚部近似机体姿态误差（弧度），X/Y 取负匹配飞控 Roll/Pitch 角速度符号约定，再转成 °/s 叠加参考模型前馈：
-
-$$
-\omega_{\phi,des}=\text{Rad2Deg}\bigl(-2\,(q_{err})_X\cdot K_{quat,\phi}\bigr)+\dot\phi_{ff}
-$$
-
-$$
-\omega_{\theta,des}=\text{Rad2Deg}\bigl(-2\,(q_{err})_Y\cdot K_{quat,\theta}\bigr)+\dot\theta_{ff}
-$$
-
-这里 $K_{quat}$ 是 `QuaternionAttitudeGains`（标量比例增益，非 PID，默认 Roll/Pitch 4.5、Yaw 3.0）。$2\,(q_{err})_{imag}$ 本身是弧度量纲，必须经 `RadiansToDegrees` 对齐下游 °/s 管线；`RadiansToDegrees` 是正向缩放，不改变 X/Y 取负的符号约定（见 5.1）。
-
-Yaw 误差刻意不进入 $q_{err}$：若把 `TargetYaw` 与 Roll/Pitch 一起拼进 $q_{des}$，航向误差会泄漏到 $(q_{err})_X$/$(q_{err})_Y$，使单纯转向也产生错误的横滚/俯仰指令。当前实现用 `ComputePlanarHeadingErrorRadians` 单独从刚体四元数取水平机头方向与世界 Yaw 夹角，按比例生成偏航角速度：
-
-$$
-\omega_{\psi,des}=\text{Rad2Deg}\bigl(e_{heading}\cdot K_{quat,\psi}\bigr)+\dot\psi_{ff}
-$$
-
-这条独立路径实现了“推力方向对齐优先于机头朝向”的设计意图：Roll/Pitch 只关心让推力指向期望倾斜方向，Yaw 闭环单独收敛机头航向，两者在 $q_{err}$ 层面完全解耦。
-
-三轴期望角速度限幅到 `MaxRoll/PitchRateDegreesPerSec` 与 `YawSetpoint.MaxRateDegPerSec` 后，进入角速度内环：
-
-$$
-\boldsymbol\omega_{des}-\boldsymbol\omega_{measured}
-$$
-
-内环 PID 把误差转换为归一化 Roll/Pitch/Yaw 力矩指令，并叠加按惯量、角阻尼和当前正/负力矩权限归一化的角阻尼前馈（运行时 `Kff=1.0` 走 PID 前馈通道，统一限幅与 anti-windup）。分配饱和时上一帧残差标志回传内环，禁止饱和方向继续累积积分。
-
-### 7.6 倾斜总距补偿
-
-机体倾斜后，垂直推力为 $T\cos\alpha$。分配器默认执行：
-
-$$
-c_{comp}=\frac{c}{\max(\cos\alpha,cos_{min})}
-$$
-
-这能显著减少平移和协调转弯时掉高度。`MinCosTilt` 是防止接近 90° 时除零和推力爆炸的安全下限，不应被理解为允许机体飞到该角度；真正的姿态限制仍由 `MaxTiltAngleDegrees` 决定。
+`IAircraftMovementIntentProvider`（意图提交/取消/查询/中断回调）与 `IAircraftNavigationGuidanceProvider`（避让引导发布/查询）把"意图来源"与"引导生产者"抽象为可替换对象——UAircraftComponent 仅消费契约，具体实现由自动任务、手动操控或 Preview 各自提供。
 
 ---
 
-## 8. 控制分配：从四维 Wrench 到 N 个旋翼
+# 第三部分 数学与物理基础：所有公式的前提
 
-### 8.1 旋翼雅可比列
+## 7. 坐标与单位：所有公式的前提
 
-对旋翼 $i$，最大允许推力下的物理列为：
+### 7.1 四个空间和一个角向量符号映射
+
+| 记号 | 空间 | 含义 |
+|---|---|---|
+| W | World | 世界空间，位置目标使用世界质心，长度 cm |
+| M | Model | 蒙皮网格组件局部空间 |
+| B | Body | 当前 LOD RootBone 对应的物理刚体局部空间 |
+| C | Control | 配置后的 Forward / Right / Up 几何控制坐标 |
+| S | 控制符号矩阵 | Roll/Pitch/Yaw 与物理角向量的符号转换，不作为另一套姿态坐标框架使用 |
+
+本文数学旋转记 `R_AB` 为"把 B 中的向量变换到 A"。公式按列向量书写；不要把这个乘法顺序直接当作 UE `FTransform` 运算顺序。
+
+当前 Forward 可以选模型 ±X、±Y；Up 固定模型 +Z：
 
 $$
-\mathbf b_i=
+f_M\in\{+e_x,+e_y,-e_x,-e_y\},\quad
+u_M=e_z,\quad r_M=u_M\times f_M
+$$
+
+$$
+R_{MC}=[f_M\;\;r_M\;\;u_M]
+$$
+
+例如 Forward=模型 +Y，则控制 X 指向模型 +Y，控制 Y 指向模型 −X，控制 Z 指向模型 +Z。
+
+RootBone 可以有任意受支持的参考旋转。若其 Body→Model 旋转为 `R_MB`：
+
+$$
+R_{BC}=R_{MB}^{T}R_{MC},\qquad R_{WC}=R_{WB}R_{BC}
+$$
+
+**模型前向配置和 RootBone 旋转不互斥**：前者定义飞机的语义机头，后者定义把这一机头换算进所选物理 Body 的方式。
+
+### 7.2 Socket 不要求是 RootBone 的子骨骼
+
+先把 Socket/骨骼安装点解析到统一 Model 空间，再变换到 Body：
+
+$$
+x_{i,B}=T_{MB}^{-1}(x_{i,M}),\qquad
+r_{i,B}=x_{i,B}-c_B
+$$
+
+其中 `c_B` 是质量空间 COM 在 Body 内的位置。方向使用不含平移的旋转变换：
+
+$$
+d_{i,B}=R_{MB}^{T}d_{i,M}
+$$
+
+施力时：
+
+$$
+x_{i,W}=T_{WB}(x_{i,B}),\quad
+c_W=T_{WB}(c_B),\quad
+F_{i,W}=R_{WB}d_{i,B}T_i
+$$
+
+因此同层级 Socket 也可通过模型空间解析。**不能只相减不同坐标系的局部位置，也不能重复叠加 RootBone 旋转**。位置变换与方向变换对缩放的处理不同，尤其需要避免把非均匀缩放当作纯旋转。
+
+### 7.3 几何轴与 Roll/Pitch/Yaw 符号不是一回事
+
+当前代码明确使用：
+
+$$
+S=\operatorname{diag}(-1,-1,+1)
+$$
+
+$$
+\omega_{\mathrm{ctrl}}=S R_{BC}^{T}\omega_B,\qquad
+\tau_B=R_{BC}S\tau_{\mathrm{ctrl}}
+$$
+
+`BodyAngularToController()` 翻转控制 X/Y 的符号，`ControllerTorqueToBody()` 做逆向转换。`S` 是符号约定，不能用它替代 `R_BC` 去变换普通位置和线速度。
+
+这解释了为什么调试画出来的 RGB 几何轴，不应直接被理解为所有 UE Euler 参数的正号约定。开发时统一调用这些转换函数，不在各调用点自行添加负号。
+
+### 7.4 SI 与 Chaos 单位推导
+
+力：
+
+$$
+1\ \mathrm{N}=1\ \mathrm{kg\,m/s^2}
+=100\ \mathrm{kg\,cm/s^2}
+$$
+
+力矩：
+
+$$
+1\ \mathrm{N\,m}
+=10^4\ \mathrm{kg\,cm^2/s^2}
+$$
+
+所以力乘 100、力矩乘 10000；惯量从 kg·cm² 转 kg·m² 除以 10000。力臂与 N 相乘求 N·m 时，必须先把 cm 除以 100。
+
+`InertiaTensorScale` 是**无量纲惯性张量缩放**，不是直接填写 kg·cm²。资产参数用于更新 Body，飞控应使用实际物理惯量信息。严格张量变换是：
+
+$$
+I_C=R_{BC}^{T}I_B R_{BC}
+$$
+
+但当前若干控制/能力计算使用逐轴惯量或轴向幅值映射，不是处处保留完整非对角 3×3 张量。主惯性轴明显偏离控制轴、非对称机体等情况需要专门验证，不应宣称已完整处理所有惯性耦合。
+
+依据：`FrameBinding`、`控制坐标转换`、`物理单位`。
+
+## 8. 物理模型与执行器
+
+### 8.1 基本刚体关系
+
+以 SI 形式表达概念模型：
+
+$$
+m\dot v_W=\sum_iF_{i,W}+F_{\mathrm{aero},W}+mg_W+F_{\mathrm{contact},W}
+$$
+
+$$
+I_B\dot\omega_B+\omega_B\times(I_B\omega_B)
+=\sum_i\big(r_{i,B}\times F_{i,B}+\tau_{\mathrm{reaction},i,B}\big)
++\tau_{\mathrm{aero},B}+\tau_{\mathrm{contact},B}
+$$
+
+Aircraft 计算施加的力和力矩；这些方程的物理积分、接触和多 Body 约束由 Chaos 处理。公式中的完整刚体方程是建模背景，**不表示插件控制器自行实现了全部陀螺耦合前馈**。
+
+### 8.2 电机指令、转速与推力
+
+单旋翼指令 `u∈[0,1]` 先做可选 slew 限制。非零指令对应：
+
+$$
+n_{\mathrm{target}}=n_{\mathrm{idle}}
++(n_{\max}-n_{\mathrm{idle}})u^\gamma
+$$
+
+零指令的目标转速为零，不能把 Idle RPM 理解成停机后仍必然输出。
+
+一阶电机响应：
+
+$$
+\dot n=(n_{\mathrm{target}}-n)/\tau
+$$
+
+一个时间步内目标恒定时，积分得到：
+
+$$
+n_{k+1}=n_{\mathrm{target}}
++(n_k-n_{\mathrm{target}})e^{-\Delta t/\tau}
+$$
+
+等价于 `Lerp(n, target, 1-exp(-dt/tau))`。上升和下降使用不同的 `SpinUpTimeSeconds` / `SpinDownTimeSeconds`。
+
+转速到推力与反扭矩：
+
+$$
+T_i=T_{\max,i}\left(\frac{n_i}{n_{\max,i}}\right)^2,\qquad
+Q_i=k_{\tau,i}T_i
+$$
+
+`kτ` 的量纲是米，因此 `N×m=N·m`。旋向符号在施力边界加入。
+
+此模型的优点是廉价、直观、可表达上升/下降响应差异；限制是没有完整桨叶元素、入流、地效、电池电压、转子互扰模型。参数"调得像"不等于已经过实机系统辨识。
+
+### 8.3 气动阻力
+
+相对气流先变换到控制坐标，以 m/s 表示：
+
+$$
+v_{\mathrm{rel},C}=R_{BC}^{T}R_{WB}^{T}(v_W-v_{\mathrm{wind},W})/100
+$$
+
+逐轴线性与二次阻力：
+
+$$
+F_{C,j}=-b_jv_j-\frac12\rho(C_DA)_j|v_j|v_j
+$$
+
+角阻力同理：
+
+$$
+\tau_{C,j}=-d_j\omega_j-q_j|\omega_j|\omega_j
+$$
+
+若所有系数非负：
+
+$$
+F_C\cdot v_C=-\sum_j\left(b_jv_j^2+\tfrac12\rho(C_DA)_j|v_j|^3\right)\le0
+$$
+
+即阻力耗散能量，不应无故加速飞机。
+
+计算函数支持风速输入，但当前 Proxy 物理调用传入零风，不能把函数参数存在说成已有完整场景风场。显式气动启用时，Proxy 管理原生阻尼，避免同一阻力被计算两次；重建 Body 后必须重新捕获新 Body 的原生阻尼。
+
+依据：`RotorModel`、`AircraftAerodynamics`。
+
+---
+
+# 第四部分 低层飞控：从轨迹到旋翼力
+
+## 9. 串级飞控：反馈负责误差，前馈负责已知运动
+
+### 9.1 为什么需要多层控制
+
+位置不能直接决定某个旋翼的转速。当前主要链条是：
+
+```text
+位置/高度误差 → 速度参考
+速度误差 + 轨迹加速度/阻力前馈 → 加速度/总距
+水平加速度 + 航向 → 姿态参考
+姿态误差 → 角速度参考
+角速度误差 + 前馈 → 三轴控制指令
+控制分配 → 各旋翼指令
+```
+
+不同飞行模式会绕过其中部分层次。位置保持/任务飞行不能与 Angle、Acro 的直接姿态/角速度控制混为一谈。
+
+"内环比外环响应快"是整定原则，不是代码自动保证。若电机转速响应比姿态环预期慢，外环继续加码会产生超调，增加位置 Kp 通常不能解决根因。
+
+### 9.2 PID 离散公式与微分滤波
+
+连续形式：
+
+$$
+u=K_pe+K_i\int e\,dt+K_d\dot e+K_{ff}u_{ff}
+$$
+
+代码积分状态保存的是误差积分，不是已乘 Ki 的输出：
+
+$$
+I_k=\operatorname{clamp}(I_{k-1}+e_k\Delta t,\,-I_{\max},I_{\max})
+$$
+
+测量微分形式采用：
+
+$$
+D_{\mathrm{raw},k}=-\frac{y_k-y_{k-1}}{\Delta t}
+$$
+
+因此目标突然变化不会直接制造 `(r_k-r_{k-1})/dt` 的微分冲击。滤波是对一阶低通后向离散：
+
+$$
+\tau_D=\frac1{2\pi f_c},\quad
+\alpha_D=\frac{\Delta t}{\tau_D+\Delta t},\quad
+D_k=D_{k-1}+\alpha_D(D_{\mathrm{raw},k}-D_{k-1})
+$$
+
+最终输出：
+
+$$
+u_{\mathrm{req}}=K_pe_k+K_iI_k+K_dD_k+K_{ff}u_{ff},\quad
+u_{\mathrm{out}}=\operatorname{clamp}(u_{\mathrm{req}})
+$$
+
+当截止频率为零时不滤波；IntegralLimit / OutputLimit 为零时，按该 PID 类型定义表示不启用对应限幅，不应把所有配置中的零值统一解释。
+
+### 9.3 下游饱和为什么需要回传
+
+仅限幅 PID 自己的输出不够。例如：
+
+- 位置 PID 要求 900 cm/s，但后续速度上限只有 400。
+- 速度 PID 要求较大水平加速度，但倾角限制只允许较小值。
+- 高度环继续累积，而总距已经被限到最大值。
+- 角速度环要正向力矩，但分配器没有足够正向权限。
+
+当前条件积分使用：
+
+$$
+(u_{\mathrm{req}}-u_{\mathrm{applied}})\,
+K_i(I_k-I_{k-1})>0
+\ \Rightarrow\ I_k\leftarrow I_{k-1}
+$$
+
+推导含义：如果本帧新增积分与"未能实现的输出"同向，它只会把控制器进一步推向饱和，应撤回；反向积分可帮助退出饱和，因此保留。
+
+新增的反馈覆盖位置速度限幅、速度加速度限幅、垂直速度限制和总距限制。角速度环还使用上一帧分配饱和方向决定能否继续积分。
+
+**冻结积分更新不等于把 Ki 设为零。** 后者会同时移除已经建立的积分输出，导致力矩跳变。当前 `bIntegrate` 保留原有 I 项，仅禁止其继续增长。
+
+边界：方向性条件积分处理的是**标量限幅**下游的回传；分配后的集体升力损失、电机滞后和接触约束，不应被描述成已经全部精确回传到每个外环。
+
+姿态优化系列（`c4249cd`→`e5be559`）在方向性条件积分之外补充了第二层：**回灌式（back-calculation）跟踪抗饱和**（`FAircraftPidState::ApplyTrackingAntiWindup`）。速度环的两个标量 PID 各自限幅之后，还存在共享的倾角向量限幅；该机制把限幅后机体实际可产生的加速度回灌进积分器：
+
+$$
+I_k \leftarrow I_k + \frac{(u_{\mathrm{applied}}-u_{\mathrm{req}})\cdot 2/\max(K_p,0.1)}{K_i}\,\Delta t
+$$
+
+使持续速度误差无法在共享向量限幅之后继续堆积积分（速度环 X/Y 两轴在 `FlightControlSolver.cpp` 的 ComputeVelocityPidAcceleration 中各自调用）。两层互补：冻结式条件积分保留已建立的 I 项、仅停止其增长；回灌式主动卸载向量限幅下游的积压。
+
+依据：`PID`、`FlightControlSolver`。串级结构及 ARW 的外部背景可参考 [PX4 官方控制架构](https://docs.px4.io/main/en/flight_stack/controller_diagrams)，但本插件不是该实现的等价替代。
+
+### 9.4 从轨迹到加速度与姿态
+
+可用概念式理解位置/速度链：
+
+$$
+v_{\mathrm{cmd}}=v_r+\mathrm{PID}_p(p_r-p)
+$$
+
+$$
+a_{\mathrm{cmd}}=a_{\mathrm{control},r}
++\mathrm{PID}_v(v_{\mathrm{cmd}}-v)
+$$
+
+动力学补偿另经 `DynamicsFeedForwardAccelerationCmPerSecSq` 传递，避免同一阻力被规划和飞控各补偿一次。
+
+期望推力方向的理想依据是：
+
+$$
+F_{\mathrm{req}}=m(a_{\mathrm{cmd}}-g_W)
+$$
+
+实际 `AircraftAttitudeReference::Build()` 先把水平加速度投影到期望航向的 Forward/Right，再计算：
+
+$$
+\theta_d=-\operatorname{atan2}(a_f,g+a_z),\qquad
+\phi_d=\operatorname{atan2}(a_r,g+a_z)
+$$
+
+之后对 Roll/Pitch 组成的二维角度向量作长度限制，构造 `FRotator(Pitch,Yaw,Roll)`，再通过 FrameBinding 转为 Body 世界旋转。
+
+因此当前实现是明确的 Euler 参考构造，**不是任意姿态下完整几何控制器的证明**。大倾角时二维 Euler 限幅与精确推力锥并不完全等价。
+
+### 9.5 姿态误差分解与 SO(3) 参考动力学（姿态优化系列）
+
+姿态优化系列对 9.4 的 Euler 参考构造补上了两层机制，均位于 `FlightControlSolver.cpp` 与 `AircraftAttitudeReferenceDynamics`：
+
+**推力向量优先的姿态误差**（`ComputeThrustVectorPriorityError`）：姿态误差不再整体取最短旋转向量，而是分解为"倾角（推力方向）"与"绕推力轴的偏航"两个正交分量——先用 `FindBetweenNormals(ActualUp, DesiredUp)` 求倾角修正，剩余旋转即纯偏航。偏航分量按增益比加权：
+
+$$
+w_{\mathrm{yaw}}=\operatorname{clamp}\left(\frac{K_z}{\tfrac12(K_x+K_y)},\,0,\,1\right),\qquad
+K_z'=K_z/w_{\mathrm{yaw}}
+$$
+
+效果是**倾角跟踪优先于偏航**：偏航响应慢不再拖累姿态保持，且等效增益补偿保持偏航环的收敛速度。推力向量反平行时简化姿态奇异，回退整体最短旋转向量。
+
+**帧率无关的 SO(3) 参考动力学**（`FAircraftAttitudeReferenceDynamics` / `FAircraftYawReferenceDynamics`）：姿态参考不直接跳到目标，而是经速率→角加速度→jerk 三级限幅的二阶参考模型逐帧推进（自然角频率配置 `ReferenceModelNaturalAngularFrequencyRadPerSec`，默认 6 rad/s ≈ 0.955 Hz）。输出携带 Raw/Shaped 两级参考与各限幅标志，供诊断与替代驱动共用；偏航独立为速率/角度两种指令形态（`AircraftYawReferenceDynamics`）。
+
+### 9.6 总距前馈与悬停估计
+
+若 `h` 是抵消重力所需的归一化悬停总距，期望垂直加速度为 `a_z`：
+
+$$
+c_{\mathrm{ff}}=h\frac{g+a_z}{g}
+$$
+
+再加垂直速度 PID 修正和必要的动力学补偿。机体倾斜后垂直推力只剩 `T cos(tilt)`，分配器可使用：
+
+$$
+c_{\mathrm{tilt}}=
+\frac{c}{\max(\cos(\mathrm{tilt}),\cos_{\min})}
+$$
+
+最终仍受总距及各旋翼权限限制；倾斜补偿不能创造额外推力。
+
+悬停推力估计器是单状态 EKF。测量模型：
+
+$$
+z=a_z=g\,c/h-g
+$$
+
+对未知 `h` 求导：
+
+$$
+H=\frac{\partial z}{\partial h}=-gc/h^2
+$$
+
+预测、创新与更新：
+
+$$
+P^-=P+Q\Delta t,\quad
+\nu=z_{\mathrm{measured}}-(gc/h-g)
+$$
+
+$$
+S_\nu=H^2P^-+R,\quad K=P^-H/S_\nu
+$$
+
+$$
+h^+=h+K\nu,\qquad P^+=(1-KH)P^-
+$$
+
+只有 `ν² < gate² Sν` 才融合，并对 h 与 P 做范围保护。这里是悬停总距参数估计，不是位置、姿态和传感器偏置的完整导航 EKF。
+
+收益是补偿有效重量/升力标定误差；风险是强烈瞬态、碰撞或模型不匹配污染估计，因此不能把估计器当作结构配置错误的兜底。
+
+依据：`姿态参考`、`HoverThrustEstimator`。
+
+## 10. 控制分配与旋翼效能
+
+### 10.1 由单旋翼几何推导分配矩阵
+
+以全健康最大可分配推力 `T̄_i` 为基准，旋翼力臂单位 m，推力轴为 `d_i`：
+
+$$
+F_i^{\max}=\bar T_i d_i
+$$
+
+$$
+\tau_i^{\max}=r_i\times F_i^{\max}
++\sigma_i k_{\tau,i}\bar T_i d_i
+$$
+
+经过控制角向量符号转换后，得到矩阵一列：
+
+$$
+A_i=
 \begin{bmatrix}
-F_{z,i}\\
--\tau_{x,i}\\
--\tau_{y,i}\\
-\tau_{z,i}
+u_B^TF_i^{\max}\\
+\tau_{\mathrm{roll},i}^{\max}\\
+\tau_{\mathrm{pitch},i}^{\max}\\
+\tau_{\mathrm{yaw},i}^{\max}
 \end{bmatrix}
 $$
 
-其中：
+拼成 `A∈R^(4×n)`。这是 **总升力 + Roll/Pitch/Yaw** 的 4 维分配；虽然单个旋翼允许定义推力轴，当前目标函数没有独立的 Fx、Fy 两行。
+
+旋翼效能 `η_i∈[0,1]` 降低可分配推力上限。全健康权限用于行归一化：
 
 $$
-\boldsymbol\tau_i=\mathbf r_i\times\mathbf F_i+
-\hat{\mathbf n}_i T_i k_{\tau,i}\eta_i s_i
+B_{:,i}=D^{-1}A_i\eta_i,\qquad
+w=D^{-1}w_{\mathrm{physical}}
 $$
 
-符号中的 X/Y 负号用于对齐飞控内部 Roll/Pitch 约定。
-
-分配器先用全健康布局计算四个 `RowScale`：总距权限，以及 Roll/Pitch/Yaw 正负方向中的平衡权限。然后把列归一化，使控制器输出的 `[-1,1]` 近似表示该轴可用权限百分比。
-
-### 8.2 阻尼伪逆
-
-自由旋翼的解为：
+`D` 不随效能一起缩小，避免"旋翼损坏后整个期望总距尺度也跟着变小"。归一化未知量 `x_i∈[0,1]` 对应：
 
 $$
-\mathbf u=J^T(JJ^T+\lambda^2I)^{-1}\mathbf w
+T_i^{\mathrm{target}}=x_i\eta_i\bar T_i
 $$
 
-- $\mathbf w=[collective,roll,pitch,yaw]^T$；
-- $\mathbf u$ 是各旋翼 0～1 推力分数；
-- $\lambda$ 是 `DampedPseudoInverseLambda`。
+### 10.2 阻尼伪逆推导
 
-$\lambda$ 增大时矩阵更稳定，但跟踪更软、残差更大；过小则在布局退化或旋翼故障时可能放大数值误差。
+暂不考虑上下界，求：
 
-### 8.3 主动集约束
+$$
+\min_x \frac12\|Bx-w\|^2+\frac{\lambda^2}{2}\|x\|^2
+$$
 
-普通伪逆可能得到负推力或超过满推力。当前求解器最多迭代 N 次：
+梯度为零：
 
-1. 对自由旋翼求阻尼伪逆；
-2. 找出违反 `[0,1]` 最严重的旋翼；
-3. 把它锁到 0 或 1；
-4. 从剩余 Wrench 中扣除锁定旋翼贡献；
-5. 对剩余旋翼重新求解。
+$$
+(B^TB+\lambda^2I)x=B^Tw
+$$
 
-最终记录：
+利用低维对偶形式：
 
-- 期望与已分配 Wrench；
-- 各轴残差；
-- 残差 L2 范数；
-- 饱和电机；
-- 失效电机；
-- 活动约束数量。
+$$
+x=B^T(BB^T+\lambda^2I)^{-1}w
+$$
 
-力矩轴残差还会回传给下一物理步的角速度 PID，用于阻止积分继续向已经饱和的方向累积。
+这里 `BBᵀ` 只有 4×4，适合少量旋翼的实时计算；阻尼能改善病态矩阵问题，但会以残差换数值稳定性。
+
+### 10.3 饱和锁定
+
+代码每轮：
+
+1. 扣除已锁定旋翼贡献，求剩余 wrench。
+2. 对自由旋翼构造 4×4 阻尼法矩阵。
+3. 计算候选分数。
+4. 选越界最严重的旋翼，锁在 0 或 1。
+5. 重新求解其余旋翼，最多按旋翼数量迭代。
+
+这是一种主动集式的饱和锁定分配。**当前不是具有边界释放和完整 KKT 检验的通用有界 QP 求解器**，不能保证所得解就是所有有界问题的全局最优解。
+
+分配残差：
+
+$$
+r_w=w-Bx
+$$
+
+前三个力矩方向的残差符号用于角速度积分抑制。还应区分：
+
+- **Desired wrench**：控制器想要的。
+- **Allocated wrench**：静态分配模型预测能给出的。
+- **Applied wrench**：电机状态、转速和实际施力计算出的。
+
+电机有滞后，所以分配残差很小不等于当帧实际力矩误差很小。
+
+### 10.4 损伤模型的能力与限制
+
+`SetRotorEffectiveness` 用于表达旋翼降效/失效，并让能力评估及分配感知剩余权限。
+
+它不是桨叶断裂网格、损伤振动、轴承卡死、随机噪声或碎片碰撞表现。四旋翼完全失去一个旋翼后通常不能再同时满足原来的升力、滚转、俯仰和偏航要求；分配器重新分配不代表一定能恢复原任务。
+
+依据：`ControlAllocator`、`RotorEffectivenessManager`。
 
 ---
 
-## 9. 旋翼健康、降效与 FailurePolicy
+# 第五部分 自动驾驶：从任务到轨迹
 
-`FRotorFailureManager` 是飞控使用的通用旋翼健康与权限管理器。
+## 11. 安全走廊与空间路径
 
-支持的操作包括：
+### 11.1 胶囊体的定义
 
-- `FailRotor(Index)`；
-- `RecoverRotor(Index)`；
-- `SetRotorEffectiveness(Index, 0..1)`；
-- `FailRotors(Indices)`；
-- `RecoverAllRotors()`。
+每段走廊包含轴线端点 A、B、外半径 R，以及它负责的 RouteDistance 区间。
 
-`Effectiveness=0` 表示完全失效；`0～1` 表示部分失效。有效率同时缩小旋翼最大可分配推力和归一化分配列。全失效时还会立即停止对应 `UAirscrewComponent` 的输出。
-
-系统把当前总距、Roll、Pitch、Yaw 权限除以全健康基准，得到 0～1 的 `FControlAuthorityInfo`。`FailurePolicy` 可检查：
-
-- 健康旋翼数；
-- 剩余总距权限；
-- 三轴剩余力矩权限。
-
-违反条件持续 `ConfirmationTimeSeconds` 后，可：
-
-- 仅记录警告；
-- 切换飞行模式；
-- 进入 Failsafe 并停桨；
-- Emergency Stop。
-
-锁存策略需要显式 `ResetFailurePolicyLatch()`；非锁存策略则要连续健康达到 `RecoveryConfirmationTimeSeconds` 才自动解除。
-
----
-
-## 10. Autopilot 命令与执行管线
-
-### 10.1 Typed Submit API
-
-蓝图和大多数 C++ 玩法代码应使用类型化接口：
-
-| API | 含义 | 是否自动完成 |
-|---|---|---|
-| `SubmitMoveTo` | 飞到世界点或 Actor 相对偏移 | 是 |
-| `SubmitFollowPath` | 沿路径点序列飞行 | 是 |
-| `SubmitCircleArc` | 飞有限圆弧，可多圈 | 是 |
-| `SubmitOrbit` | 围绕圆心持续盘旋 | 否，除非超时/取消 |
-| `SubmitVelocity` | 持续跟踪世界速度 | 否，除非超时/取消 |
-| `SubmitHold` | 锁定提交瞬间的位置 | 持续 |
-
-`SubmitMovementIntent` 是低层 C++ 逃生口，允许直接构造完整 `FAutopilotMovementIntent`；蓝图不应使用它绕过类型化字段约束。
-
-每次 Submit 返回 `FAutopilotIntentHandle`。新命令会把旧活动命令标记为 `Interrupted/Replaced`。同类型命令可用 `UpdateMoveTo`、`UpdateOrbit` 等原地更新并保留 Handle；只有真正改变轨迹几何/规划参数时才重建轨迹。`UpdateHeadingTarget` 可以只换注视目标而不重建移动轨迹。
-
-状态包括 `Accepted`、`Executing`、`Succeeded`、`Failed`、`Cancelled`、`Interrupted` 和 `Rejected`。终态结果最多缓存 64 条。
-
-### 10.2 有限与持续命令的参数设计
-
-有限轨迹使用 `FTrajectoryMotionConstraints`：
-
-| 参数 | 含义 |
-|---|---|
-| `CruiseSpeedCmPerSec` | 轨迹计划希望达到的巡航速度，不保证短路径一定达到。 |
-| `MaxAccelerationCmPerSecSq` | 起步/加速限制。 |
-| `MaxDecelerationCmPerSecSq` | 终点提前制动限制。 |
-| `MaxJerkCmPerSecCubed` | 水平加速度变化率限制。 |
-| `MaxClimbRateCmPerSec` / `MaxDescentRateCmPerSec` | 垂直速度软限制。 |
-| `MaxVerticalAccelerationCmPerSecSq` | 垂直加速度软限制。 |
-| `MaxVerticalJerkCmPerSecCubed` | 垂直加速度变化率。 |
-| `MaxYawRate/Acceleration/Jerk` | 航向运动整形限制。 |
-
-持续 Velocity/Orbit 命令使用 `FContinuousMotionConstraints`，不再重复暴露巡航速度和终点减速度：
-
-- Velocity 的目标速度就是 `DesiredVelocityCmPerSec`；
-- Orbit 的水平速度由 $v=|\omega|R$ 唯一决定；
-- 持续命令没有终点制动，只需要对加速度和 Jerk 做对称限制。
-
-### 10.3 CruiseSpeed 与实际目标速度
-
-`CruiseSpeedCmPerSec` 是有限轨迹的规划上限，不是“当前必须达到的速度”。实际速度还会被以下因素共同限制：
-
-1. 路径剩余长度；
-2. 加速/减速距离；
-3. `PassThroughSpeedCmPerSec`；
-4. FlightController 的水平硬速度；
-5. 最大倾角换算出的物理加速度；
-6. Chaos 线性阻尼及保留的控制余量。
-
-有限命令只有 `CruiseSpeed` 一个速度参数；穿越终点速度只在 `PassThrough` 模式下作为 `PassThroughSpeedCmPerSec` 存在。
-
-### 10.4 为什么需要 Jerk
-
-Jerk 是加速度的一阶导数：
+给定点 p：
 
 $$
-j=\frac{da}{dt}
+t=\operatorname{clamp}\left(\frac{(p-A)\cdot(B-A)}{\|B-A\|^2},0,1\right),
+\quad q=A+t(B-A)
 $$
 
-只限制最大加速度，仍允许加速度从 0 在一帧内跳到上限，这相当于无限 Jerk。对无人机而言会造成：
-
-- 姿态目标突然跳变；
-- 推力和力矩需求突增；
-- 电机/分配器饱和；
-- 镜头、挂载、动画和网络插值观感突兀。
-
-Motion Profile 用 Jerk 限制加速度的变化速度，并根据剩余误差计算能够在越过目标前把变化率降回 0 的停止速率。Jerk 越小越柔和，但响应和制动距离越长；战斗 NPC 也不应为了“灵敏”把 Jerk 无限放大，否则最终仍会由飞控硬限幅产生不连续动作。
-
-### 10.5 到达判据
-
-`StopAndComplete` 同时检查：
-
-- 水平位置容差；
-- 垂直位置容差；
-- 速度容差；
-- 航向容差；
-- 上述条件连续满足的稳定时间。
-
-`PassThrough` 不要求停下，到达轨迹末端后会把当前出口速度转换为持续 Velocity 意图。圆弧必须完成请求的弧长/圈数，不能只因为终点与起点重合就提前成功。
-
-### 10.6 航向模式
-
-- `KeepCurrent`：保持提交时航向；
-- `FixedYaw`：固定世界偏航角；
-- `FaceVelocity`：机头朝设定速度方向；
-- `FaceTarget`：朝移动目标或独立 LookAt 目标。
-
-移动目标 Actor 与航向目标 Actor 可以不同。例如无人机沿侧向轨迹移动，同时持续朝玩家射击。Actor 字段存在时，位置字段解释为 Actor 世界位置上的相对偏移。
-
----
-
-## 11. 轨迹、制导、Motion Profile 与前馈
-
-### 11.1 轨迹类型
-
-`UTrajectoryGenerator` 支持：
-
-- Waypoint/Line；
-- FollowPath 分段直线；
-- Bezier（路径点作为控制点）；
-- Minimum Snap 时间参数化轨迹；
-- CircleArc；
-- Orbit 无限循环。
-
-普通有限轨迹使用梯形/三角形速度剖面。无 Jerk 限制时制动距离为：
+中心允许半径：
 
 $$
-s_{brake}=\frac{v^2-v_{end}^2}{2a_{decel}}
+R_{\mathrm{eff}}=R-m_{\mathrm{safety}}
 $$
 
-当 `PlanningJerkCmPerSecCubed > 0` 时，改用 Jerk 感知公式，考虑把加减速变化率从峰值降回 0 所需的过渡距离，避免恒定减速假设在 Jerk 受限时低估制动段。当路径太短，轨迹在达到巡航速度前就进入减速，自动退化成三角速度剖面。Minimum Snap 段使用原生时间参数化，不走普通弧长梯形剖面。
-
-### 11.2 路径制导
-
-只有 FollowPath、Orbit 和 CircleArc 会应用额外路径制导；MoveTo 直接使用轨迹名义设定值。
-
-**Pure Pursuit** 使用自适应前瞻距离：
+违反量与纠正向量：
 
 $$
-L_{lookahead}=Clamp(k|v|+L_{min},L_{min},L_{max})
-$$
-
-然后把期望速度方向指向前瞻点。高速时前瞻更远、更平滑但更容易切角；低速时前瞻更近、贴线更紧。
-
-**Vector Field** 以路径切向和横向误差修正构造速度场：
-
-$$
-\mathbf v_{dir}=\mathbf t+K_{cte}e_{cte}\mathbf n
-$$
-
-它适合连续高速曲线，但 `CrossTrackGain` 过大时会产生蛇形。
-
-**Direct** 不做额外制导修正，完全使用轨迹名义速度。
-
-### 11.3 Motion Profile
-
-轨迹只给出名义 P/V/A/Yaw。Motion Profile 再用飞控硬限制和当前意图软限制的最小值，对水平速度、垂直速度和偏航逐通道进行加速度/Jerk 整形，输出 `FProfiledSetpoint`。
-
-这种“软整形 + 硬限幅”的组合比只依赖 PID 输出 Clamp 更稳定：软整形尽量让设定值始终可达，硬限幅只承担最后安全边界。
-
-### 11.4 前馈
-
-`UFeedForwardCalculator` 从 Profiled Setpoint 生成：
-
-- 位置环速度前馈；
-- 速度环加速度前馈；
-- 偏航角速度前馈；
-- 重力与期望加速度合成的归一化推力前馈。
-
-反馈负责修正误差，前馈负责已知运动学。如果关闭或错误设置 Kff，控制器只能等误差产生后再追赶；若靠增大 Kp 弥补，就更容易过冲和振荡。
-
-### 11.5 协调转弯
-
-`UTurnBehavior` 从期望速度方向的变化率生成偏航角速度前馈。超过 `CoordinatedTurnSpeedThresholdCmPerSec` 后，根据向心加速度生成 Roll：
-
-$$
-a_c=v\omega
+d=\|p-q\|,\quad v_{\mathrm{corridor}}=\max(d-R_{\mathrm{eff}},0)
 $$
 
 $$
-\phi=\arctan2(a_c,g)
+\Delta p=
+\begin{cases}
+0,&d\le R_{\mathrm{eff}}\\
+-(d-R_{\mathrm{eff}})(p-q)/d,&d>R_{\mathrm{eff}}
+\end{cases}
 $$
 
-Roll 受 `MaxBankAngleDegrees` 和 `MaxLateralAccelCmPerSecSq` 限制。低速更偏向用 Yaw 转头，高速通过压坡产生向心力，视觉和动力学都更自然。
+胶囊包括直线段和两端半球；相邻轴线共用一个拐点时，端部天然提供重叠，不需要再独立存储转角球。
 
-### 11.6 悬停推力估计
+### 11.2 当前自动构建流程
 
-Autopilot 可启用零阶 EKF，在线估计抵消重力所需的归一化推力 $x$：
+`FAircraftSafeCorridorBuilder::BuildOpenPolyline()`：
 
-$$
-a_z=g\frac{thrust}{x}-g
-$$
+1. 检查数值、半径、安全边距与重采样间距。
+2. 去除过短点，合并同方向共线段，拒绝退化掉头。
+3. 在拐角处按有效半径设置进入/退出范围；短线段按比例缩短。
+4. 用二次 Bézier 绕过拐点：
+   $$
+   p(u)=(1-u)^2E+2(1-u)uC+u^2X
+   $$
+5. 重采样路径，并在转角曲线中点设置相邻走廊负责区间的分界。
+6. 每条原始直线段保存一个胶囊，检查 RouteDistance 分区连续。
 
-它能适应载重、推力效率或模型误差变化。`ProcessNoiseVariance` 决定估计跟踪变化的速度，`AccelNoiseVariance` 决定对差分加速度的信任程度，`GateSize` 用于拒绝剧烈机动中的异常新息。
+安全边距从 RuntimeConfig.Path 获取；调用者无需另传一份容易失配的 SafetyMargin。当前 Settings 的主要输入是 OuterRadius 与 MinimumSegmentLength；没有圆柱多边形边数参数。
 
-普通策划只应选择是否启用；EKF 噪声、方差和门限由程序调校。
+**最重要的边界**：该构建器只处理几何数据，未查询世界障碍物。因此"成功生成安全走廊"只表示几何与输入约定成立，不证明走廊真的无障碍。
 
----
+若导航已经按机体半径膨胀障碍，应明确其输出净空的含义，再确定走廊宽度，不能把相同机体半径扣除两次。30 cm 和 60 cm 机型应通过实际尺寸/净空参数区分，而非在插件里假装 Small/Medium 标签就代表安全。
 
-## 12. Aircraft Simulation LOD
+### 11.3 空间平滑不是"最小 snap 时间轨迹"
 
-### 12.1 设计目标
-
-Simulation LOD 不是渲染 LOD，而是按距离和玩法重要性切换：
-
-- 是否运行 Chaos；
-- 是否运行飞控；
-- Autopilot 慢逻辑更新间隔；
-- 是否用运动学移动；
-- 碰撞模式；
-- 建议网络更新频率；
-- 调试绘制。
-
-全局策略评估由 `UAircraftSimulationWorldSubsystem` 负责，每架飞机的状态适配由 `UAircraftSimulationLODComponent` 负责。Subsystem 不知道 PID、轨迹或旋翼类型，只广播通用预算。
-
-### 12.2 默认四级配置
-
-| 层级 | 默认距离 | Chaos/飞控 | Autopilot 间隔 | 碰撞 | 网络频率 |
-|---|---:|---|---:|---|---:|
-| `FullPhysics` | ≤ 6000 cm | 开启 | 0，每游戏帧 | QueryAndPhysics | 30 Hz |
-| `ReducedPhysics` | ≤ 15000 cm | 开启 | 0.05 s | QueryAndPhysics | 15 Hz |
-| `Kinematic` | ≤ 50000 cm | 关闭 | 0.10 s | QueryOnly | 8 Hz |
-| `Dormant` | 超出 Kinematic | 关闭 | 不运行 | Disabled | 2 Hz + Dormancy |
-
-休眠层级的 `MaxDistanceCm=0` 是有意设计：Dormant 是超过 Kinematic 最大距离后的兜底层级，不使用自己的最大距离。
-
-### 12.3 `ReducedPhysics` 的准确含义
-
-当前 `BuildBudget()` 令 `bRunFlightController = Settings.bEnablePhysics`。因此 FullPhysics 和 ReducedPhysics 都：
-
-- 保留 Chaos 物理；
-- 每个 Chaos 物理步运行完整飞控；
-- 保留物理碰撞。
-
-ReducedPhysics 当前只通过降低 Autopilot/慢逻辑频率、网络更新频率和调试预算省成本，并没有使用低频姿态内环、简化旋翼模型或更粗的 Chaos 求解器。命名表达的是预算层级目标，不表示已经实现不同精度的物理解算器。
-
-### 12.4 距离评估、滞回与驻留时间
-
-Subsystem 每 0.1 秒刷新一次玩家位置，使用最近玩家距离。每个 Profile 可以配置：
-
-- `EvaluationIntervalSeconds`：单架飞机多久允许重新评估；
-- `MaxEvaluationsPerFrame`：全局时间切片上限；
-- `DistanceHysteresisCm`：边界滞回；
-- `MinimumTierResidenceSeconds`：普通距离切换的最短驻留时间。
-
-降级需要越过当前边界加滞回，升级需要进入目标边界减滞回，避免玩家在边界附近时层级每帧抖动。
-
-### 12.5 强制 FullPhysics 的重要性条件
-
-以下任一状态会绕过距离和最短驻留时间，立即选择 FullPhysics：
-
-- 玩家控制；
-- 战斗中；
-- 正在开火；
-- 最近受伤；
-- 正在从伤害状态恢复；
-- 有外部物理约束；
-- 任务关键；
-- 显式要求保持物理。
-
-`CombatKeepAliveSeconds` 会在最后一次战斗/受伤活动后继续保持 FullPhysics，防止攻击间隙立刻降级。
-
-### 12.6 内部旋翼约束不会强制 FullPhysics
-
-`bHasExternalPhysicsConstraint` 只表示载荷、绳索、与世界或其他 Actor 的关节等**外部约束**。机身与旋翼之间属于同一无人机 Rig 的内部约束，不应设置这个标志，否则所有无人机都会永久 FullPhysics，LOD 失去意义。
-
-LOD 组件会记录 Owner 的全部 `UPrimitiveComponent`：
-
-- 原碰撞模式；
-- 是否在物理层级模拟；
-- 相对根组件 Transform；
-- 线速度与角速度。
-
-进入非物理层时先停止飞控等力生产者，再关闭各刚体物理；回到物理层时先恢复碰撞、Transform、速度并唤醒刚体，再恢复消费者。这样机身 BOX 与旋翼球体/胶囊体组成的内部 Rig 可以整体在物理和非物理层之间切换。
-
-### 12.7 Kinematic 层
-
-Kinematic 层仍运行低频 Autopilot，Autopilot 发布缓存目标：
-
-- Position；
-- Velocity；
-- Yaw。
-
-WorldSubsystem 每帧推进根组件：
+当前 `OptimizeWaypoints()` 使用局部加权目标：
 
 $$
-p_{pred}=p+v_{target}\Delta t
+p_i^{\mathrm{curv}}=(p_{i-1}+p_{i+1})/2
+$$
+
+从四阶差分为零：
+
+$$
+p_{i-2}-4p_{i-1}+6p_i-4p_{i+1}+p_{i+2}=0
+$$
+
+解出：
+
+$$
+p_i^{\mathrm{snap}}=
+(-p_{i-2}+4p_{i-1}+4p_{i+1}-p_{i+2})/6
+$$
+
+再混合原中心线、曲率目标与四阶差分目标，投回负责的走廊。它是空间节点平滑启发式，不是求解 `min ∫||d⁴p/dt⁴||²dt` 的全局最小 snap 问题：此处还没有时间参数。
+
+### 11.4 五次曲线与凸包约束
+
+空间段由端点位置、一级和二级参数导数构造五次多项式。等价五次 Bézier 控制点为：
+
+$$
+P_0=p_0,\quad P_1=p_0+d_0/5,\quad
+P_2=p_0+2d_0/5+e_0/20
 $$
 
 $$
-p_{new}=Lerp(p_{pred},p_{target},1-e^{-k\Delta t})
+P_5=p_1,\quad P_4=p_1-d_1/5,\quad
+P_3=p_1-2d_1/5+e_1/20
 $$
 
-旋转使用 `RInterpTo`。`bSweepKinematicMovement` 决定 SetWorldLocationAndRotation 是否 Sweep；默认碰撞为 QueryOnly，不产生刚体碰撞响应。内部非物理组件按保存的相对 Transform 跟随根组件。
+Bézier 曲线是控制点的凸组合。**同一段全部控制点在同一个凸胶囊内，则整段曲线也在该胶囊内**。
 
-### 12.8 Dormant 层
+当前通过缩放节点导数，限制出/入段对应控制点；并保留走廊分界和路程映射，避免直接用新路径长度比例去猜原始走廊索引。
 
-Dormant 关闭飞控、Autopilot、运动学推进、物理和碰撞，并在服务器设置 `DORM_DormantAll`。离开 Dormant 时先 Flush Dormancy、恢复原 Dormancy 并 ForceNetUpdate；进入 Dormant 时也强制最后一次更新，确保客户端收到最终层级。
+这里仍然使用了"曲线控制点的凸包性质"，但不意味着安全走廊本身又退回了额外构建凸多面体的旧设计。二者不是一回事。
 
----
+边界：
 
-## 13. 当前网络同步方案
+- 凸包包含条件是充分条件，可能比真实曲线可行空间更保守。
+- 有限精度和退化几何仍需检查。
+- 曲线在走廊内不等于有体积、有跟踪误差的飞机一定在走廊内。
+- 参数二阶连续不自动等同于时间域 jerk 连续；后续还需时间规划。
 
-### 13.1 服务器权威 NPC
+依据：`走廊构建器`、`空间路径`。
 
-`AAircraftPawn` 默认：
+### 11.5 走廊连通性与线段覆盖（FAircraftSafeCorridorSelection）
 
-```cpp
-bReplicates = true;
-SetReplicateMovement(true);
-```
+AircraftRuntimeInterface 提供走廊判定的纯函数库（`AircraftSafeCorridorSelection.h`）：`BuildContinuousCandidates` 从当前位置/预测位置出发构建拓扑连续的候选段集合（带滞回，避免边界抖动）；`ComputePointViolationCm` 计算点对胶囊并集的违规量；`BuildLineCoverageIntervals` 精确计算线段 `P(t)=Start+t(End−Start)` 落在胶囊并集内的参数区间并合并；`IsLineContinuouslyCovered` 判定线段是否被连续覆盖。用于走廊可行性验证与避让胶囊备选的可达性检查，无 World 依赖、可单测。
 
-联网时，服务器和 `ROLE_SimulatedProxy` 在 BeginPlay 显式设置：
+## 12. 时间规划、制动与连续轨迹
 
-```cpp
-SetPhysicsReplicationMode(
-    EPhysicsReplicationMode::PredictiveInterpolation);
-```
+### 12.1 路程和时间解耦
 
-服务器运行 AI、Autopilot、FlightController、Airscrew 和 Chaos，客户端模拟代理不运行飞控/Autopilot，只消费服务器刚体状态。Predictive Interpolation 根据接收到的速度预测显示位置并平滑纠偏，适合没有本地输入的服务器控制 NPC。
+设空间曲线按弧长表示为 p(s)，令：
 
-### 13.2 LOD 与网络角色
+$$
+v_s=\dot s,\quad a_s=\ddot s,\quad j_s=\dddot s
+$$
 
-默认 `bAuthoritySimulationOnly=true`：
+链式求导得到：
 
-- 服务器按玩家距离和重要性选择层级；
-- `CurrentTier` 由 `UAircraftSimulationLODComponent` 复制到客户端；
-- 客户端不自行按距离做权威层级决策；
-- Full/Reduced 客户端默认保留 Chaos，以便 UE 物理复制执行 Predictive Interpolation；
-- Kinematic/Dormant 客户端关闭本地 Chaos，根 Transform 由 Replicate Movement 驱动，内部组件跟随根组件。
+$$
+\dot p=p_s v_s
+$$
 
-`bClientProxyUsesDefaultPhysicsReplication` 控制客户端代理是否启用本地 Chaos 刚体：开启时客户端按对应层级的 `bEnablePhysics` 设置启用物理（Full/Reduced 客户端保留 Chaos 用于 Predictive Interpolation），关闭时客户端所有层级都关闭本地物理。物理复制模式本身由 Pawn `BeginPlay` 固定设置为 `PredictiveInterpolation`，与该字段无关。
+$$
+\ddot p=p_s a_s+p_{ss}v_s^2
+$$
 
-服务器会按层级设置 `NetUpdateFrequency`：30/15/8/2 Hz。这个频率只是 Actor 复制建议频率，不是飞控频率，也不是客户端插值帧率。
+$$
+\dddot p=p_sj_s+3p_{ss}v_sa_s+p_{sss}v_s^3
+$$
 
-### 13.3 当前复制了什么
+对理想弧长参数，`p_s` 为单位切线，`p_ss` 为曲率向量。因此即使沿路径速度不变，转弯也有 `κv²` 的向心加速度。
 
-当前主要复制：
+当前弧长使用数值表和反查，曲率变化项也有有限差分近似；上述等式是理论关系，实际计算精度依赖采样间距与几何质量。
 
-- Actor/根刚体移动状态；
-- Simulation LOD 的 `CurrentTier`。
+### 12.2 为什么转弯必须降速
 
-当前没有独立复制：
+若可用法向加速度为 `a_n,max`：
 
-- Autopilot 活动命令、Handle 与进度；
-- Profiled Setpoint；
-- 每桨 RPM/推力；
-- `FRotorHealthState`；
-- PID、控制权限和分配诊断。
+$$
+\kappa v^2\le a_{n,\max}
+\quad\Rightarrow\quad
+v\le\sqrt{a_{n,\max}/\kappa}
+$$
 
-如果客户端 UI、动画或特效需要这些信息，应复制一个经过裁剪的展示状态，而不是把整套飞控运行状态高频复制。影响玩法判定的旋翼故障必须由服务器产生和保存；客户端只用于表现。
+水平悬停附近还有：
 
-### 13.4 为什么现在不使用 UNetworkPhysicsComponent
+$$
+a_{xy}\le g\tan\theta_{\max}
+$$
 
-`UNetworkPhysicsComponent` 的核心价值是维护输入/状态历史，让 Autonomous Proxy 可以本地预测，并在服务器校正后重模拟。当前 NPC 没有客户端本地输入，服务器刚体复制加 Predictive Interpolation 已经覆盖主要需求，接入输入历史只会增加状态设计和重模拟成本。
+以及总推力约束：
 
-它并非“必须有玩家输入才能使用”，但没有需要预测的本地控制输入时收益很低。
+$$
+\|a-g_W\|\le100\,T_{\max}/m
+$$
 
-### 13.5 未来玩家控制无人机
+最后一个式子采用 cm/s²，故有 100。代码在曲率速度搜索中同时考虑阻力、倾角、总推力与储备，而不只使用简单平方根公式。
 
-玩家直接控制后不能简单沿用 NPC Simulated Proxy 方案。建议把以下内容设计成网络物理帧状态：
+"弯处慢"可能是曲率、姿态转向、垂直限制、储备或求解预算造成，不能一概认为是 MPCC 权重太保守。
 
-- 归一化玩家输入；
-- Arm/Flight/Attitude Mode；
-- 必要的 Autopilot 接管命令；
-- 旋翼故障/有效率变化事件；
-- 能决定控制输出的关键离散状态。
+### 12.3 前向加速、后向制动包络
 
-Autonomous Proxy 和服务器必须保持 FullPhysics，不能因客户端距离进入 Kinematic/Dormant。当前 BeginPlay 有意没有给 `ROLE_AutonomousProxy` 设置 PredictiveInterpolation，因为自主代理需要单独选择预测/重模拟方案。实现玩家控制网络物理前，还需要审计 PID 积分、Motion Profile、旋翼一阶状态和 LOD 切换是否具备可重模拟的确定性。
+由 `a=v dv/ds`：
 
----
+$$
+\int_{v_i}^{v_{i+1}}v\,dv
+=\int_{s_i}^{s_{i+1}}a\,ds
+\Rightarrow
+v_{i+1}^2=v_i^2+2a\Delta s
+$$
 
-## 14. 配置资产与调参职责
+前向传播：
 
-### 14.1 UFlightControllerProfileAsset
+$$
+v_{i+1}\le\sqrt{v_i^2+2a_{\max}\Delta s}
+$$
 
-这是“机体级硬件与控制器”配置。每种质量、惯量、旋翼布局和推力规格应有独立资产。
+后向制动传播：
 
-#### 运动硬限制
+$$
+v_i\le\sqrt{v_{i+1}^2+2d_{\max}\Delta s}
+$$
 
-当前新资产默认值：
+对于 Stop，终端速度为零。仅靠这一包络得到的分段恒加速度在末端可能从负加速度突然变成零，引起制动力突变，因此还需要加速度边界与 jerk 检查。
 
-| 参数 | 默认 | 调大后的影响 |
+恒减速度的停止距离 `v²/(2d)` 只适用于其假设；电机响应、jerk 上限、重力/阻力和姿态调整都可能增加实际所需距离。
+
+### 12.4 五次 Hermite 时间段的完整系数推导
+
+设段时长 T，归一化时间 `u=t/T`：
+
+$$
+p(u)=c_0+c_1u+c_2u^2+c_3u^3+c_4u^4+c_5u^5
+$$
+
+给定六个边界 `p₀,v₀,a₀,p₁,v₁,a₁`。因为：
+
+$$
+v=\frac1T\frac{dp}{du},\qquad
+a=\frac1{T^2}\frac{d^2p}{du^2}
+$$
+
+起点条件直接给出：
+
+$$
+c_0=p_0,\quad c_1=Tv_0,\quad c_2=\tfrac12T^2a_0
+$$
+
+令：
+
+$$
+D=p_1-c_0-c_1-c_2,\quad
+V=Tv_1-c_1-2c_2,\quad
+A=T^2a_1-2c_2
+$$
+
+终点三个方程为：
+
+$$
+c_3+c_4+c_5=D
+$$
+
+$$
+3c_3+4c_4+5c_5=V
+$$
+
+$$
+6c_3+12c_4+20c_5=A
+$$
+
+消元得到：
+
+$$
+c_3=10D-4V+\tfrac12A
+$$
+
+$$
+c_4=-15D+7V-A,\qquad
+c_5=6D-3V+\tfrac12A
+$$
+
+位置、速度、加速度和 jerk 都从同一个多项式求导。不能分别 Lerp p/v/a，否则三条曲线通常互相不满足导数关系。
+
+当前此公式有两个用途：
+
+- Route/Orbit：对路程 s(t) 做时间插值，再回到同一条空间曲线。
+- Hold/TimedTrajectory：直接对世界位置向量做时间插值。
+
+### 12.5 Route 的末端释放与局部重定时
+
+Route 时间规划在末端释放初始加速度，并根据相邻速度构造段时长：
+
+$$
+\Delta t_i=2\Delta s_i/(v_i+v_{i+1})
+$$
+
+共享节点的切向加速度由邻域速度/时间计算，开放路径首尾取零。再对时间段作单调性和导数限额检查。
+
+时间段速度是四次多项式。将其写成 Bernstein 形式时，控制值非负即可保证整段 `ds/dt≥0`。代码对应的外侧约束包括：
+
+$$
+a_i\ge-4v_i/\Delta t,\qquad
+a_{i+1}\le4v_{i+1}/\Delta t
+$$
+
+利用上述段时长关系，中间控制值为：
+
+$$
+b_2=\tfrac12(v_i+v_{i+1})
++\tfrac14(a_{i+1}-a_i)\Delta t
+$$
+
+继续约束 `b₂≥0`，避免时间插值在两点之间倒退。
+
+然后采样实际 p/v/a/jerk/yaw 导数：不满足限制时，降低对应邻域速度，重新计算时间和共享导数，而不是把整条长路径统一拉长。
+
+**有解析依据的是非负 Bernstein 控制值的单调性；其余动力学上限仍主要依赖有限采样与有限迭代。** 当前 Route 每段导数检查为 17 点，额外预算峰值采集为 65 点，不能宣称连续全域约束已经严格认证。
+
+### 12.6 Hold：从当前状态过渡，不直接把参考跳到目标
+
+当前 Hold 先读取实际 p/v/a，末端要求：
+
+$$
+p(T)=p_{\mathrm{goal}},\quad v(T)=0,\quad a(T)=0
+$$
+
+初始加速度非零时，先用常 jerk 将其释放到零。以释放时长 `T_r` 表示：
+
+$$
+j=-a_0/T_r,\quad
+a(t)=a_0(1-t/T_r)
+$$
+
+积分：
+
+$$
+v(t)=v_0+a_0t-\frac{a_0t^2}{2T_r}
+$$
+
+$$
+p(t)=p_0+v_0t+\frac12a_0t^2-\frac{a_0t^3}{6T_r}
+$$
+
+所以释放末端：
+
+$$
+v_r=v_0+\tfrac12a_0T_r,\qquad
+p_r=p_0+v_0T_r+\tfrac13a_0T_r^2
+$$
+
+`T_r` 取水平与竖直 jerk 限制所需时间的较大值。再以 `(p_r,v_r,0)` 接到 `(p_goal,0,0)` 的五次段，并迭代增大时长直到采样检查满足条件。
+
+若当前速度已超过新的软限速，不能瞬间夹断速度；实现允许初始恢复阶段，然后要求超速逐步回到普通限制。若当前还在同向加速，释放期间的少量继续增速是连续性和有限 jerk 的必然结果，不应简单判为实现错误。
+
+限制：
+
+- 这不是已证明时间最优的 S 曲线求解器。
+- 任意初始状态与目标不保证均可在有限迭代内找到可行解。
+- CaptureCurrentPosition 是捕获当前位置作为最终目标；已有惯性时可能先滑出再回来，不等同于手动"自然刹车后捕获停止点"。
+- Hold 过渡本身不生成障碍物走廊；跨障碍飞行应提交有导航依据的 Route。
+
+### 12.7 TimedTrajectory：尊重调用者的时钟
+
+调用者提供每个时刻的 p/v/a/yaw/yaw-rate，代码验证端点和段内插值，不替调用者悄悄重定时。
+
+当前 Stop 模式要求最后一个样本的线速度、线加速度和偏航速度接近零；移动末端应使用 PassThrough。到达判定的速度容差不能授权一个永久保留非零速度的 Stop 参考。
+
+依据：`MotionPlan`（BuildHoldPlan、曲率速度搜索）、`轨迹运行时`（时间段构造与求值）。第三阶约束与完整目标状态的外部研究可参考 [Ruckig 原论文](https://arxiv.org/abs/2105.04830)；当前插件没有接入 Ruckig。
+
+## 13. 预测跟踪：当前"MPCC"到底优化了什么
+
+### 13.1 术语边界
+
+当前类名为 `FAircraftMpccController`，但其技术实质更准确地说是：
+
+> **由外部路径进度调节器驱动参考时钟，对加速度修正序列进行有限迭代优化的轮廓/滞后误差预测跟踪。**
+
+经典 MPCC 通常把路径进度及其推进速度也作为扩展状态/优化变量，并在目标中鼓励前进。当前实现没有把该自由进度变量联合优化；参考时钟在优化前确定，求解的是 `ControlCorrectionHorizon`。团队分享中可以说"MPCC 风格"，不应直接宣称完整赛车/竞速飞行 MPCC。
+
+对照依据：[Liniger 的 MPCC 官方实现说明](https://github.com/alexliniger/MPCC)。
+
+### 13.2 轮廓误差和滞后误差
+
+参考位置为 `p_r`，单位切线为 t，位置误差 e：
+
+$$
+e=p-p_r,\qquad
+e_l=tt^Te,\qquad
+e_c=(I-tt^T)e
+$$
+
+`e_l` 表示沿路径方向落后/超前；`e_c` 表示偏离路径。因为二者正交：
+
+$$
+\|e\|^2=\|e_l\|^2+\|e_c\|^2
+$$
+
+可分别加权，而不是用一个位置增益同时决定"贴住路径"和"赶上进度"。
+
+当前切线取参考速度的归一化方向。参考速度为零时切线退化为零，误差进入轮廓项；这也提示终端行为不能简单按高速段的权重直觉理解。
+
+### 13.3 预测状态与简化动力学
+
+设离散步长 h，优化修正为 δu，名义轨迹加速度为 aᵣ：
+
+$$
+u_k=a_{r,k}+\delta u_k
+$$
+
+代码先后进行加速度、jerk、倾角/总推力及阻力补偿相关投影。然后用一阶响应预测实际加速度：
+
+$$
+\beta_k=1-e^{-h/\tau_k}
+$$
+
+$$
+a_{k+1}=(1-\beta_k)a_k+\beta_ku_k
+$$
+
+$$
+v_{k+1}=v_k+h a_{k+1}
+$$
+
+$$
+p_{k+1}=p_k+h v_k+\tfrac12h^2a_{k+1}
+$$
+
+`τ_k` 按总推力需求增大还是减小，选择升/降响应时间。初值来自实际 p/v/a。
+
+这比瞬时加速度模型更能反映制动迟滞，但仍是简化的平移模型：没有在优化器中展开每个旋翼 RPM、完整姿态动力学、接触碰撞及完整惯性耦合。
+
+### 13.4 目标函数与权重的真实含义
+
+忽略投影非光滑性，可把代码的梯度结构理解为以下离散目标：
+
+$$
+J\approx\sum_{k=0}^{N-1}\left(
+w_c\|e_{c,k+1}\|^2+
+w_l\|e_{l,k+1}\|^2+
+w_v\|v_{k+1}-v_{r,k+1}\|^2+
+w_b\,d_{\mathrm{corridor},k+1}^2
+\right)
+$$
+
+$$
++\sum_{k=0}^{N-1}\left(
+w_a\|\delta u_k\|^2+
+\epsilon\|u_k\|^2+
+w_j\|u_k-u_{k-1}\|^2
+\right)
++J_{\mathrm{terminal}}
+$$
+
+$$
+J_{\mathrm{terminal}}=
+w_{Tp}\|p_N-p_{r,N}\|^2+
+w_{Tv}\|v_N-v_{r,N}\|^2
+$$
+
+注意三点：
+
+1. `AccelerationWeight` 主要惩罚加速度**修正量**，不是简单惩罚全部名义制动。
+2. `JerkWeight` 对应离散相邻加速度差，代码没有在该代价中显式除以 h²；改变 HorizonSteps/Seconds 后不能认为相同权重具有完全相同的连续时间意义。
+3. Terminal 指**预测窗口末端**，不一定已经到达整条任务路径的终点。
+
+距离、速度、加速度等量纲混合，因此权重本身带有隐含尺度。把权重数字大小直接当成严格优先级没有依据。
+
+### 13.5 梯度为什么可以反向传播
+
+把从后续状态累计的伴随量记为 `λp,λv,λa`。先加当前阶段位置/速度误差梯度，再由预测方程得到：
+
+$$
+g_a=\lambda_a+\tfrac12h^2\lambda_p+h\lambda_v
+$$
+
+$$
+\frac{\partial J}{\partial u_k}
+\approx\beta_k g_a
++2w_a\delta u_k+2\epsilon u_k
++\text{相邻加速度差梯度}
+$$
+
+状态伴随递推：
+
+$$
+\lambda_{a,k}=(1-\beta_k)g_a,\qquad
+\lambda_{v,k}\leftarrow\lambda_{v,k+1}+h\lambda_p
+$$
+
+例如 jerk 差分代价对内部 uₖ 的梯度是：
+
+$$
+2w_j(u_k-u_{k-1})+2w_j(u_k-u_{k+1})
+$$
+
+然后做有限次梯度更新：
+
+$$
+\delta u_k\leftarrow\delta u_k-\eta\nabla_{\delta u_k}J
+$$
+
+步长由权重与时域步数构造，并非完整线搜索。最终还会重新前向滚动并投影，避免直接发布最后一次未经投影的梯度结果；修正序列向前移位，供下一次 warm start。
+
+### 13.6 当前优化器的明确限制
+
+- 轮廓/走廊梯度建立在当前参考与预测上，未完整微分所有夹取、推力响应分支和投影算子。
+- 走廊使用二次软惩罚，权重 1000 仍不是不可违反的硬约束，也不是字典序最高优先级求解。
+- 加速度、jerk、推力等是顺序投影；投影到集合 A 后再投到 B，一般不保证仍位于 A，不能把它表述成完整约束交集投影证明。
+- 有限迭代可返回可用候选，不具备全局最优、递归可行或闭环渐近稳定证明。
+- 没有把全场景动态障碍物放进预测模型。
+- 一次 deadline 检查通过后，完整一轮计算、最终滚动等仍要执行；预算不是强制抢占式 WCET 保证。
+- 悬停点响应平滑仍依赖低层 PID、电机模型、惯量和时间步。
+
+这些限制不意味着不适合游戏，而是要求对其定位诚实：**可调、可观测、成本可控的近似预测控制，而不是飞行安全证书**。
+
+### 13.7 多速率调度与参考新鲜度
+
+当前结构默认值（资产可覆盖）：
+
+| 配置 | 默认值 | 含义 |
 |---|---:|---|
-| `MaxTiltAngleDegrees` | 25° | 水平机动更强，但垂直推力余量和稳定裕度降低。 |
-| `MaxYawRateDegreesPerSec` | 90°/s | 转头更快。 |
-| `MaxRoll/PitchRateDegreesPerSec` | 180°/s | 压坡更快，过大可能激励振荡。 |
-| `MaxClimbRateCmPerSec` | 300 | 最大上升更快。 |
-| `MaxDescentRateCmPerSec` | 200 | 最大下降更快。 |
-| `MaxHorizontalSpeedCmPerSec` | 800 | Autopilot 和手动水平速度硬上限。 |
-| `MaxHorizontalAccelerationCmPerSecSq` | 600 | 更敏捷，但仍受倾角、推力和阻尼限制。 |
-| `MaxVerticalAccelerationCmPerSecSq` | 500 | 垂直响应更快。 |
-| `Min/Hover/MaxCollectiveCommand` | 0 / 0.5 / 1 | 必须满足 Min ≤ Hover ≤ Max；Hover 应接近真实悬停点。 |
+| UpdateRateHz | 50 | 预测求解请求频率，不是物理频率 |
+| HorizonSeconds | 1.5 s | 预测时间长度 |
+| HorizonSteps | 30 | 默认预测步长 h=0.05 s |
+| MaxOptimizationIterations | 2 | 每次最多梯度迭代次数 |
+| SolveTimeBudgetMilliseconds | 2 ms | 迭代入口的时间预算检查 |
+| MaximumReferenceAgeSeconds | 0.15 s | 可接受的参考年龄 |
+| MaxConsecutiveFailures | 3 | 连续失败升级阈值 |
 
-#### PID 组
+在下一次求解时刻之前复用仍新鲜的参考；失败时只在限制范围内复用旧参考。参考含 IntentId、IntentRevision、PlanRevision、StateSequence 与时间戳，避免把过期轨迹当作当前任务的输出。
 
-| 控制环 | 输入 -> 输出 | 主要调节目标 |
-|---|---|---|
-| Position X/Y | 位置误差 -> 期望速度 | 到点刚度、稳态位置误差 |
-| Velocity X/Y | 速度误差 -> 水平加速度 | 平移响应、制动和阻尼 |
-| Altitude | 高度误差 -> 垂直速度 | 高度回正速度 |
-| Vertical Velocity | 垂直速度误差 -> 总距偏移 | 上下振荡与悬停抗扰 |
-| 姿态 Roll/Pitch/Yaw | 四元数姿态误差 -> 期望角速度 | 回平和航向跟踪（标量比例增益 `QuaternionAttitudeGains`，非 PID） |
-| Rate Roll/Pitch/Yaw | 角速度误差 -> 归一化力矩 | 最内环稳定性 |
+**轨迹多项式连续，不代表物理子步拿到的所有输出都自动连续**：MPCC 参考在两次求解之间存在保持；速度意图、偏航越过目标后的处理和重规划也有独立逻辑。
 
-必须从内向外调：Rate -> Angle -> Velocity/VerticalVelocity -> Position/Altitude -> Autopilot。
+依据：`MpccController`、`运行配置`。
 
-`Kp` 增大提高即时刚度；`Ki` 消除恒定偏差但容易积累；`Kd` 增加阻尼但会放大噪声；`Kff` 让已知轨迹导数直接进入控制链。任何 Kff 修改都应同时检查上游是否已经把相同前馈加入设定值，避免双重前馈。
+## 14. 进度调节、三种驱动与任务完成
 
-#### 姿态与阻尼配置
+### 14.1 为什么不能靠实际投影每帧重设参考时钟
 
-| 参数 | 建议 |
+若飞机减速后稍微落后于参考，并且下一帧又把参考进度拉回到实际投影点，参考自身的末端制动过程可能反复滞留，表现为"很早刹住，然后一点点挪到目标"。
+
+当前设计把两者分开：
+
+- ProjectionDistance：用于测量当前所在路径位置、轮廓/走廊误差。
+- PlanTime：拥有独立推进的参考时钟。
+- ProgressScale：因偏离路径等原因减慢参考推进，而非每帧跳到实际投影。
+
+### 14.2 时间缩放的完整链式关系
+
+令名义时钟为 `τ(t)`，`α=dτ/dt∈[0,1]`：
+
+$$
+p(t)=p_r(\tau(t))
+$$
+
+$$
+v(t)=v_r(\tau)\alpha
+$$
+
+$$
+a(t)=a_r(\tau)\alpha^2+v_r(\tau)\dot\alpha
+$$
+
+再求一次导数：
+
+$$
+j(t)=j_r(\tau)\alpha^3
++3a_r(\tau)\alpha\dot\alpha
++v_r(\tau)\ddot\alpha
+$$
+
+只缩小速度而不加入 `v_r α̇`，就会使位置、速度和加速度参考互相矛盾；这对带位置/速度/加速度前馈的约束驱动尤其明显。
+
+### 14.3 当前共享 time-warp 的积分
+
+名义调节目标可由轮廓误差给出：
+
+$$
+\alpha_{\mathrm{req}}=\frac1{1+(e_c/e_{\mathrm{scale}})^2}
+$$
+
+MPCC 对实际/预测走廊越界另可请求 α=0；约束路径的当前确定性调节主要使用投影距离误差。两者共用时间缩放计算器，不表示所有上游判据完全一样。
+
+为避免目标阶跃直接产生巨大 `α̇`，先限速调节目标 b，再用一阶滤波：
+
+$$
+\dot b=r,\quad |r|\le r_{\max},\qquad
+\dot\alpha=K(b-\alpha)
+$$
+
+在 b 尚未到达请求值的一段中，`b(t)=b₀+rt`。求解得到：
+
+$$
+\alpha(t)=b_0+rt-r/K+
+(\alpha_0-b_0+r/K)e^{-Kt}
+$$
+
+积分名义时钟：
+
+$$
+\Delta\tau=
+b_0t+\tfrac12rt^2-\frac rK t+
+\frac{\alpha_0-b_0+r/K}{K}(1-e^{-Kt})
+$$
+
+b 到达目标后令 r=0，继续积分剩余时间。这样时钟推进、速度尺度与尺度导数来自同一个解。
+
+代码按名义轨迹剩余加速度与 jerk 权限估算 r 的上限。对于固定预算且滤波状态相容的情况，`|α̇|≤r_max`、`|α̈|≤2Kr_max`，新增 jerk 的保守界可写为：
+
+$$
+j_{\mathrm{extra}}\le3a_{\mathrm{peak}}r_{\max}
++2K v_{\mathrm{peak}}r_{\max}
+$$
+
+水平加速与制动预算按切向方向分别计算，不能用 `min(a_max,d_max)−整个路径的加速度绝对峰值`，否则非对称限制可能把调节预算错误清零。
+
+限制：峰值来自采样；使用整条路径的保守预算可能减慢局部响应；能力重建、预算变化和极端初值仍需验证。当前同 Handle 的空间意图更新保留尺度状态，但能力重规划仍有独立重置逻辑，不能宣称任意热更新均无瞬态。
+
+### 14.4 三种驱动的相同与不同
+
+| 项目 | FlightController | PhysicsConstraint | Kinematic |
+|---|---|---|---|
+| 运动意图/机型配置 | 共享 | 共享 | 共享 |
+| 轨迹几何和时间规划 | 共享 | 共享 | 共享 |
+| 在线预测优化 | 使用 | 不使用该梯度优化器 | 不使用 |
+| 参考推进 | PT 中多速率预测跟踪 | PT 中确定性采样与进度调节 | GT 中确定性采样 |
+| 平移执行 | 旋翼力 | 世界空间线性 Constraint Drive | 应用规划后的组件变换，可选 Sweep |
+| 姿态执行 | 姿态/角速度 PID、旋翼力矩 | PT 显式姿态 PD 力矩 | 按轨迹参考构造并应用旋转 |
+| 动态碰撞响应 | Chaos | Chaos | 非完整动态刚体响应 |
+| 旋翼转速动态影响运动 | 是 | 否 | 否 |
+
+"确定性采样"只是固定输入与时钟下的算法路径，不是网络确定性保证。
+
+三个后端共享的阻力/阻尼前馈计算经 `AircraftAutopilotDynamics.h` 收敛为唯一实现——原先确定性后端（TrajectoryRuntime）与飞控后端（MpccController）各持一份逐行相同的副本，任何单侧改动都会造成后端间前馈不一致；收敛后前馈语义由单一函数保证，切向限幅换算（水平/垂直分量到同一标量上限）亦出于此。
+
+### 14.5 PhysicsConstraint 的弹簧参数推导
+
+配置使用频率 f、阻尼比 ζ、额外阻尼 dₑ：
+
+$$
+\omega_n=2\pi f,\qquad
+k=\omega_n^2,\qquad
+d=2\zeta\omega_n+d_e
+$$
+
+在加速度模式的理想单轴模型下：
+
+$$
+\ddot x=k(x_t-x)+d(v_t-\dot x)+g_x
+$$
+
+设误差 e=x−xₜ 且目标固定、无外部项：
+
+$$
+\ddot e+d\dot e+ke=0
+$$
+
+无额外阻尼时这就是标准二阶系统，ζ≈1 对应临界阻尼的理想参考。Chaos 迭代、力限制、碰撞、多 Body 和离散时间会改变实际响应，不能直接保证临界阻尼效果。
+
+若使用力模式，实际是：
+
+$$
+m\ddot x=k(x_t-x)+d(v_t-\dot x)+mg_x
+$$
+
+当前直接写入的 k/d 没有自动全部乘 m，所以实际自然频率、阻尼比会随质量变化；"f 是实际自然频率"的解释主要适用于加速度模式，不能无条件套到力模式。
+
+### 14.6 为什么约束目标需要前馈偏移
+
+期望参考 xᵣ/vᵣ/aᵣ。若只设置 xₜ=xᵣ、vₜ=vᵣ，完全跟踪时弹簧/阻尼误差为零，无法提供持续重力补偿或非零参考加速度。
+
+令：
+
+$$
+x_t=x_r+\Delta x
+$$
+
+在完全跟踪时要求：
+
+$$
+a_r=k\Delta x+g_x-a_{\mathrm{drag}}
+$$
+
+所以加速度模式：
+
+$$
+\Delta x=
+\frac{a_r+a_{\mathrm{drag}}-g_x}{k}
+$$
+
+代码还对重力、动力学补偿提供独立系数；力模式的偏移再乘 m。配置重力向量沿世界 −Z，因此式中的减重力在 Z 上产生向上的偏移。
+
+这一区分非常重要：
+
+- **任务目标/轨迹 COM 目标**：用户希望飞机到哪里。
+- **ConstraintPositionTarget**：轨迹目标加等效前馈偏移后的求解器目标。
+
+两者不同不一定是错误，但必须能在诊断中分别观察。约束的 Frame1 放在所控 Body 的 COM，Body2 是世界，因此此处设置的是世界空间 COM 目标，不能再逆变换成 Body 局部位置。
+
+姿态部分当前另在 PT 使用：
+
+$$
+\alpha_{\mathrm{ctrl}}=
+k_R e_R+d_R(\omega_t-\omega)
+$$
+
+$$
+\tau_{\mathrm{ctrl}}\approx I_{\mathrm{diag}}\odot\alpha_{\mathrm{ctrl}}
+$$
+
+按正负力矩权限限幅，转换回 Body/World 后施加。**它不是 Chaos Angular Drive**，也没有在这里建立完整耦合惯性逆动力学。
+
+依据：`ConstraintDriveUtils`、`组件线性 Drive`、`Proxy 姿态力矩`。
+
+### 14.7 Stop 完成判定的条件与默认容差
+
+Stop 模式（默认到达模式）需**同时**满足五条件并稳定保持 `StableTimeSeconds`（默认 0.2s，可按意图覆盖）：
+
+| 条件 | 默认容差（FAircraftCompletionPolicy） |
 |---|---|
-| `QuaternionAttitudeGains.Roll/Pitch` | 默认 4.5；四元数倾斜误差到期望角速率的标量比例增益（非 PID）。 |
-| `QuaternionAttitudeGains.Yaw` | 默认 3.0；独立水平航向闭环的标量比例增益。 |
-| `bEnableAttitudeRefModel` | 建议开启。 |
-| `RefModelNaturalFrequency` | 默认 6 rad/s；越大越硬，过高接近阶跃。 |
-| `RefModelRateFFLimitDegPerSec` | 默认 100°/s；参考模型角速度前馈安全网（对标 PX4 `MC_REF_FF_MAX`）。 |
-| `AngularDampingFeedForwardScale` | 默认 1；Chaos 角阻尼被修改后重新验证。 |
-| `LinearDampingFeedForwardScale` | 默认 1；只在 Chaos 线性阻尼模型可信时完整补偿。 |
-| `DampingAccelerationReserveFraction` | 默认 0.2；越大越稳健但持续极速越低。 |
-| `VerticalDampingFeedForwardScale` | 默认 1；控制稳态升降阻尼补偿。 |
+| 路径完成：轨迹参考有效且 `PathProgress ≥ 0.999` | — |
+| 水平位置误差 ≤ HorizontalToleranceCm | 50 cm |
+| 垂直位置误差 ≤ VerticalToleranceCm | 100 cm |
+| 水平速度 ≤ max(TerminalHorizontalSpeed, HorizontalSpeedTolerance) | 50 cm/s |
+| 朝向误差 ≤ YawToleranceDegrees（期望朝向取路径末段方向或 Heading 目标） | 5° |
 
-#### 分配器与故障策略
+PassThrough 模式仅需位置与路径完成，达成即完成并接速度续航。**调优注意**：Stop 模式下机体到点后的减速过冲会使位置与速度条件交替满足，延长完成时间——需要更快的到达反馈时应放宽速度容差或改用 PassThrough。判定逻辑为纯函数，见 `完成判定`。
 
-- `DampedPseudoInverseLambda=0.05` 是当前正常布局的轻度正则化起点。
-- `bEnableTiltCompensation` 建议开启。
-- `MinCosTilt=0.1` 是数学防爆下限，不是玩法倾角。
-- FailurePolicy 默认关闭；启用前必须专门验证每种故障动作。
+### 14.8 任务完成不等于释放自动控制
 
-### 14.2 UAutopilotProfileAsset
+当前 Stop 任务满足路径、位置、速度、航向及稳定时间条件后上报 Succeeded，但继续保留：
 
-这个资产控制同一机体在路径跟踪和视觉动作上的“驾驶风格”：
+- 有效的自动驾驶意图及 Handle；
+- 原 IntentRevision，避免为"完成"重建计划；
+- 任务终点参考及自动控制模式。
 
-- 是否协调转弯；
-- 转弯速度阈值、最大 Bank 和最大横向加速度；
-- Pure Pursuit / Vector Field / Direct；
-- 前瞻距离或横向误差增益；
-- 是否启用悬停推力 EKF 及其程序级参数。
+它不会因为成功就回到手动 Hold。PassThrough 则按其续行语义处理，不在到达点刹停。
 
-它不再重复存放每条任务的 Cruise、Acceleration、Jerk 和 Arrival 参数。这些属于 Submit 命令本身，避免 Profile 和命令同时控制同一件事。
+显式调用 `UAutopilotComponent::RestoreManualHold()` 才执行手动接管：
 
-### 14.3 UAircraftSimulationLODProfileAsset
+1. 释放当前自动意图及续行状态。
+2. 未完成任务必要时上报 Cancelled；已成功结果不改写成取消。
+3. 请求组件切换 PositionHold，并进入手动制动/捕获流程。
+4. 完成控制状态变更后广播通知，避免回调重入覆盖新任务。
 
-这个资产属于“同类 NPC 的性能预算”，不属于飞控手感。建议按玩法类别建立：普通巡逻机、精英/首领、任务关键机、装载外部物理载荷的机型。
+当前该调用会停用 Autopilot；再次提交自动任务前需要重新启用。取消、禁用、LOD 中断等显式动作仍有各自语义，不等同于正常成功事件。
 
-最重要的调节项：
-
-- 三个有效距离边界；
-- 评估间隔和每帧评估预算；
-- 滞回和最短驻留时间；
-- 战斗 KeepAlive；
-- Kinematic 修正速率和 Sweep；
-- 权威模拟/客户端复制策略；
-- 各层网络频率。
-
-### 14.4 策划最小暴露集合
-
-普通策划每条命令只需要：
-
-1. 目标点/目标 Actor/路径点；
-2. Cruise、加速度、减速度和 Jerk；
-3. 垂直速度/加速度/Jerk；
-4. Heading Mode 与可选 LookAt；
-5. Arrival Mode、容差、稳定时间和 Timeout；
-6. Orbit/CircleArc 的半径、角速度或起止角。
-
-推荐提供预设：
-
-| 风格 | Cruise | Accel/Decel | Jerk | 用途 |
-|---|---:|---:|---:|---|
-| 柔和巡逻 | 300–500 | 150–250 | 500–1000 | 展示、巡逻、镜头友好 |
-| 标准战斗 | 600–800 | 300–500 | 1200–2000 | 常规追击与拉扯 |
-| 快速突击 | 800–1200 | 500–800 | 2000–3500 | 高机动敌人；必须受机体硬限制裁剪 |
-
-PID、Chaos 固定步长、分配器、EKF 噪声、故障权限阈值和网络物理模式不应交给普通策划。
+依据：`AutopilotComponent`、`TrajectoryRuntime`（进度缩放与时间积分）。
 
 ---
 
-## 15. C++ 与蓝图使用示例
+# 第六部分 避让与协同原语（AircraftNavigation）
 
-### 15.1 C++ 提交 MoveTo
+本模块为**纯算法库**：无 World 查询、无 UObject 依赖、确定性、可单测。
 
-```cpp
-if (UAutopilotComponent* Autopilot = Aircraft->GetAutopilotComponent())
-{
-    Autopilot->SetAutopilotActive(true);
+## 15. 3D ORCA 求解器（FAircraftOrcaSolver）
 
-    FAutopilotMoveToCommand Command;
-    Command.TargetPositionCm = TargetLocation;
-    Command.Options.MotionConstraints.CruiseSpeedCmPerSec = 700.0f;
-    Command.Options.MotionConstraints.MaxAccelerationCmPerSecSq = 400.0f;
-    Command.Options.MotionConstraints.MaxDecelerationCmPerSecSq = 500.0f;
-    Command.Options.MotionConstraints.MaxJerkCmPerSecCubed = 1600.0f;
-    Command.Options.Heading.Mode = EAutopilotHeadingMode::FaceVelocity;
-    Command.Options.ArrivalMode = EAutopilotArrivalMode::StopAndComplete;
-    Command.Options.ArrivalCriteria.HorizontalToleranceCm = 75.0f;
-    Command.Options.ArrivalCriteria.SpeedToleranceCmPerSec = 50.0f;
-    Command.Options.TimeoutSeconds = 15.0f;
-
-    const FAutopilotIntentHandle Handle = Autopilot->SubmitMoveTo(Command);
-}
-```
-
-联网游戏中这段逻辑必须在服务器执行。不要在普通客户端直接 Submit 后期望服务器自动接收；当前组件没有内建 RPC。
-
-### 15.2 动态目标与独立瞄准
+静态无状态求解，签名：
 
 ```cpp
-FAutopilotMoveToCommand Command;
-Command.TargetActor = CoverAnchor;
-Command.TargetPositionCm = FVector(0.0f, 0.0f, 300.0f);
-Command.Options.Heading.Mode = EAutopilotHeadingMode::FaceTarget;
-Command.Options.Heading.bUseLookAtTarget = true;
-Command.Options.Heading.LookAtActor = PlayerActor;
+static FAircraftAvoidanceResult Solve(
+    const FAircraftAvoidanceAgentState& Self,
+    TConstArrayView<FAircraftAvoidanceAgentState> Neighbors,
+    const FVector& PreferredVelocityCmPerSec,
+    const FVector& PreviousCommandAccelerationCmPerSecSq,  // 平滑约束
+    const FAircraftAvoidanceLimits& Limits,
+    TConstArrayView<FAircraftVelocityConstraintCapsule> CorridorAlternatives);  // 可选走廊备选
 ```
 
-这里移动目标是掩体锚点，机头目标是玩家，两者互不耦合。
+- **AgentState**：StableId / 位置 / 速度 / 指令速度 / 采样时刻 / 水平最大速度 / 爬升下降率 / 半径 / 跟踪预留 / 优先级 / 是否锚定（锚定体让路）。
+- **Limits**：Δt、时间视界、间距 padding、全套能力界（水平速度/加减速/垂直加速度/爬降率/jerk）、平滑权重、水平采样方向数。
+- **胶囊约束**（CorridorAlternatives）：世界空间胶囊（轴起止/半径/预测时长），预测位置须保持在胶囊内，提供 `ComputeViolationCmPerSec` 违规度量；多胶囊构成备选集，求解器择优。
+- **Result**：目标速度 / 最小预测间距 / 最早冲突时间 / 最大约束违规 / 最危险邻居 Id / 是否需要避让 / 是否可行。
 
-### 15.3 蓝图调用顺序
+求解按 ORCA 的互惠速度约束构造：每对 (Self, Neighbor) 依据相对速度与合成半径构造速度约束平面，在能力界内采样水平方向集（HorizontalPlaneCount 个方向）寻找满足全部约束的修正速度，并以平滑权重惩罚与上一帧指令加速度的偏差；能力界（爬升/下降率、水平加减速）保证解落在机体可执行范围内。
+
+## 16. 邻居数据源契约（IAircraftAvoidanceNeighborSource）
+
+**求解器与数据源分离**：邻居选择语义由插件统一定义，邻居数据来源由消费方注入（默认实现为全局遍历；注册表、物理查询、空间索引等实现可无缝替换）。
+
+选择语义由 `AircraftAvoidanceNeighborSelection::SelectNeighbors` 纯函数统一定义，所有数据源实现复用该函数，保证更换数据源后求解器的输入序列一致：
+
+1. **采样时间补偿**：候选位置按 (Self 采样时刻 − 候选采样时刻) × 候选速度前推，补偿量钳制在 [0, TimeHorizon]；
+2. **半径剔除**：(Self 最大速度 + 候选最大速度) × TimeHorizon + 半径和 + 跟踪预留和 + SeparationPadding；
+3. **排序**：当前重叠 → 有限视界 3D CPA 净间距 → TCPA → 距离 → StableId；
+4. **截断**保留最危险的 MaxNeighbors 个。
+
+## 17. 到达分配器（FAircraftArrivalAllocator）
+
+无状态确定性几何分配，**不查询 World 与导航数据**。三种区域模式：`ExclusivePoint`（独占点）、`SharedCylinder`（共享圆柱区）、`FixedSlot`（固定槽位）。输入一组 `FAircraftArrivalClaim`（StableId/期望位置/半径/优先级/请求序号/是否保持占位 + 被拒候选列表），输出各机的 `Assigned/Waiting/Invalid` 与实际槽位。典型用法：多机逼近同目标点时的互斥分配，或按优先级逐候选试探。
+
+## 18. 速度引导构建器（FAircraftGuidanceTrajectoryBuilder）
+
+`BuildVelocityGuidance`：将避让求解器**已验证可达**的单步目标速度，扩展为带意图标记（SourceIntentId/Revision）、按 SampleInterval 采样、带有效期（ValiditySeconds）与指令加速度的短视距速度轨迹（`FAircraftNavigationGuidance`）。消费方式见 14.1 的进度调节与轨迹运行时的引导混合层（意图匹配、新鲜度、能力界三重检查后渐变融入轨迹参考，检查失败切换刹车参考，不执行硬切）。
+
+设计意图：求解器仅回答"下一步速度"，时间连贯性与渐变由统一的引导发布-混合管线承担。
+
+---
+
+# 第七部分 工程决策记录
+
+> 沉淀设计依据。每条均对应实际缺陷排查结论或明确的方案否决论证。变更这些决策前应先阅读本部分。
+
+## 19. 意图替换为什么采用同步广播
+
+`SubmitIntent` 替换旧意图时，`Finish(Interrupted, Replaced)` 在**提交调用方的栈上**同步广播。曾评估异步化（下一帧广播）：该方案在新旧意图之间存在无主窗口，且消费方需要额外状态判断。最终决策保持同步：提交返回时旧意图已确定终结、新意图已安装，状态机不存在中间态。**该决策的约束**：所有监听者必须支持重入——插件内部（Autopilot 诊断、LOD 持有）已按此设计，第三方监听者也必须遵守。
+
+## 20. 为什么明确声明 MPCC 的术语边界
+
+类名 `FAircraftMpccController` 来自历史，但其技术实质为"进度调节参考时钟 + 有限迭代修正"，**不包含**路径进度变量的联合优化——与 Liniger 的完整 MPCC 不同。文档与分享中统一使用"MPCC 风格预测跟踪"的表述（13.1 节），避免团队基于"已具备完整 MPCC"的误解形成架构预期。算法命名的准确性是架构可维护性的组成部分。
+
+## 21. 避让为什么自研 3D ORCA（引擎事实）
+
+引擎现成方案的源码验证结论：`UCrowdManager`（DetourCrowd）的移动输出 API 全部绑定 `UCrowdFollowingComponent`；邻居查询（GetNearbyAgentLocations）仅返回位置，不含速度/半径/优先级；dtCrowd 内核为 2D 贴 NavMesh 模型，无垂直避让与爬降率概念。`UAvoidanceManager`（RVO）为 CharacterMovement 设计的 2D 模型。**可借鉴的是其三层架构模式（接口注册→集中管理→可替换求解器），代码不可复用**——因此插件自研能力约束 3D ORCA（第 15 章），并以注入契约（第 16 章）实现相同的"求解器与数据源可替换"分层。
+
+## 22. 邻居发现为什么采用注入契约
+
+求解器若内置"遍历世界发现邻居"，会将 World/Actor 依赖固化于纯算法层，并强制所有使用方接受同一邻居来源（全局遍历的 O(N²) 复杂度对大规模场景是已知瓶颈）。最终决策：插件仅定义**选择语义**（SelectNeighbors 纯函数：采样补偿/半径剔除/CPA-TCPA 排序/截断），数据源接口由消费方实现（全局遍历、物理查询、注册中心均可）。数据源的后续优化（如替换为空间索引）不影响求解器与行为语义。
+
+## 23. 任务完成与控制释放为什么分离
+
+完成即释放控制（回到手动 Hold）是常见设计，但游戏 AI 的任务流通常需要"到达后继续自动保持/接续动作"。若成功事件隐式触发释放，监听者无法区分"完成"与"被接管"。最终决策：完成保留意图与自动控制（14.8 节），释放仅经显式 `RestoreManualHold`——两个语义各自可观测、可订阅，不靠约定猜测。
+
+## 24. 诊断日志的设计规则
+
+一次意图取消原因的排查暴露了日志覆盖缺口，据此固化为三条规则（已在 AutopilotComponent 落地）：
+
+1. **终态单点必含原因**：`Finish()` 输出 `IntentFinish Id Status Reason Elapsed Progress`——所有结束路径的原因可见；
+2. **长链中间态输出条件明细**：接近完成但不满足时，`ArrivalPending` 逐条记录各条件的实测值/容差值（0.5s 限流）——未满足的条件可直观定位；
+3. **状态清理入口输出状态快照**：此类入口记录当前持有的状态（请求/意图/查询有效位），配合生命周期日志可完整对账。
+
+---
+
+# 第八部分 引擎与游戏接入：线程、生命周期、规模与验收
+
+## 25. Dataflow、Chaos 与线程边界
+
+### 25.1 为什么不是 Dataflow Solver 推进飞控
+
+Dataflow 用于配置图以及编辑器模拟场景的生命周期、播放和可视化接入；Aircraft 不需要再建立一个空 SimulationGraph 假装成独立物理 Solver。
+
+- 动态驱动通过 `AsyncPhysicsTickComponent()` 调用 Proxy。
+- 飞控从当前有效的 `FBodyInstanceAsyncPhysicsTickHandle` 读取/施加物理状态。
+- 世界 Chaos 负责刚体积分、接触和约束。
+- Kinematic 使用 GT 更新，不做旋翼动力学计算。
+
+这是**职责选择**，不是"Dataflow 不能异步"或"引擎禁止异步模拟"。
+
+### 25.2 不要把异步物理误解成固定 240～500 Hz
+
+插件开启 Async Tick，不意味着机器天然以某个固定高频运行。实际频率取决于项目物理配置、Solver、时间步覆写及运行负载。
+
+当前 `ApplySolverSettingsToBodyInstance()` 在启用异步步长覆写时还会调用所属 Solver 的 `EnableAsyncMode(...)`。这可能影响共享该 Solver 的物理世界，**不是每架飞机拥有独立、无外部影响的物理时钟**。性能评估需要同时观察世界物理成本。
+
+控制器应使用回调提供的实际 Δt；调试中的 WorldDelta、PhysicsDelta、ControlSequence 用于确认执行事实。不能用"异步"二字替代时间步实测。
+
+### 25.3 数据所有权
+
+| 数据/操作 | 所在边界 |
+|---|---|
+| Actor/组件、资源加载、Blueprint 调用、任务回调 | GT / 资产编译边界 |
+| Pending 配置、输入、意图、效能 | Proxy 输入临界区或原子控制状态 |
+| PID、分配、旋翼动态、轨迹运行状态 | 当前唯一执行域；动态为 PT，Kinematic 为 GT |
+| 输出读取 | 输出临界区及类型化快照 |
+| PhysicsState / Constraint 重建 | 组件生命周期事务，先禁止旧后端继续执行 |
+| 调试绘制 | 捕获值快照后由环境对应后端输出 |
+
+这不是 lock-free 系统。Proxy 使用 `FCriticalSection` 和原子变量，也持有组件引用供其 GT 路径使用；因此不能声称"整个 Proxy 没有 UObject 引用"。应保证的是：**数值计算所需数据在边界上完成解析，不从物理求解路径随意加载或遍历 UObject**。
+
+单独的原子标志只能发布状态，不能自动保证旧 Body / Constraint / Proxy 的生命周期安全。结构事务、回调停止、句柄重新绑定仍然必要。
+
+依据：`组件实现`、`Proxy 声明`、`Proxy 执行`。
+
+## 26. Backend、LOD、网络与 Preview
+
+### 26.1 Ready 与正在执行是不同维度
+
+Backend 状态：
 
 ```text
-Get Autopilot Component
-  -> Set Autopilot Active(true)
-  -> Make Autopilot MoveTo/FollowPath/... Command
-  -> Submit...
-  -> 保存 Intent Handle
-  -> 监听 OnIntentStarted / OnIntentFinished
-  -> 必要时 Update... 或 CancelMovementIntent
+Uninitialized
+  → WaitingForAsset
+  → WaitingForRegistration
+  → WaitingForPhysicsState（动态驱动）
+  → Ready
+  或 Failed（明确配置/后端错误）
 ```
 
-如果 Submit 返回 Handle 但结果是 `Rejected`，优先检查：Autopilot 是否激活、FlightController Profile 是否有效、命令参数是否合法、调用是否发生在服务器。
+Kinematic 不以动态 PhysicsState 作为执行前提。Ready 表示结构资源已验证，并不意味着：
+
+- 已 ARM；
+- 控制求解正在运行；
+- 当前一定启用物理；
+- 不是 Network Proxy；
+- Preview 不是暂停状态。
+
+上述执行条件通过独立策略和状态字段表达。查询 `GetSimulationBackendStatus()` 应作为读取，不应成为偷偷销毁/创建约束的第二套生命周期入口。
+
+### 26.2 配置刷新与结构变化
+
+结构包括 Mesh、PhysicsAsset、当前 RootBone、DriveMode。更换这些对象可能改变 Body/Constraint 身份，需要结构事务。
+
+PID、质量、惯性缩放、旋翼参数、气动参数等属于配置更新，应尽可能更新参数并提交新配置，避免无意义地重建 PhysicsState。
+
+整套模型相同的重复 Dataflow 通知应 no-op。通过 BackendGeneration、ConfigurationRevision、Body/Constraint 身份可以检查是否确实如此；仅有状态枚举不能证明事务没有重入。
+
+RootBone 选择受控 Body，而非限制 PhysicsAsset 只能有一个 Body。当前允许整个 PhysicsAsset 参与模拟，但多个 Body 之间的质量分布和内部约束仍然影响整体运动，不能忽视资产内部连接质量。
+
+### 26.3 LOD 切换的当前公开语义
+
+```cpp
+bool SetSimulationLOD(int32 NewLODIndex,
+                      bool bPreserveSimulationState = false);
+```
+
+| 参数 | PhysicsAsset 姿态/速度快照恢复 | 切换位置内部 Hold |
+|---|---|---|
+| false，默认 | 不走保留快照并恢复的路径 | 不捕获当前 COM，不生成 LOD Hold |
+| true | 捕获有效 Body，按 BoneName 恢复匹配状态 | 有本地控制权时，用切换瞬间实际 COM/控制航向生成新 Hold |
+
+false **不是"瞬移到原点"指令，也不是"保留所有旧物理状态"的保证**。结果仍受新结构初始化和现有意图影响；若旧 Provider 仍有效，可能继续跟踪其任务，而不是停在切换点。
+
+true 的内部 Hold：
+
+- 中断旧意图，并以 `SimulationLODChanged` 通知 Provider。
+- 不继承旧 Route/Orbit/TimedTrajectory 进度。
+- 使用新 LOD 的约束保持捕获位置。
+- 直到新的有效意图/Revision 或新的有效手动移动输入释放它。
+- 重复设置同一 LOD 不应反复重新捕获。
+- Network Proxy 不执行这套本地任务中断逻辑。
+
+LOD 由 AIController、Significance 或其他游戏策略显式设置。组件不负责每帧距离判定；源码中 LOD 组件自身不启用 Tick。
+
+**意图中断语义**：监听意图结果的一方必须把 `SimulationLODChanged` 视为可恢复的结构切换，而非任务失败——这与第 19 章的同步广播决策配套。
+
+### 26.4 网络策略是游戏层配置
+
+网络频率、休眠以及 Authority-only 策略放在组件，不放入机型资产节点。
+
+当前 LOD 组件：
+
+- 复制 CurrentLODIndex。
+- Authority 上接受 LOD 设置。
+- 构造 NetworkProxy 预算，避免代理重复运行本地控制器。
+- 调整 Actor 更新频率和休眠。
+- 在启用物理前先恢复合适的碰撞预算。
+
+原始碰撞模式只首次缓存，避免 OnRep 先于 BeginPlay 时，把已被 LOD 改成 NoCollision 的结果再次当成"原始值"。
+
+这些措施降低同步与重复计算开销，但没有自动提供客户端预测、控制输入重放和所有 Body 的高保真网络重建。休眠也不适合仍需要连续位置同步的移动飞机，必须由游戏策略谨慎使用。
+
+### 26.5 Preview 不是另一个飞控算法
+
+PreviewActor 使用正式 Aircraft Asset 与 MovementIntent。默认场景在 Backend 首次 Ready 后 ARM、PositionHold，并向世界质心目标 `(0,0,200) cm` 飞行，而非用一次 SetActorLocation 完成"飞行"。
+
+播放由原生 Dataflow 工具控制，PreviewActor 负责适配：
+
+- Pause：保存 Body 状态、挂起控制、停止组件 Tick、销毁约束并冻结动态物理。
+- Resume：恢复物理与 Body 状态，再恢复执行。
+- Step：依赖原生 Dataflow 单帧推进与相同启停协议。
+- Reset：由 Dataflow 生命周期重建 PreviewActor，恢复出生场景。
+
+同一资产刷新、Pause/Resume 不应反复重建默认目标。LOD 是否捕获当前 Hold 仍遵循实际调用所用的 preserve 参数，而不是 Preview 自动另造规则。
+
+注意 Runtime Suspend 只暂停控制求解，而 Preview Pause 额外冻结物理世界中的该飞行器；两者不能作为同一个 API 语义使用。
+
+### 26.6 Reset 的差异
+
+- Soft Reset：保留物理对象与位置，重置求解器运行状态并重放组件控制请求。
+- Hard Reset：重建后端，按当前代码保存姿态并清零速度，保留需要恢复的组件控制请求。
+- Dataflow Reset：重新生成 PreviewActor；它才对应重新开始默认预览场景。
+
+这些路径都涉及状态所有权，应测试 Arm、FlightMode、RotorEffectiveness 和意图是否被重复覆盖，而不是只看画面是否仍能飞。
+
+**提案（未实施）**：仓库 `docs/RL_Drive_Mode_Proposal.md` 提出新增第四种驱动模式 `RlDirect`（强化学习直接控制旋翼推力，经 Schola 插件训练与推理部署）的实施方案。当前仅为设计提案，代码未落地，上述三种驱动的语义不受影响。
+
+依据：`Backend 类型`、`LOD 组件`、`PreviewActor`。
 
 ---
 
-## 16. 性能模型与优化建议
+# 第九部分 诊断、性能与边界
 
-### 16.1 主要 CPU 成本
+## 27. 诊断路线：先定位哪一层失配
 
-单架 Full/Reduced 无人机的成本主要来自：
+### 27.1 三个环境保持隔离
 
-- 每个 Chaos 物理步的状态读取和级联 PID；
-- N 个旋翼的电机模型与施力；
-- 最多 N 次 4×4 线性系统的主动集分配；
-- 多刚体/约束碰撞；
-- 游戏线程 Autopilot 轨迹与制导。
+| 环境 | 状态入口 | 应观察的内容 |
+|---|---|---|
+| Construction | 节点选中/固定、原生 DebugDraw | 当前节点输出之前的配置上下文、PhysicsAsset 形状、控制轴和累计旋翼 |
+| Dataflow Simulation | 每个 Simulation Scene 的菜单和会话 | 动态状态、目标、控制、执行、走廊；不读取 Runtime 绘制 CVar |
+| PIE / Runtime | Runtime CVar | 游戏世界中的动态诊断；EditorPreview 不走该入口 |
 
-渲染 Mesh LOD、动画 Tick LOD 和 Simulation LOD 应同时使用，但三者解决的是不同成本。
+Construction 不伪造实时力、约束目标或活动 PID 状态。Frame/Airscrew 可有专属高亮；普通配置节点主要展示共享结构上下文，固定后不重复绘制整套背景。
 
-### 16.2 当前 LOD 的实际收益
+Simulation 中的控制轴用红 X、绿 Y、蓝 Z；旋翼推力线按该旋翼最大推力归一化，不把 N 直接当 cm 画出过长线段。
 
-- Full -> Reduced：主要省 Autopilot、网络和调试开销，Chaos/飞控成本基本不变。
-- Reduced -> Kinematic：关闭 Chaos 和飞控，是最大性能台阶。
-- Kinematic -> Dormant：再关闭 Autopilot、移动、碰撞和大部分网络更新。
+### 27.2 CVar 表
 
-如果 Full 和 Reduced 的性能差异不明显，这是当前设计的预期结果，不代表 LOD 没有工作。
+下面仅列 `AircraftDiagnostics` 负责的诊断项。布尔绘制/日志开关默认关闭。
 
-### 16.3 推荐监控指标
+| CVar | 类型/默认值 | 边界与用途 |
+|---|---|---|
+| `p.Aircraft.Debug.Runtime.Draw.Aircraft` | bool / false | Runtime 状态、坐标、旋翼 |
+| `p.Aircraft.Debug.Runtime.Draw.FlightControl` | bool / false | Runtime 控制参考、分配、气动、约束 |
+| `p.Aircraft.Debug.Runtime.Draw.Autopilot` | bool / false | Runtime 路径、参考、跟踪 |
+| `p.Aircraft.Debug.Runtime.Draw.Corridor` | bool / false | Runtime 安全走廊 |
+| `p.Aircraft.Debug.Runtime.Filter.Aircraft` | string / 空 | Actor 或 Component 名称包含匹配，仅影响 Runtime 绘制 |
+| `p.Aircraft.Debug.Runtime.Filter.Rotor` | string / 空 | 指定旋翼名；空为全部，仅影响 Runtime 绘制 |
+| `p.Aircraft.Debug.Log.Input` | bool / false | 周期输入日志 |
+| `p.Aircraft.Debug.Log.SimulationDrive` | bool / false | 周期后端/驱动日志 |
+| `p.Aircraft.Debug.Log.FlightControl` | bool / false | 周期飞控日志 |
+| `p.Aircraft.Debug.Log.Propulsion` | bool / false | 周期旋翼日志 |
+| `p.Aircraft.Debug.Log.Constraint` | bool / false | 周期约束日志 |
+| `p.Aircraft.Debug.Log.Autopilot` | bool / false | 周期任务/规划/跟踪日志 |
+| `p.Aircraft.Debug.Log.IntervalSeconds` | float / 0.2 s | 周期日志间隔；0 表示每次更新均可记录 |
 
-- `STAT_AircraftSimulationLOD`；
-- 各层级无人机数量；
-- 每帧实际评估数量；
-- Chaos 活跃刚体与约束数量；
-- 每架旋翼数量；
-- Allocation Residual 与饱和旋翼数；
-- 服务器 Actor 网络更新量；
-- Kinematic Sweep 命中率。
+运行时绘制注册受 `ENABLE_DRAW_DEBUG` 控制；周期日志开关在 Shipping 不注册。必要 Warning/Error 不依赖上述周期日志布尔开关，但仍服从 UE 日志编译配置与 `LogAircraft` verbosity。
 
-### 16.4 进一步优化方向
+走廊颜色：当前段绿、实际越界红、预测越界橙、其他段青蓝。读图时先判断实际违反还是预测违反，再结合当前负责的 CorridorSegment 与 RouteDistance。
 
-1. 给 ReducedPhysics 实现真正的简化执行器/碰撞策略，而不是抽帧姿态内环。
-2. 对远距离纯视觉旋翼关闭独立物理刚体，使用动画表现。
-3. 把非关键客户端 VFX 状态从真实每桨状态中解耦。
-4. 对大量同 Profile 飞机预计算不随质心/布局变化的分配几何；故障时再局部重建。
-5. 避免一架 Profile 的超大 `MaxEvaluationsPerFrame` 意外抬高整个 WorldSubsystem 的全局评估预算。
+### 27.3 意图终态与到达诊断日志
 
----
+除 CVar 周期日志外，AutopilotComponent 提供两条无条件输出（限流）的关键日志，规则见第 24 章：
 
-## 17. 调试顺序与常见故障
+| 日志 | 用法 | 覆盖 |
+|---|---|---|
+| 意图终态 | `[Aircraft.NavDebug] IntentFinish Id Status Reason Elapsed Progress` | 意图归属与结束原因 |
+| 到达诊断 | `[Aircraft.NavDebug] ArrivalPending ...`（0.5s 限流） | 14.7 节五条件逐条实测/容差 |
 
-### 17.1 推荐调试顺序
+### 27.4 一次稳定性问题的排查顺序
 
-1. 验证 Physics Asset 的质量、惯量、质心和阻尼。
-2. 验证每个旋翼位置、推力轴、CW/CCW 旋向和最大推力。
-3. 关闭 Autopilot，只验证 Rate/Angle 内环。
-4. 验证悬停总距、垂直速度与高度环。
-5. 验证水平速度和位置环。
-6. 用低速度/低加速度 MoveTo 验证 Autopilot。
-7. 再验证制动、到达判据、路径制导、圆弧和协调转弯。
-8. 最后验证旋翼故障、LOD 切换和联网表现。
+1. **输入/意图**：当前实际生效的是手动、Provider、LOD Hold 还是已完成但保留的自动任务？
+2. **参考**：p/v/a 是否连续且时间戳新鲜？Stop 末端是否 v=a=0？
+3. **能力**：质量、惯量、倾角、推力与减速度是否足够？
+4. **跟踪**：实际 p/v 与参考差多少？是 contour error 还是 lag error？
+5. **控制**：期望总距/力矩有没有限幅？积分是否仍在错误方向增长？
+6. **执行**：分配值与转速计算出的实际推力是否一致？是否有升/降响应迟滞？
+7. **物理**：实际 Body、COM、接触、内部约束、PhysicsDelta 是否符合预期？
+8. **模式/生命周期**：是否频繁重建、重新 ARM、重置参考或换了 LOD？
 
-### 17.2 现象定位
+看到巨大力但运动很小，不能仅靠力的大小断定有地面接触；也不能仅凭末端回拉断定是目标坐标错。必须同时查看实际状态、任务目标、前馈后的约束目标和真实物理接触。
 
-| 现象 | 优先检查 |
+依据：`调试 CVar 唯一实现`、[README 使用说明](README.md)。
+
+## 28. 游戏性能：10～30 架 PC 无人机如何评估
+
+### 28.1 版本基准
+
+本文档以本仓库 HEAD（`e5be559`，2026-09-17，含姿态优化系列与 14.7、27.3 所述完成判定/诊断日志）为基准。游戏项目工作副本可能存在少量未同步回本仓库的本地改动，不属于本文档范围；同步后按需更新本文。
+
+### 28.2 先算预算，不先替换算法
+
+设：
+
+- M：运行预测控制的飞机数量；
+- f：每架每秒求解次数；
+- C：实测每次求解平均 CPU 时间，ms；
+- F：游戏帧率。
+
+平均每秒 CPU 工作量与折算每帧工作量：
+
+$$
+W_{\mathrm{sec}}=MfC,\qquad
+W_{\mathrm{frame}}=\frac{MfC}{F}
+$$
+
+**仅为预算示例，不是实测结果**：M=30、f=50、C=0.2 ms、F=60，则为 300 ms CPU/s，约 5 ms CPU work/frame；若 C=2 ms，则约 50 ms CPU work/frame。
+
+这些是 CPU 工作量，不是直接等于主线程耗时或总帧时间。PT 并发、物理场景同步、线程阻塞和实际调度决定用户最终看到的帧率。
+
+### 28.3 成本在哪里
+
+- 预测跟踪：单次主要随 `O(N·K)` 增长，N 为时域步数、K 为迭代数；走廊查询和路径采样还有额外成本。
+- 控制分配：4×4 线性系统固定，但多轮自由旋翼扫描使总体可接近 `O(n²)`；通常旋翼数较小。
+- ORCA 求解：每机 10-20Hz、ms 级；邻居数上限截断。
+- 路径构建：重采样、空间平滑、走廊处理、重定时、曲率导数和预算峰值采集；不属于简单的一次 PID 更新。
+- Chaos：多 Body、接触、约束、物理频率都可能成为主要成本。
+- GT/PT 数据交换：锁竞争、数组复制、日志和调试绘制。
+- 当前预测每次构造若干工作 TArray；已有部分修正状态缓存不代表所有临时内存分配都已消除。
+
+特别注意：能力检查/重规划在预测迭代预算之外，最终滚动也在迭代退出后执行。因此 `SolveTimeBudgetMilliseconds=2` 不能当成整次更新必定小于 2 ms 的合同。
+
+### 28.4 推荐优化顺序
+
+以下为后续建议，不表示本次已经修改代码：
+
+1. **先测真实成本分布**：1/10/20/30 架，分别测飞控、约束、运动学，记录 P50/P95/P99 和峰值。
+2. **降低无效工作**：无必要不重规划；数组复用；规划数据按 PlanRevision 发布；性能测试关闭周期日志与重绘。
+3. **区分规划和跟踪预算**：一次路径重建与每次短时域求解分别统计。
+4. **调整控制频率与时域**：先减少不必要的更新频率、步数，再观察末端超调与走廊误差，不能只比 FPS。
+5. **让游戏层决定 LOD**：近处重要飞机使用旋翼动力学，远处可选替代驱动；切换状态语义显式设置。
+6. **若仍不能满足预算，再比较替代跟踪器**：保留统一轨迹/意图契约，替换高层修正算法，而不是重写全部系统。
+
+### 28.5 是否一定需要 MPCC 风格预测跟踪
+
+| 候选 | 优点 | 缺点/适用边界 |
+|---|---|---|
+| 当前预测跟踪 | 预测响应迟滞、轮廓偏差及走廊风险；有修正自由度 | 预算与整定更复杂，无严格安全/最优证明 |
+| 同一可行轨迹 + PID/PD 前馈 | 更便宜、行为解释简单，适合常规点到点 | 不显式预测未来误差；走廊恢复与强扰动能力需补齐 |
+| 解析 jerk-limited 点到点生成器 | 更强的边界状态/运动学约束语义 | 本身不解决三维障碍物路径和旋翼动力学跟踪 |
+| Pure Pursuit / Lookahead | 路径跟随实现与调参较简单 | 容易切角，停止/jerk/走廊/垂直姿态需额外设计 |
+| 完整 nonlinear MPC/MPCC | 更丰富的状态与联合约束表达 | 更高求解、依赖、调试与验证成本 |
+
+对于 PC 10～30 架，当前缺少实测数据，不足以得出"MPCC 一定太慢"或"一定没问题"。适合游戏的标准是可预测成本、可恢复失败和达标表现，而不是算法名称更复杂。
+
+## 29. 技术路线优缺点与验收边界
+
+### 29.1 当前路线的主要优势
+
+- 机型配置、任务表达、轨迹与执行分离，方便 AI/Preview/运行时复用。
+- 模型前向、RootBone 和 Socket 安装统一到明确坐标绑定，减少到处修正符号的临时逻辑。
+- 从旋翼力学到可用权限的链条可观察，便于表现不同机型与旋翼降效。
+- 共享路径/时间规划，减少替代驱动绕过运动限制的语义差异。
+- 末端 p/v/a 边界、时间缩放链式导数和下游抗积分饱和具有明确数学依据。
+- 任务完成和控制释放分离，更适合游戏 AI 的持续控制。
+- Construction / Simulation / Runtime 调试入口分离，能在配置问题和执行问题之间建立边界。
+
+### 29.2 必须接受或继续改进的代价
+
+| 主题 | 当前边界 | 后续判断依据 |
+|---|---|---|
+| 轨迹可行性 | 有限采样、有限迭代和近似弧长/曲率 | 极端短路径、尖曲率、低 jerk 的失败率与段内最大值 |
+| 预测求解 | 固定参考进度、近似梯度、软走廊 | 误差恢复速度、违反量、求解成本分布 |
+| 控制稳定性 | 未提供闭环证明或当前实测结论 | 超调、稳定时间、稳态误差、力矩饱和时间 |
+| 多 Body | 所控 Body 与整体资产动态不完全等同 | 根骨骼切换、内部约束、COM/惯量变化试验 |
+| 惯性耦合 | 若干路径是逐轴近似 | 非主轴 RootBone、非对称机型测试 |
+| 时间步 | 共享 Chaos Solver，覆写可能影响其他对象 | 全场景物理成本及不同帧率行为 |
+| 替代驱动 | 控制/碰撞真实性不同 | 任务完成一致性，不要求逐帧轨迹完全相同 |
+| 线程一致性 | 锁、原子、生命周期配合，不是天然无竞态 | 创建/销毁、暂停、网络切换与重配置压力测试 |
+| 导航安全 | 走廊构造不证明场景净空 | 导航半径/膨胀约定与障碍物验证 |
+| 网络 | 预算及基础复制接入 | 延迟、丢包、休眠恢复，非预测回滚承诺 |
+| 避让 | ORCA 仅机-机，走廊约束为可选软约束 | 10+ 机密集场景的避让行为与求解成本实测 |
+
+### 29.3 团队建议验收矩阵
+
+本节是**需要执行的验收清单，不是已通过列表**。
+
+| 场景 | 至少记录 |
 |---|---|
-| 启动即爆炸/翻转 | 旋翼推力轴、CW/CCW、力矩符号、单位转换、质心、物理约束初始穿透 |
-| 悬停持续上升/下降 | `HoverCollectiveCommand`、总推力/质量、垂直阻尼、EKF 是否收敛 |
-| 横移方向反了 | Roll/Pitch 符号、四元数 X/Y 翻转、旋翼布局 |
-| 到点穿过 | Deceleration/Jerk 太小或 Cruise 太大、速度环不足、推力饱和 |
-| 到点来回摆 | Position/Velocity 增益过高、Arrival 过严、阻尼前馈错误 |
-| 路径切角 | 前瞻过大、速度过高、制导修正不足 |
-| 路径蛇形 | 前瞻过小、CrossTrackGain 过高、速度环阻尼不足 |
-| 转弯掉高度 | Tilt Compensation、推力余量、Bank/横向加速度过大 |
-| 偏航自旋 | 旋向不平衡、反扭矩系数、Yaw 前馈重复、Yaw Rate PID |
-| 客户端抖动 | 是否为 Simulated Proxy、PredictiveInterpolation、网络频率、Dormancy 切换 |
-| Reduced 仍很耗 CPU | 当前 Reduced 仍保留完整 Chaos 和飞控，这是已知边界 |
+| 长距离直线 Stop | 制动起点、最大超调、首次稳定时间、是否低速爬向终点 |
+| 短距离与近零位移 Hold | 初始速度/加速度、规划成功率、必要回摆距离 |
+| 上升/下降结束 | Z 参考与实际 v/a、总距、升降转速响应 |
+| 90° 与连续转弯 | 曲率、速度上限、实际/预测走廊违反 |
+| 三种驱动同目标 | 终点误差、控制保持、碰撞表现差异 |
+| 任务成功后等待 | IntentId/Revision 不因成功重建，模式保持自动 |
+| RestoreManualHold | 自动意图释放、手动制动捕获、后续重新启用自动任务 |
+| LOD preserve=false/true | 是否恢复快照、是否中断旧任务并产生新 Hold |
+| RotorEffectiveness 变化 | 分配/实际 wrench、残余权限、失败处理 |
+| RootBone/Socket 组合 | 同层级/子层级、旋转坐标、推力方向与力臂 |
+| Dataflow Play/Pause/Step/Reset | 物理序列、暂停是否冻结、恢复是否连续 |
+| 多机避让 | 近距交叉的避让触发/恢复、不可行刹车与重规划 |
+| 1/10/20/30 架 | GT/PT、规划/求解 P95/P99、全场景帧时间和分配次数 |
 
-### 17.3 自动化测试范围
-
-源码包含针对以下领域的自动化测试：
-
-- 物理单位转换；
-- 力矩符号约定；
-- FlightControlDynamics 阻尼前馈；
-- FailurePolicy；
-- Simulation LOD 策略和集成；
-- Autopilot 移动执行；
-- 轨迹生成与 Minimum Snap。
-
-自动化测试能发现数学和状态机回归，但不能替代真实场景中的 Physics Asset、约束、碰撞、网络延迟和多机性能测试。
+建议位置误差 `e_p(t)=||p(t)-p_goal||`、速度 `||v||`、最大超调和持续进入容差带的时间同时记录。仅看"最终到了"不能说明减速体验好；仅看平均 FPS 不能说明不会偶发卡顿。
 
 ---
 
-## 18. 当前已知限制与维护注意事项
+## 附录 A：源码阅读索引
 
-1. **状态真值化**：没有传感器噪声和融合，仿真飞控会比实机容易。
-2. **ReducedPhysics 名称大于实现**：当前没有真正的低精度物理模型。
-3. **网络命令层未复制**：AI/玩法必须在服务器权威执行。
-4. **玩家控制网络路径未完成**：Autonomous Proxy 不应直接套用 NPC 的 Simulated Proxy 插值方案。
-5. **Profile 默认值与已有资产可能不同**：运行时以实际 DataAsset 序列化值为准；修改 C++ 默认只影响新建/重置资产。
-6. **Autopilot Tick 是游戏线程慢逻辑**：Kinematic 层按 0.1 s 更新目标，WorldSubsystem 每帧只积分缓存目标。
-7. **内部多刚体 Rig 的 LOD 切换需要场景验证**：复杂约束从非物理恢复到物理时仍应检查初始重叠和约束冲量。
+下列路径均相对于插件根目录，便于文档随仓库迁移。行号会随改动变化，因此这里链接稳定文件并给出搜索函数名。
 
----
-
-## 19. 源码索引
-
-| 主题 | 主要文件 |
+| 主题 | 文件 / 推荐入口 |
 |---|---|
-| 公共接口与模块解耦 | `AircraftCore/Public/AircraftFlightControllerInterface.h`、`AutopilotProvider.h` |
-| 移动意图 | `AircraftCore/Public/AircraftMovementIntent.h` |
-| LOD 公共类型 | `AircraftCore/Public/AircraftSimulationLODTypes.h` |
-| Pawn 组合与网络模式 | `AircraftLab/Private/AircraftPawn.cpp` |
-| 飞控时序 | `AircraftLab/Private/FlightControllerComponent.cpp` |
-| 控制律 | `AircraftLab/Private/FlightControllerControl.cpp` |
-| 分配器 | `AircraftLab/Private/FlightControllerAllocation.cpp` |
-| 旋翼健康 | `AircraftLab/Private/RotorFailureManager.cpp` |
-| 旋翼物理 | `AircraftLab/Private/AirscrewComponent.cpp` |
-| 单位边界 | `AircraftLab/Public/AircraftPhysicsUnits.h` |
-| 飞控配置 | `AircraftLab/Public/FlightControllerProfileAsset.h`、`Private/FlightControllerDefaults.cpp` |
-| LOD | `AircraftSimulationLODComponent.cpp`、`AircraftSimulationWorldSubsystem.cpp`、`AircraftSimulationLODPolicy.cpp` |
-| Autopilot 主管线 | `AircraftAutopilot/Private/AutopilotComponent.cpp` |
-| 命令类型 | `AircraftAutopilot/Public/AutopilotMovementTypes.h` |
-| 意图执行 | `AircraftAutopilot/Private/AutopilotMovementExecutor.cpp` |
-| 轨迹 | `AircraftAutopilot/Private/Trajectory/` |
-| Motion Profile | `AircraftAutopilot/Private/MotionProfile/` |
-| 路径制导 | `AircraftAutopilot/Private/PathFollowing/` |
-| 前馈/转弯/EKF | `FeedForward/`、`Turn/`、`HoverThrust/` |
+| 组件主入口、质量、约束、LOD、生命周期 | `AircraftComponent.cpp`：AsyncPhysicsTickComponent、UpdateConstraintSimulation、ApplySimulationLOD、ResolveExecutionPolicy |
+| GT/PT 数据与输出契约 | `AircraftSimulationProxy.h` |
+| 物理与替代执行 | `AircraftSimulationProxy.cpp`：TickPhysicsThread、TickKinematicTrajectory_GameThread |
+| 资产事务 | `AircraftAsset.cpp`：CompileAndCommitAircraftState |
+| 模型与旋翼安装编译 | `AircraftSimulationModel.cpp` |
+| 配置节点公共行为 | `AircraftConfigNodeBase.cpp` |
+| 意图契约与接口 | `AircraftMovementIntent.h`、AircraftMovementIntentProvider.h、AircraftNavigationGuidanceProvider.h |
+| 低层控制 | `FlightControlSolver.cpp`：ComputeDesiredBodyRates、ComputeVelocityPidAcceleration（推力向量优先误差/回灌抗饱和见 9.3、9.5 节） |
+| 姿态/偏航参考动力学 | `AircraftAttitudeReferenceDynamics.cpp`、`AircraftYawReferenceDynamics.cpp`、`AircraftAttitudeReference.cpp`：Build |
+| 分配与电机 | `ControlAllocator.cpp`、`RotorModel.cpp` |
+| 空间路径 / 走廊 | `AircraftSpatialPath.cpp`、`AircraftSafeCorridorBuilder.cpp` |
+| 走廊连通/覆盖判定 | `AircraftSafeCorridorSelection.h`、`AircraftSafeCorridorSelection.cpp` |
+| 时间规划 | `AircraftMotionPlan.cpp`：BuildHoldPlan、曲率速度搜索 |
+| 时间段构造/进度缩放/引导混合 | `AircraftTrajectoryRuntime.cpp`：ApplyNavigationGuidance、时间缩放与渐变混合 |
+| 共享前馈 | `AircraftAutopilotDynamics.h` |
+| 预测求解 | `AircraftMpccController.cpp`：SolvePlan、Update |
+| 三驱动轨迹分发 | `AircraftTrajectoryRuntime.cpp` |
+| 任务完成/手动接管 | `AutopilotComponent.cpp`：Finish、UpdateCompletion、RestoreManualHold |
+| 完成判定纯函数 | `AircraftAutopilotCompletion.h` |
+| ORCA 求解器 | `AircraftOrcaSolver.h` |
+| 邻居契约与选择语义 | `AircraftAvoidanceNeighborSource.h` |
+| 到达分配 | `AircraftArrivalAllocator.h` |
+| 速度引导构建 | `AircraftGuidanceTrajectoryBuilder.h` |
+| Preview | `AircraftDataflowPreviewActor.cpp` |
+| LOD / 网络预算 | `AircraftSimulationLODComponent.cpp` |
+| 调试配置边界 | `AircraftDebugSettings.cpp` |
+
+## 附录 B：测试源码与证据层级
+
+测试源码可帮助理解契约，但"存在测试"不等于"已执行并通过"。
+
+- 飞控数值、坐标、物理单位、气动与分配：`Source/Aircraft/Private/Tests/`。
+- 路径、MPCC、Hold、时间缩放与确定性驱动参考：`Source/AircraftAutopilot/Private/Tests/AircraftAutopilotTests.cpp`。
+- 任务完成保留测试：`Source/AircraftAssetEngine/Private/Tests/AircraftAutopilotCompletionTests.cpp`。
+- 模型及 Backend：`Source/AircraftAssetEngine/Private/Tests/`。
+- LOD/网络预算：`Source/AircraftRuntimeCommon/Private/Tests/`。
+- 诊断、Dataflow 与编辑器测试：对应模块的 `Private/Tests/`。
+
+本文证据层级：
+
+1. **源码事实**：能定位到本工作区的类型、函数和调用。
+2. **数学推导**：在明确模型与假设下推导；不自动扩展为全系统稳定性证明。
+3. **外部研究**：用于解释背景和对照算法，非本插件已集成依赖。
+4. **待验证效果**：编译、单测、PIE/Preview 和多机性能由后续执行结果确认。
+
+## 附录 C：外部技术背景
+
+以下采用原作者实现、论文或官方文档，避免把二手描述当作本项目实现证据：
+
+- [PX4 Controller Diagrams](https://docs.px4.io/main/en/flight_stack/controller_diagrams)：串级控制与抗积分饱和的工程背景。
+- [Liniger MPCC](https://github.com/alexliniger/MPCC)：自由路径进度、轮廓/滞后误差与标准 MPCC 的对照。
+- [Ruckig：Jerk-limited Real-time Trajectory Generation with Arbitrary Target States](https://arxiv.org/abs/2105.04830)：完整初末 p/v/a 状态下第三阶约束轨迹生成的研究背景。
+- ORCA（Optimal Reciprocal Collision Avoidance, van den Berg et al.）：速度障碍与互惠约束的原始论文背景。
+
+本项目公式推导和实现判断以本文所链接的本地源码为主要依据。外部算法的最优性、稳定性或性能结论，不能直接继承为 AircraftLab 的结论。
 
 ---
 
-## 结语
-
-AircraftLab 当前的核心不是某一个 PID 数字，而是清晰的控制边界：玩法提交意图，Autopilot 生成连续设定值，FlightController 闭合刚体状态，Allocator 把 Wrench 分配给旋翼，Airscrew 在唯一的 Chaos 边界施加具有正确单位和力臂的力。
-
-Simulation LOD 和网络同步也遵守同一原则：服务器决定真实物理状态；客户端只做远程代理表现；远距离通过关闭整个物理闭环获得数量级更大的收益，而不是在冻结状态上重复或抽样运行不稳定的内环。
-
-维护这套系统时，应始终先问“这个参数属于哪一层、由谁消费、在哪个线程运行、是否是权威状态”，再开始修改公式或调参。只要这些边界保持清晰，飞控、AI、性能和网络功能就可以继续独立演进，而不会重新耦合成一个难以验证的单体组件。

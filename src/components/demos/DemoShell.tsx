@@ -49,7 +49,7 @@ export function DemoSlider({
   accent?: string;
 }) {
   return (
-    <label className="flex min-w-[150px] flex-1 flex-col gap-1.5">
+    <label className="flex min-w-[140px] flex-1 flex-col gap-1.5">
       <span className="flex items-baseline justify-between font-mono text-[11px] text-text-secondary">
         <span>{label}</span>
         <span style={{ color: accent }} className="font-semibold tabular-nums">
@@ -63,7 +63,8 @@ export function DemoSlider({
         step={step}
         value={value}
         onChange={(e) => onChange(parseFloat(e.target.value))}
-        className="h-1.5 w-full cursor-pointer appearance-none rounded-full bg-white/15 accent-accent-primary outline-none"
+        aria-label={label}
+        className="h-1.5 w-full cursor-pointer appearance-none rounded-full bg-white/15 accent-accent-primary outline-none focus-visible:ring-2 focus-visible:ring-accent-primary/70"
         style={{ accentColor: accent ?? "var(--color-accent-primary, #bcfd49)" }}
       />
     </label>
@@ -81,7 +82,7 @@ export function DemoButton({
     <button
       type="button"
       onClick={onClick}
-      className={`rounded-md border px-3 py-1.5 font-mono text-[11px] tracking-wide transition-colors cursor-pointer ${
+      className={`rounded-md border px-3 py-1.5 font-mono text-[11px] tracking-wide transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary/70 ${
         primary
           ? "border-accent-primary/40 bg-accent-primary/15 text-accent-primary hover:bg-accent-primary/25"
           : "border-white/15 bg-white/5 text-text-secondary hover:bg-white/10"

@@ -13,8 +13,15 @@ import { QuadScene, type ViewPreset } from "./gl/quadScene";
 import { useRaf } from "./useRaf";
 import { INK, label as canvasLabel } from "./droneDraw";
 import { DemoSlider, DemoButton } from "./DemoShell";
+import {
+  MODE_LESSONS,
+  getModeProgress,
+  getNextMode,
+  getAttitudeThrustDirection,
+  type SandboxMode,
+} from "./droneSandboxLogic";
 
-type Mode = "hover" | "attitude" | "force" | "pid" | "mixer";
+type Mode = SandboxMode;
 
 const MODES: Array<{ key: Mode; label: string; view: ViewPreset; formula: string }> = [
   { key: "hover",    label: "悬停",   view: "follow", formula: "T = k·ω²  ·  ΣT = mg" },
@@ -54,6 +61,7 @@ export default function DroneSandbox() {
   const [kd, setKd] = useState(0);
   const [wishes, setWishes] = useState<number[]>([1.0, 0, 0, 0]);
   const [readout, setReadout] = useState("拖动油门，或拖拽旋转视角 🎮");
+  const [hasInteracted, setHasInteracted] = useState(false);
 
   const ui = useRef({ throttle, pitch, roll, yaw, kp, ki, kd, wishes });
   ui.current = { throttle, pitch, roll, yaw, kp, ki, kd, wishes };
@@ -96,11 +104,13 @@ export default function DroneSandbox() {
     else if (!active) pointer.current.active = false;
   };
 
+  const markInteracted = () => setHasInteracted(true);
+
   // ---- Single rAF loop: physics per mode → scene → render ----
   useRaf((dt) => {
     const scene = sceneRef.current;
     const cv = cvRef.current;
-    if (!scene || !cv) return;
+    if (!scene || !cv || document.visibilityState === "hidden") return;
     scene.resize();
     const m = modeRef.current;
     const u = ui.current;
@@ -137,18 +147,11 @@ export default function DroneSandbox() {
       scene.setDrone({ position: { x: 0, y, z: 0 }, pitch: u.pitch, roll: u.roll, yaw: u.yaw, motors: mix });
       scene.setTargetRing(null);
       // Thrust along body-up; its world direction includes the tilt
-      const rad = (u.pitch * Math.PI) / 180;
-      const radR = (u.roll * Math.PI) / 180;
-      const upWorld = {
-        x: Math.sin(rad) * 1 + 0, // nose-down pitch pushes thrust +X (forward)
-        y: Math.cos(rad) * Math.cos(radR),
-        z: 0,
-      };
-      // Simplify: horizontal component from pitch (X) and roll (Z, "screen" left/right)
-      const hX = Math.sin(rad);
-      const hZ = -Math.sin(radR) * 0; // roll shown as tilt; motion direction text only
+      const upWorld = getAttitudeThrustDirection(u.pitch, u.roll, u.yaw);
+      const hX = upWorld.x;
+      const hZ = upWorld.z;
       scene.setArrow("thrust", { origin: { x: 0, y: y - 0.05, z: 0 }, dir: upWorld, len: 1.45 });
-      scene.setArrow("velocity", { origin: { x: 0, y: y, z: 0 }, dir: { x: hX, y: 0, z: hZ }, len: Math.abs(hX) * 1.1 + Math.abs(Math.sin(radR)) * 1.1, color: "#96c8ff" });
+      scene.setArrow("velocity", { origin: { x: 0, y: y, z: 0 }, dir: { x: hX, y: 0, z: hZ }, len: Math.hypot(hX, hZ) * 1.1, color: "#96c8ff" });
       scene.setArrow("gravity", { origin: { x: 0, y: y - 0.05, z: 0 }, dir: { x: 0, y: -1, z: 0 }, len: 1.2, alpha: 0.55 });
       scene.setArrow("force", { dir: null, len: 0 });
       const dirPitch = u.pitch > 2 ? "向前移动" : u.pitch < -2 ? "向后移动" : "";
@@ -302,77 +305,144 @@ export default function DroneSandbox() {
   }
 
   const activeMode = MODES.find((m) => m.key === mode)!;
+  const activeLesson = MODE_LESSONS.find((lesson) => lesson.key === mode)!;
+  const progress = getModeProgress(mode);
+  const nextMode = getNextMode(mode);
+
+  const resetMode = () => {
+    if (mode === "hover") {
+      sim.current.hover = { z: 0.3, v: 0 };
+      setThrottle(1);
+    }
+    if (mode === "attitude") {
+      setPitch(0);
+      setRoll(0);
+      setYaw(0);
+    }
+    if (mode === "force") {
+      sim.current.force = { x: 0, z: 0, vx: 0, vz: 0, trailT: 0 };
+      sceneRef.current?.clearTrail();
+      pointer.current.active = false;
+    }
+    if (mode === "pid") {
+      sim.current.pid = { z: 0.12, v: 0, ie: 0, t: 0, gust: 0, gustT: -9, hist: [] };
+      setKp(2.2);
+      setKi(0);
+      setKd(0);
+    }
+    if (mode === "mixer") setWishes([1, 0, 0, 0]);
+    setHasInteracted(false);
+  };
 
   return (
-    <div className="my-8 overflow-hidden rounded-xl border border-border-subtle bg-[#0b0d0c] select-none">
-      {/* Header */}
-      <div className="flex items-center justify-between border-b border-white/10 bg-white/[0.03] px-4 py-2.5">
-        <div className="flex items-center gap-2">
-          <span className="inline-block h-1.5 w-1.5 rounded-full bg-accent-primary" />
-          <span className="font-mono text-[11px] tracking-widest text-accent-primary uppercase">
-            3D 沙盒 · 四旋翼无人机
-          </span>
+    <div className="my-8 overflow-hidden rounded-2xl border border-white/10 bg-[#080a09] shadow-[0_24px_80px_rgba(0,0,0,0.28)] select-none">
+      {/* Header / learning path */}
+      <div className="border-b border-white/10 bg-[linear-gradient(115deg,rgba(188,253,73,0.09),rgba(255,255,255,0.025)_38%,rgba(150,200,255,0.06))] px-4 py-3 sm:px-5">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="inline-block h-2 w-2 rounded-full bg-accent-primary shadow-[0_0_12px_rgba(188,253,73,0.85)]" />
+              <span className="font-mono text-[10px] tracking-[0.18em] text-accent-primary uppercase">FLIGHT LAB / 01</span>
+            </div>
+            <h3 className="mt-1 text-sm font-semibold tracking-wide text-white sm:text-base">四旋翼无人机 · 3D 原理沙盒</h3>
+            <p className="mt-1 text-[11px] text-text-faint">从推力到电机：用五个小实验建立飞控直觉</p>
+          </div>
+          <div className="flex items-center gap-2 font-mono text-[10px] text-text-faint">
+            <span className="rounded-full border border-white/10 bg-black/20 px-2 py-1">{progress.index}/{progress.total} LESSONS</span>
+            <span className="hidden rounded-full border border-white/10 bg-black/20 px-2 py-1 sm:inline-flex">拖拽旋转 · 滚轮缩放</span>
+          </div>
         </div>
-        <span className="hidden sm:block font-mono text-[10px] text-text-faint">
-          拖拽旋转 · 滚轮缩放
-        </span>
+        <div className="mt-3 grid grid-cols-5 gap-1.5" aria-label="无人机原理学习进度">
+          {MODE_LESSONS.map((lesson, index) => {
+            const isActive = lesson.key === mode;
+            const isPast = index < progress.index - 1;
+            return (
+              <button
+                key={lesson.key}
+                type="button"
+                aria-label={`第 ${index + 1} 课：${lesson.title}`}
+                aria-current={isActive ? "step" : undefined}
+                onClick={() => { setMode(lesson.key); setHasInteracted(false); }}
+                className={`group relative min-w-0 rounded-lg border px-2 py-2 text-left transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary/70 ${
+                  isActive ? "border-accent-primary/60 bg-accent-primary/12 shadow-[inset_0_0_18px_rgba(188,253,73,0.08)]" : "border-white/8 bg-black/15 hover:border-white/20 hover:bg-white/[0.05]"
+                }`}
+              >
+                <span className={`font-mono text-[9px] ${isActive || isPast ? "text-accent-primary" : "text-text-faint"}`}>0{index + 1}</span>
+                <span className={`ml-1 truncate text-[10px] font-medium ${isActive ? "text-white" : "text-text-muted"}`}>{lesson.title}</span>
+                <span className="mt-0.5 block truncate text-[9px] text-text-faint">{lesson.short}</span>
+                {isActive && <span className="absolute inset-x-2 -bottom-px h-px bg-accent-primary shadow-[0_0_8px_rgba(188,253,73,0.9)]" />}
+              </button>
+            );
+          })}
+        </div>
       </div>
 
       {/* 3D canvas */}
       <div className="relative">
         <canvas
           ref={cvRef}
-          className={`h-[380px] w-full touch-none bg-[#0b0d0c] ${mode === "force" ? "cursor-crosshair" : "cursor-grab"}`}
-          onPointerDown={(e) => { if (mode === "force") { e.currentTarget.setPointerCapture(e.pointerId); setPointerForce(e, true); } }}
+          className={`h-[380px] w-full touch-none bg-[radial-gradient(circle_at_50%_35%,rgba(62,79,69,0.3),transparent_52%),linear-gradient(180deg,#0b1110,#080a09)] ${mode === "force" ? "cursor-crosshair" : "cursor-grab"}`}
+          aria-label={`无人机三维视图：${activeLesson.observe}`}
+          onPointerDown={(e) => { markInteracted(); if (mode === "force") { e.currentTarget.setPointerCapture(e.pointerId); setPointerForce(e, true); } }}
           onPointerMove={(e) => { if (mode === "force" && pointer.current.active) setPointerForce(e, true); }}
           onPointerUp={(e) => { if (mode === "force") setPointerForce(e, false); }}
           onPointerLeave={(e) => { if (mode === "force") setPointerForce(e, false); }}
+          onPointerCancel={(e) => { if (mode === "force") setPointerForce(e, false); }}
         />
-        {/* Live readout chip */}
-        <div className="pointer-events-none absolute left-3 top-3 rounded-md border border-white/10 bg-black/55 px-3 py-1.5 font-mono text-[11px] text-text-secondary backdrop-blur">
+        <div className="pointer-events-none absolute inset-x-3 top-3 flex items-start justify-between gap-2">
+          <div className="max-w-[76%] rounded-lg border border-white/10 bg-black/55 px-3 py-2 font-mono text-[11px] text-text-secondary backdrop-blur-md" aria-live="polite">
           {readout}
+          </div>
+          <div className="hidden rounded-lg border border-white/10 bg-black/45 px-2.5 py-2 text-[9px] leading-relaxed text-text-faint backdrop-blur-md sm:block">
+            <div><span className="mr-1.5 inline-block h-1.5 w-1.5 rounded-full bg-[#bcfd49]" />推力</div>
+            <div><span className="mr-1.5 inline-block h-1.5 w-1.5 rounded-full bg-[#8b93a1]" />重力</div>
+            <div><span className="mr-1.5 inline-block h-1.5 w-1.5 rounded-full bg-[#96c8ff]" />速度</div>
+            <div><span className="mr-1.5 inline-block h-1.5 w-1.5 rounded-full bg-[#fbbf24]" />外力 / 目标</div>
+          </div>
+        </div>
+        <div className="pointer-events-none absolute bottom-3 left-3 right-3 flex items-end justify-between gap-2">
+          <div className="max-w-[85%] rounded-lg border border-white/8 bg-black/45 px-3 py-2 text-[10px] leading-relaxed text-text-muted backdrop-blur-md sm:max-w-[75%]">
+            <span className="mr-1.5 font-mono text-accent-primary">本关观察</span>{activeLesson.observe}
+          </div>
+          <span className="hidden rounded-full border border-white/10 bg-black/45 px-2 py-1 font-mono text-[9px] text-text-faint backdrop-blur-md sm:inline-flex">OGL / REAL-TIME</span>
         </div>
       </div>
 
-      {/* Mode tabs */}
-      <div className="flex flex-wrap gap-1.5 border-y border-white/10 bg-white/[0.02] px-4 py-2.5">
-        {MODES.map((m) => (
-          <button
-            key={m.key}
-            type="button"
-            onClick={() => setMode(m.key)}
-            className={`rounded-md px-4 py-1.5 font-mono text-[11px] tracking-wide transition-colors cursor-pointer ${
-              mode === m.key
-                ? "border border-accent-primary/40 bg-accent-primary/15 text-accent-primary"
-                : "border border-white/10 bg-white/5 text-text-muted hover:bg-white/10"
-            }`}
-          >
-            {m.label}
-          </button>
-        ))}
+      {/* Active lesson brief */}
+      <div className="border-y border-white/10 bg-white/[0.025] px-4 py-3 sm:px-5">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="min-w-0">
+            <p className="font-mono text-[10px] tracking-[0.14em] text-accent-primary uppercase">现在动手 · {activeLesson.title}</p>
+            <p className="mt-1 text-xs text-text-secondary"><span className="text-white">{activeLesson.action}</span><span className="mx-2 text-text-faint">·</span>{hasInteracted ? "继续调节，观察反馈" : "调节后看 3D 反馈"}</p>
+          </div>
+          <div className="flex shrink-0 gap-2">
+            <DemoButton onClick={resetMode}>重置本关</DemoButton>
+            {nextMode && <DemoButton primary onClick={() => { setMode(nextMode); setHasInteracted(false); }}>下一关 →</DemoButton>}
+          </div>
+        </div>
       </div>
 
       {/* Mode controls */}
-      <div className="px-4 py-4">
+      <div className="px-4 py-4 sm:px-5 sm:py-5">
         {mode === "hover" && (
           <div className="flex flex-wrap items-end gap-5">
             <DemoSlider label="油门 Throttle" value={throttle} min={0} max={1.6} step={0.01}
-              onChange={setThrottle} format={(v) => `${(v * 100) | 0}%`} />
+              onChange={(v) => { markInteracted(); setThrottle(v); }} format={(v) => `${(v * 100) | 0}%`} />
             <div className="flex gap-2 pb-1">
-              <DemoButton primary onClick={() => setThrottle(1)}>悬停 = 100%</DemoButton>
-              <DemoButton onClick={() => (sim.current.hover = { z: 0.06, v: 0 })}>回地面</DemoButton>
+              <DemoButton primary onClick={() => { markInteracted(); setThrottle(1); }}>悬停 = 100%</DemoButton>
+              <DemoButton onClick={() => { markInteracted(); sim.current.hover = { z: 0.06, v: 0 }; }}>回地面</DemoButton>
             </div>
           </div>
         )}
         {mode === "attitude" && (
           <div className="flex flex-wrap items-end gap-5">
-            <DemoSlider label="俯仰 Pitch" value={pitch} min={-30} max={30} step={1} onChange={setPitch} format={(v) => `${v | 0}°`} />
-            <DemoSlider label="滚转 Roll" value={roll} min={-30} max={30} step={1} onChange={setRoll} format={(v) => `${v | 0}°`} />
-            <DemoSlider label="偏航 Yaw" value={yaw} min={-2} max={2} step={0.1} onChange={setYaw}
+            <DemoSlider label="俯仰 Pitch" value={pitch} min={-30} max={30} step={1} onChange={(v) => { markInteracted(); setPitch(v); }} format={(v) => `${v | 0}°`} />
+            <DemoSlider label="滚转 Roll" value={roll} min={-30} max={30} step={1} onChange={(v) => { markInteracted(); setRoll(v); }} format={(v) => `${v | 0}°`} />
+            <DemoSlider label="偏航 Yaw" value={yaw} min={-2} max={2} step={0.1} onChange={(v) => { markInteracted(); setYaw(v); }}
               format={(v) => (v === 0 ? "0" : `${v > 0 ? "顺时针" : "逆时针"} ${Math.abs(v).toFixed(1)}`)} />
             <div className="flex gap-2 pb-1">
-              <DemoButton primary onClick={() => setPitch(18)}>向前飞</DemoButton>
-              <DemoButton onClick={() => { setPitch(0); setRoll(0); setYaw(0); }}>回正</DemoButton>
+              <DemoButton primary onClick={() => { markInteracted(); setPitch(18); }}>向前飞</DemoButton>
+              <DemoButton onClick={() => { markInteracted(); setPitch(0); setRoll(0); setYaw(0); }}>回正</DemoButton>
             </div>
           </div>
         )}
@@ -382,6 +452,7 @@ export default function DroneSandbox() {
               按住地面任意处施加一个朝向该点的力；松手后动量保持（牛顿第一定律）。此页签下拖拽不再旋转相机，可用滚轮缩放。
             </p>
             <DemoButton onClick={() => {
+              markInteracted();
               sim.current.force = { x: 0, z: 0, vx: 0, vz: 0, trailT: 0 };
               sceneRef.current?.clearTrail();
             }}>重置</DemoButton>
@@ -391,14 +462,14 @@ export default function DroneSandbox() {
           <>
             <canvas ref={plotRef} className="mb-4 h-24 w-full rounded-lg border border-white/10 bg-[#0b0d0c]" />
             <div className="flex flex-wrap items-end gap-5">
-              <DemoSlider label="Kp 比例（现在）" value={kp} min={0} max={6} step={0.1} onChange={setKp} format={(v) => v.toFixed(1)} />
-              <DemoSlider label="Ki 积分（过去）" value={ki} min={0} max={3} step={0.05} onChange={setKi} format={(v) => v.toFixed(2)} />
-              <DemoSlider label="Kd 微分（未来）" value={kd} min={0} max={4} step={0.1} onChange={setKd} format={(v) => v.toFixed(1)} />
+              <DemoSlider label="Kp 比例（现在）" value={kp} min={0} max={6} step={0.1} onChange={(v) => { markInteracted(); setKp(v); }} format={(v) => v.toFixed(1)} />
+              <DemoSlider label="Ki 积分（过去）" value={ki} min={0} max={3} step={0.05} onChange={(v) => { markInteracted(); setKi(v); }} format={(v) => v.toFixed(2)} />
+              <DemoSlider label="Kd 微分（未来）" value={kd} min={0} max={4} step={0.1} onChange={(v) => { markInteracted(); setKd(v); }} format={(v) => v.toFixed(1)} />
               <div className="flex flex-wrap gap-2 pb-1">
-                <DemoButton primary onClick={() => { const s = sim.current.pid; s.gustT = s.t; s.gust = 1.6; }}>来一阵风 🌬</DemoButton>
-                <DemoButton onClick={() => { sim.current.pid = { z: 0.12, v: 0, ie: 0, t: 0, gust: 0, gustT: -9, hist: [] }; }}>重跑</DemoButton>
-                <DemoButton onClick={() => { setKp(2.2); setKi(0); setKd(0); }}>只有 P</DemoButton>
-                <DemoButton onClick={() => { setKp(2.8); setKi(1.2); setKd(2.4); }}>教科书整定 ✨</DemoButton>
+                <DemoButton primary onClick={() => { markInteracted(); const s = sim.current.pid; s.gustT = s.t; s.gust = 1.6; }}>来一阵风 🌬</DemoButton>
+                <DemoButton onClick={() => { markInteracted(); sim.current.pid = { z: 0.12, v: 0, ie: 0, t: 0, gust: 0, gustT: -9, hist: [] }; }}>重跑</DemoButton>
+                <DemoButton onClick={() => { markInteracted(); setKp(2.2); setKi(0); setKd(0); }}>只有 P</DemoButton>
+                <DemoButton onClick={() => { markInteracted(); setKp(2.8); setKi(1.2); setKd(2.4); }}>教科书整定 ✨</DemoButton>
               </div>
             </div>
           </>
@@ -408,7 +479,7 @@ export default function DroneSandbox() {
             <div className="grid grid-cols-2 gap-x-4 gap-y-3">
               {["总距 Throttle", "滚转 Roll", "俯仰 Pitch", "偏航 Yaw"].map((n, i) => (
                 <DemoSlider key={n} label={n} value={wishes[i]} min={i === 0 ? 0 : -1} max={i === 0 ? 1.6 : 1}
-                  step={0.05} onChange={(v) => setWishes((w) => w.map((x, k) => (k === i ? v : x)))}
+                  step={0.05} onChange={(v) => { markInteracted(); setWishes((w) => w.map((x, k) => (k === i ? v : x))); }}
                   format={(v) => (i === 0 ? `${(v * 100) | 0}%` : v === 0 ? "0" : `${v > 0 ? "+" : ""}${v.toFixed(2)}`)} />
               ))}
             </div>
