@@ -3,6 +3,8 @@ import { writeFile } from "node:fs/promises";
 const baseUrl = process.argv[2] ?? "http://127.0.0.1:4321/#projects";
 const outputPrefix = process.argv[3] ?? "drone-project";
 const port = process.argv[4] ?? "9222";
+const desktopWidth = Number(process.argv[5] ?? 1440);
+const desktopHeight = Number(process.argv[6] ?? 1000);
 
 const tabs = await fetch(`http://127.0.0.1:${port}/json/list`).then((response) => response.json());
 const pageTarget = tabs.find((entry) => entry.type === "page");
@@ -57,15 +59,17 @@ async function evaluate(expression) {
 await call("Page.enable");
 await call("Runtime.enable");
 await call("Log.enable");
+await call("Page.addScriptToEvaluateOnNewDocument", {
+  source: `localStorage.setItem("theme", "dark")`,
+});
 await call("Emulation.setDeviceMetricsOverride", {
-  width: 1440,
-  height: 1000,
+  width: desktopWidth,
+  height: desktopHeight,
   deviceScaleFactor: 1,
   mobile: false,
 });
 await call("Page.navigate", { url: baseUrl });
 await delay(2500);
-await evaluate(`localStorage.setItem("theme", "dark")`);
 const clickedTitle = await evaluate(`
   (() => {
     const target = [...document.querySelectorAll("button")]
@@ -86,6 +90,14 @@ await delay(1400);
 
 const desktop = await call("Page.captureScreenshot", { format: "png", captureBeyondViewport: false });
 await writeFile(`${outputPrefix}-desktop.png`, Buffer.from(desktop.data, "base64"));
+const desktopFacts = await evaluate(`(() => {
+  const canvas = document.querySelector('#drone-flight-lab canvas');
+  const rect = canvas?.getBoundingClientRect();
+  return {
+    viewport: [innerWidth, innerHeight],
+    canvas: rect ? { width: Math.round(rect.width), height: Math.round(rect.height) } : null,
+  };
+})()`);
 
 await evaluate(`
   (() => {
@@ -117,7 +129,7 @@ const facts = await evaluate(`({
 
 await writeFile(
   `${outputPrefix}-runtime.json`,
-  `${JSON.stringify({ facts, consoleProblems }, null, 2)}\n`,
+  `${JSON.stringify({ desktopFacts, facts, consoleProblems }, null, 2)}\n`,
 );
 
 socket.close();

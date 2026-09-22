@@ -56,25 +56,35 @@ Separate original-resolution captures were inspected because the 2880 × 1000 co
 
 ## WebGL digital-twin visual pass
 
-- Selected visual target: `docs/qa/drone-project/digital-twin-direction.png` (the second generated direction selected by the user).
-- Rendered implementation: `docs/qa/drone-project/qa-drone-project-v6-desktop.png` and `docs/qa/drone-project/qa-drone-project-v6-mobile.png`.
-- Runtime evidence: `docs/qa/drone-project/qa-drone-project-v6-runtime.json`.
-- Target image dimensions: 1024 × 640 px. The target is a visual direction board rather than a pixel-perfect screen, so comparison focused on the 3D viewport region and normalized the implementation review to its visible canvas region.
-- Implementation desktop viewport: 1440 × 1000 CSS px, deviceScaleFactor 1. Implementation mobile viewport: 390 × 844 CSS px, deviceScaleFactor 1.
+- Problem capture supplied by the user: `C:\Users\WANGLI~1\AppData\Local\Temp\codex-clipboard-fc7c00f2-ed3f-4595-9ad3-17c3574fb838.png`.
+- Visual target supplied by the user: `C:\Users\WANGLI~1\AppData\Local\Temp\codex-clipboard-bf9057da-f425-43cb-a8ce-2ff560e364f8.png`.
+- Final desktop render: `docs/qa/drone-project/qa-drone-project-v7-desktop.png`.
+- Final responsive render: `docs/qa/drone-project/qa-drone-project-v7-mobile.png`.
+- Runtime evidence: `docs/qa/drone-project/qa-drone-project-v7-runtime.json`.
+- Desktop viewport: 2529 × 1216 CSS px, deviceScaleFactor 1. The measured WebGL canvas is 2103 × 760 px, replacing the previous compressed fixed-height presentation.
+- Responsive viewport: 390 × 844 CSS px, deviceScaleFactor 1. The WebGL canvas uses a 410 px presentation height and an aspect-aware camera radius so all four rotors remain visible.
 
-The selected direction is represented in code with a faceted six-sided central shell, layered chassis/brace materials, motor status rings, a translucent contour-twin shell and axes, smooth calibration rings, a metric grid with depth fade, and restrained lime/ice-blue control semantics. The screenshot keeps the force arrows readable while the model and floor now provide the primary visual hierarchy.
+The final direction treats the reference as a visual-system target rather than a subject-matter clone. The scene uses an obsidian field, warm ivory structure, controlled brass highlights, restrained steel-blue telemetry and lime only for compact live-status signals. The filled target disc was replaced with a fine torus, the ground shader now works in world space, and the engineering field combines subtle Cartesian grid lines, radial spokes, concentric calibration rings and partial orbital arcs.
 
 ### WebGL comparison history
 
-- Pass 1: the first implementation used the selected visual language but Torus constructor segment arguments were reversed, producing polygonal calibration rings. Fixed by assigning the high segment count to the torus path (`tubularSegments`) and keeping a lower count for the tube profile.
-- Pass 2: fresh desktop/mobile capture after the fix. No actionable P0/P1/P2 visual issue remained; the runtime capture reported no console errors.
+- Pass 1: the enlarged viewport solved the squashed canvas, but the ground was broadly brown, legacy green lines remained, the target marker was an oversized filled disc and the rotor overlays dominated the model.
+- Pass 2: moved the ground pattern to world coordinates, rebuilt the palette and engineering field, replaced the filled target disc with a torus, reduced rotor-disc opacity and added portrait camera compensation.
+- Pass 3: thinned the remaining calibration geometry, neutralized green-tinted UI surfaces and reserved lime for live status. A fresh Chrome QA session confirmed the final desktop and mobile renders with no console errors or warnings.
 
 ### WebGL fidelity surfaces
 
-- Fonts and typography: unchanged from the approved project shell; the WebGL viewport uses existing mono diagnostic overlays.
-- Spacing and layout rhythm: unchanged outside the canvas; viewport overlays still align with the lesson controls and sidebar.
-- Colors and visual tokens: the selected direction's graphite, lime, ice-blue and low-opacity calibration palette maps to existing NITE tokens and the sandbox legend.
-- Image quality and asset fidelity: no generated raster is shipped into the app. The direction board was used as a visual reference; the final effect is procedural OGL geometry/shader work so it remains interactive.
-- Copy and content: existing educational labels and five-mode lesson flow are preserved.
+- Fonts and typography: the approved project-shell hierarchy remains intact; mono diagnostic overlays stay readable against the darker stage.
+- Spacing and layout rhythm: the project canvas scales between 620 and 780 px on desktop and uses 410 px on mobile. The 2529 × 1216 evidence shows a 2103 × 760 canvas without vertical compression.
+- Colors and visual tokens: broad surfaces are neutral obsidian; brass, ivory and steel are used for hierarchy and force semantics; lime is limited to the small live/system-ready indicators.
+- Image quality and asset fidelity: the final result is entirely procedural OGL geometry and shader work. No raster reference content or copied reference assets ship with the page.
+- Interaction and performance: all five learning modes, drag orbit, wheel zoom, ground-force picking, PID graph and mixer feedback remain connected. Rendering keeps the existing DPR caps and reduced-motion path.
+- Copy and content: the five-mode causal learning sequence and AircraftLab terminology are unchanged.
+
+### Final findings
+
+- No P0, P1 or P2 visual differences remain relative to the approved direction.
+- The quadcopter remains intentionally schematic rather than photorealistic so vectors, rotor state and control feedback are legible; the new material split and engineering field make that abstraction feel deliberate.
+- The final runtime capture contains zero console warnings, errors or uncaught exceptions.
 
 final result: passed

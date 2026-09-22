@@ -7,6 +7,9 @@ import {
   getAttitudeThrustDirection,
   getMotorVisualState,
   getDigitalTwinVisualProfile,
+  getProjectViewportHeight,
+  getProjectCameraProfile,
+  getProjectCameraRadius,
 } from "../src/components/demos/droneSandboxLogic.ts";
 
 assert.deepEqual(
@@ -26,8 +29,29 @@ assert.equal(getMotorVisualState(0.8), "braking", "slower motors should use the 
 assert.equal(getMotorVisualState(1.0), "neutral", "hover motors should use the neutral visual state");
 assert.deepEqual(
   getDigitalTwinVisualProfile(),
-  { gridFadeStart: 2.8, gridFadeEnd: 8.5, ghostAlpha: 0.18, calibrationRadius: 1.65 },
-  "the digital-twin visual profile should keep the viewport restrained",
+  {
+    gridFadeStart: 3.4,
+    gridFadeEnd: 11,
+    ghostAlpha: 0.13,
+    calibrationRadius: 2.2,
+    palette: {
+      obsidian: "#050505",
+      ivory: "#eee9df",
+      brass: "#c89452",
+      steel: "#8190a0",
+      ready: "#bcfd49",
+    },
+  },
+  "the showcase profile should use the obsidian, ivory and brass visual language",
 );
+assert.equal(getProjectViewportHeight(1216, 2529), 760, "desktop viewport should use a large cinematic stage");
+assert.equal(getProjectViewportHeight(844, 390), 410, "mobile viewport should remain compact enough for controls");
+assert.deepEqual(
+  getProjectCameraProfile(),
+  { radius: 4.45, phi: 1.02, theta: 0.72, targetY: 1.1 },
+  "the project camera should frame the drone as the hero object",
+);
+assert.equal(getProjectCameraRadius(1.88), 4.45, "wide stages should keep the cinematic hero framing");
+assert.equal(getProjectCameraRadius(0.95), 5.95, "portrait stages should pull back to keep all four rotors visible");
 
 console.log("drone sandbox logic: ok");

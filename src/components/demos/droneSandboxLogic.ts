@@ -47,9 +47,31 @@ export function getMotorVisualState(speed: number): MotorVisualState {
 
 export function getDigitalTwinVisualProfile() {
   return {
-    gridFadeStart: 2.8,
-    gridFadeEnd: 8.5,
-    ghostAlpha: 0.18,
-    calibrationRadius: 1.65,
+    gridFadeStart: 3.4,
+    gridFadeEnd: 11,
+    ghostAlpha: 0.13,
+    calibrationRadius: 2.2,
+    palette: {
+      obsidian: "#050505",
+      ivory: "#eee9df",
+      brass: "#c89452",
+      steel: "#8190a0",
+      ready: "#bcfd49",
+    },
   } as const;
+}
+
+export function getProjectViewportHeight(viewportHeight: number, viewportWidth: number) {
+  if (viewportWidth < 768) return 410;
+  return Math.round(Math.min(780, Math.max(620, viewportHeight * 0.625)));
+}
+
+export function getProjectCameraProfile() {
+  return { radius: 4.45, phi: 1.02, theta: 0.72, targetY: 1.1 } as const;
+}
+
+export function getProjectCameraRadius(aspectRatio: number, baseRadius: number = getProjectCameraProfile().radius) {
+  const safeAspect = Math.max(0.7, aspectRatio || 1);
+  const portraitCompensation = Math.min(1.36, Math.max(1, Math.sqrt(1.7 / safeAspect)));
+  return Math.round(baseRadius * portraitCompensation * 100) / 100;
 }

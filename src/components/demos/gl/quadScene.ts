@@ -17,7 +17,7 @@ import {
   Vec3, Quat, Plane, Mat4, Torus,
 } from "ogl";
 import type { OGLRenderingContext } from "ogl";
-import { getDigitalTwinVisualProfile, getMotorVisualState, getRenderDpr } from "../droneSandboxLogic";
+import { getDigitalTwinVisualProfile, getMotorVisualState, getProjectCameraProfile, getProjectCameraRadius, getRenderDpr } from "../droneSandboxLogic";
 
 type Vec3Like = { x: number; y: number; z: number };
 
@@ -38,6 +38,7 @@ const LAMBERT_VERT = /* glsl */ `
 const LAMBERT_FRAG = /* glsl */ `
   precision highp float;
   uniform vec3 uColor;
+  uniform float uShowcase;
   varying vec3 vNormal;
   varying vec3 vViewPos;
   void main() {
@@ -47,7 +48,9 @@ const LAMBERT_FRAG = /* glsl */ `
     float diff = max(dot(N, L), 0.0);
     float rim = pow(1.0 - max(dot(N, V), 0.0), 2.2);
     float spec = pow(max(dot(reflect(-L, N), V), 0.0), 24.0);
-    vec3 col = uColor * (0.30 + 0.72 * diff) + vec3(0.16, 0.22, 0.18) * rim + vec3(0.18) * spec;
+    vec3 rimColor = mix(vec3(0.16, 0.22, 0.18), vec3(0.68, 0.72, 0.76), uShowcase);
+    vec3 specColor = mix(vec3(0.18), vec3(0.92, 0.78, 0.58), uShowcase);
+    vec3 col = uColor * (mix(0.30, 0.20, uShowcase) + 0.72 * diff) + rimColor * rim * mix(1.0, 0.55, uShowcase) + specColor * spec * mix(1.0, 0.42, uShowcase);
     gl_FragColor = vec4(col, 1.0);
   }
 `;
@@ -86,24 +89,72 @@ const GROUND_VERT = /* glsl */ `
   attribute vec3 position;
   uniform mat4 modelViewMatrix;
   uniform mat4 projectionMatrix;
+  uniform mat4 modelMatrix;
   varying vec3 vWorld;
   void main() {
-    vWorld = position;
+    vWorld = (modelMatrix * vec4(position, 1.0)).xyz;
     gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
   }
 `;
 const GROUND_FRAG = /* glsl */ `
   precision highp float;
   varying vec3 vWorld;
+  uniform float uShowcase;
+
+  float ringBand(float radius, float distanceFromCenter, float width) {
+    return 1.0 - smoothstep(width, width + 0.014, abs(distanceFromCenter - radius));
+  }
+
+  float angleDistance(float angle, float center) {
+    return abs(atan(sin(angle - center), cos(angle - center)));
+  }
+
   void main() {
+    float d = length(vWorld.xz);
+    float fade = 1.0 - smoothstep(3.4, 7.8, d);
+
+    if (uShowcase > 0.5) {
+      float cellX = abs(fract(vWorld.x + 0.5) - 0.5);
+      float cellZ = abs(fract(vWorld.z + 0.5) - 0.5);
+      float grid = 1.0 - smoothstep(0.012, 0.027, min(cellX, cellZ));
+
+      float angle = atan(vWorld.z, vWorld.x);
+      float spokeDistance = abs(sin(angle * 8.0)) * d;
+      float spokes = (1.0 - smoothstep(0.009, 0.024, spokeDistance));
+      spokes *= smoothstep(0.35, 0.8, d) * (1.0 - smoothstep(4.5, 5.8, d));
+
+      float fineRings = ringBand(0.72, d, 0.008)
+        + ringBand(1.35, d, 0.008)
+        + ringBand(2.78, d, 0.008)
+        + ringBand(3.45, d, 0.008)
+        + ringBand(4.35, d, 0.009);
+      float brassRing = ringBand(2.2, d, 0.011);
+
+      float arcA = ringBand(3.86, d, 0.008)
+        * (1.0 - smoothstep(0.68, 0.82, angleDistance(angle, -0.15)));
+      float arcB = ringBand(4.72, d, 0.009)
+        * (1.0 - smoothstep(0.82, 0.98, angleDistance(angle, 2.45)));
+      float arcs = arcA + arcB;
+
+      vec3 col = vec3(0.0055, 0.0052, 0.0049);
+      col += vec3(0.010, 0.011, 0.012) * (1.0 - smoothstep(0.6, 5.6, d));
+      col = mix(col, vec3(0.19, 0.21, 0.23), grid * fade * 0.13);
+      col = mix(col, vec3(0.74, 0.75, 0.74), spokes * 0.15);
+      col = mix(col, vec3(0.82, 0.82, 0.79), min(1.0, fineRings) * 0.18);
+      col = mix(col, vec3(0.79, 0.58, 0.32), brassRing * 0.46);
+      col = mix(col, vec3(0.50, 0.56, 0.62), min(1.0, arcs) * 0.27);
+      gl_FragColor = vec4(col, 1.0);
+      return;
+    }
+
     float g = abs(fract(vWorld.x) - 0.5);
     float gx = 1.0 - smoothstep(0.44, 0.5, g);
     float gz = 1.0 - smoothstep(0.44, 0.5, abs(fract(vWorld.z) - 0.5));
     float line = max(gx, gz);
-    float d = length(vWorld.xz);
-    float fade = 1.0 - smoothstep(2.8, 8.5, d);
     float vignette = 1.0 - smoothstep(1.5, 7.8, d);
-    vec3 col = mix(vec3(0.025, 0.031, 0.031), vec3(0.085, 0.105, 0.098), line * fade);
+    vec3 base = vec3(0.025, 0.031, 0.031);
+    vec3 gridColor = vec3(0.085, 0.105, 0.098);
+    vec3 col = mix(base, gridColor, line * fade);
     col += vec3(0.012, 0.018, 0.021) * vignette;
     float axis = 1.0 - smoothstep(0.012, 0.026, min(abs(vWorld.x), abs(vWorld.z)));
     col = mix(col, vec3(0.24, 0.31, 0.26), axis * fade * 0.42);
@@ -251,14 +302,18 @@ export class QuadScene {
   private trailNext = 0;
 
   private rotorSpin = 0;
+  private showcase: boolean;
+  private activeView: ViewPreset = "follow";
+  private viewportAspect = 1.7;
 
-  constructor(canvas: HTMLCanvasElement) {
+  constructor(canvas: HTMLCanvasElement, options: { showcase?: boolean } = {}) {
     this.canvas = canvas;
+    this.showcase = options.showcase ?? false;
     const reducedMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
     this.renderer = new Renderer({ canvas, alpha: true, antialias: true, dpr: getRenderDpr(window.devicePixelRatio, reducedMotion) });
     this.gl = this.renderer.gl;
     // OGL has no setClearColor wrapper; the raw GL call is the documented way.
-    this.gl.clearColor(0.043, 0.051, 0.047, 1);
+    this.gl.clearColor(this.showcase ? 0.007 : 0.043, this.showcase ? 0.006 : 0.051, this.showcase ? 0.005 : 0.047, 1);
 
     this.camera = new Camera(this.gl, { fov: 42, near: 0.1, far: 60 });
     this.controls = new OrbitLite(canvas, this.camera);
@@ -271,15 +326,16 @@ export class QuadScene {
     this.buildCalibrationSpace();
     this.buildDrone();
     this.arrows = {
-      thrust: this.buildArrow("#bcfd49"),
-      gravity: this.buildArrow("#8b93a1"),
-      velocity: this.buildArrow("#96c8ff"),
-      force: this.buildArrow("#fbbf24"),
+      thrust: this.buildArrow(this.showcase ? "#c89452" : "#bcfd49"),
+      gravity: this.buildArrow(this.showcase ? "#eee9df" : "#8b93a1"),
+      velocity: this.buildArrow(this.showcase ? "#8190a0" : "#96c8ff"),
+      force: this.buildArrow(this.showcase ? "#e1ad65" : "#fbbf24"),
     };
     this.targetRing = new Mesh(this.gl, {
-      geometry: new Cylinder(this.gl, { radiusTop: 0.55, radiusBottom: 0.55, height: 0.014, radialSegments: 44 }),
-      program: this.makeFlat("#fbbf24", 0.5),
+      geometry: new Torus(this.gl, { radius: 0.55, tube: this.showcase ? 0.012 : 0.025, radialSegments: 7, tubularSegments: 48 }),
+      program: this.makeFlat(this.showcase ? "#c89452" : "#fbbf24", this.showcase ? 0.7 : 0.5),
     });
+    this.targetRing.rotation.x = Math.PI / 2;
     this.targetRing.visible = false;
     this.scene.addChild(this.targetRing);
 
@@ -303,7 +359,7 @@ export class QuadScene {
   private makeLambert(color: string): Program {
     return new Program(this.gl, {
       vertex: LAMBERT_VERT, fragment: LAMBERT_FRAG,
-      uniforms: { uColor: { value: new Color(color) } },
+      uniforms: { uColor: { value: new Color(color) }, uShowcase: { value: this.showcase ? 1 : 0 } },
     });
   }
   private makeFlat(color: string, alpha: number): Program {
@@ -324,7 +380,11 @@ export class QuadScene {
   private buildGround() {
     const ground = new Mesh(this.gl, {
       geometry: new Plane(this.gl, { width: 16, height: 16 }),
-      program: new Program(this.gl, { vertex: GROUND_VERT, fragment: GROUND_FRAG }),
+      program: new Program(this.gl, {
+        vertex: GROUND_VERT,
+        fragment: GROUND_FRAG,
+        uniforms: { uShowcase: { value: this.showcase ? 1 : 0 } },
+      }),
     });
     ground.rotation.x = -Math.PI / 2;
     this.scene.addChild(ground);
@@ -332,14 +392,23 @@ export class QuadScene {
 
   private buildCalibrationSpace() {
     const profile = getDigitalTwinVisualProfile();
-    const ringGeometry = new Torus(this.gl, { radius: profile.calibrationRadius, tube: 0.009, radialSegments: 8, tubularSegments: 64 });
-    [
-      { radius: 1, color: "#789c5c", alpha: 0.26 },
-      { radius: profile.calibrationRadius, color: "#bcfd49", alpha: 0.34 },
-      { radius: 2.4, color: "#55766f", alpha: 0.18 },
-    ].forEach(({ radius, color, alpha }) => {
+    const ringGeometry = new Torus(this.gl, { radius: profile.calibrationRadius, tube: this.showcase ? 0.004 : 0.009, radialSegments: 8, tubularSegments: 64 });
+    const rings = this.showcase
+      ? [
+          { radius: 0.72, color: profile.palette.ivory, alpha: 0.055 },
+          { radius: 1.35, color: profile.palette.steel, alpha: 0.07 },
+          { radius: profile.calibrationRadius, color: profile.palette.brass, alpha: 0.30 },
+          { radius: 3.25, color: profile.palette.steel, alpha: 0.09 },
+          { radius: 4.4, color: profile.palette.ivory, alpha: 0.045 },
+        ]
+      : [
+          { radius: 1, color: "#789c5c", alpha: 0.26 },
+          { radius: profile.calibrationRadius, color: "#bcfd49", alpha: 0.34 },
+          { radius: 3.25, color: "#55766f", alpha: 0.18 },
+        ];
+    rings.forEach(({ radius, color, alpha }) => {
       const ring = new Mesh(this.gl, {
-        geometry: radius === profile.calibrationRadius ? ringGeometry : new Torus(this.gl, { radius, tube: 0.008, radialSegments: 8, tubularSegments: 64 }),
+        geometry: radius === profile.calibrationRadius ? ringGeometry : new Torus(this.gl, { radius, tube: this.showcase ? 0.003 : 0.008, radialSegments: 8, tubularSegments: 64 }),
         program: this.makeFlat(color, alpha),
       });
       ring.rotation.x = Math.PI / 2;
@@ -349,45 +418,50 @@ export class QuadScene {
     });
 
     const axisGeometry = new Box(this.gl, { width: 0.012, height: 0.008, depth: 2.9 });
-    const axis = new Mesh(this.gl, { geometry: axisGeometry, program: this.makeFlat("#bcfd49", 0.12) });
+    const axis = new Mesh(this.gl, { geometry: axisGeometry, program: this.makeFlat(this.showcase ? profile.palette.brass : "#bcfd49", this.showcase ? 0.14 : 0.12) });
     axis.position.set(0, 0.02, 0);
     this.scene.addChild(axis);
-    const cross = new Mesh(this.gl, { geometry: new Box(this.gl, { width: 2.9, height: 0.008, depth: 0.012 }), program: this.makeFlat("#96c8ff", 0.08) });
+    const cross = new Mesh(this.gl, { geometry: new Box(this.gl, { width: 2.9, height: 0.008, depth: 0.012 }), program: this.makeFlat(this.showcase ? profile.palette.ivory : "#96c8ff", this.showcase ? 0.08 : 0.08) });
     cross.position.set(0, 0.021, 0);
     this.scene.addChild(cross);
   }
 
   private buildDrone() {
     this.droneRoot.addChild(this.droneBody);
+    const profile = getDigitalTwinVisualProfile();
+    if (this.showcase) {
+      this.droneBody.scale.set(0.86, 0.86, 0.86);
+      this.twinRoot.scale.set(0.86, 0.86, 0.86);
+    }
 
     const armLen = 1.05;
     const boomGeo = new Box(this.gl, { width: armLen * 1.42, height: 0.065, depth: 0.075 });
     const hullGeo = new Cylinder(this.gl, { radiusTop: 0.34, radiusBottom: 0.43, height: 0.20, radialSegments: 6 });
     const noseGeo = new Box(this.gl, { width: 0.10, height: 0.09, depth: 0.18 });
     const motorGeo = new Cylinder(this.gl, { radiusTop: 0.10, radiusBottom: 0.125, height: 0.15, radialSegments: 20 });
-    const discGeo = new Cylinder(this.gl, { radiusTop: 0.36, radiusBottom: 0.36, height: 0.012, radialSegments: 34 });
-    const markerGeo = new Box(this.gl, { width: 0.68, height: 0.022, depth: 0.038 });
-    const glowGeo = new Cylinder(this.gl, { radiusTop: 0.33, radiusBottom: 0.33, height: 0.02, radialSegments: 30 });
+    const discGeo = new Cylinder(this.gl, { radiusTop: this.showcase ? 0.32 : 0.36, radiusBottom: this.showcase ? 0.32 : 0.36, height: 0.012, radialSegments: 34 });
+    const markerGeo = new Box(this.gl, { width: this.showcase ? 0.58 : 0.68, height: 0.018, depth: 0.032 });
+    const glowGeo = new Cylinder(this.gl, { radiusTop: this.showcase ? 0.27 : 0.33, radiusBottom: this.showcase ? 0.27 : 0.33, height: 0.016, radialSegments: 30 });
     const ringGeo = new Torus(this.gl, { radius: 0.105, tube: 0.014, radialSegments: 6, tubularSegments: 22 });
 
     const statusBeacon = new Mesh(this.gl, {
       geometry: new Cylinder(this.gl, { radiusTop: 0.075, radiusBottom: 0.075, height: 0.018, radialSegments: 18 }),
-      program: this.makeFlat("#bcfd49", 0.9),
+      program: this.makeFlat(profile.palette.ready, 0.84),
     });
     statusBeacon.position.set(0, 0.115, 0.08);
     this.droneBody.addChild(statusBeacon);
 
-    const nose = new Mesh(this.gl, { geometry: noseGeo, program: this.makeLambert("#bcfd49") });
+    const nose = new Mesh(this.gl, { geometry: noseGeo, program: this.makeLambert(this.showcase ? profile.palette.brass : "#bcfd49") });
     nose.position.set(0, 0.005, -0.40);
     this.droneBody.addChild(nose);
 
-    const hull = new Mesh(this.gl, { geometry: hullGeo, program: this.makeLambert("#47535b") });
+    const hull = new Mesh(this.gl, { geometry: hullGeo, program: this.makeLambert(this.showcase ? "#25272b" : "#47535b") });
     hull.scale.set(1, 1, 0.82);
     this.droneBody.addChild(hull);
 
     const canopy = new Mesh(this.gl, {
       geometry: new Cylinder(this.gl, { radiusTop: 0.26, radiusBottom: 0.31, height: 0.075, radialSegments: 6 }),
-      program: this.makeLambert("#182126"),
+      program: this.makeLambert(this.showcase ? "#d8d3c9" : "#182126"),
     });
     canopy.scale.set(1, 1, 0.82);
     canopy.position.set(0, 0.135, -0.04);
@@ -395,7 +469,7 @@ export class QuadScene {
 
     const battery = new Mesh(this.gl, {
       geometry: new Cylinder(this.gl, { radiusTop: 0.28, radiusBottom: 0.34, height: 0.09, radialSegments: 6 }),
-      program: this.makeLambert("#202b30"),
+      program: this.makeLambert(this.showcase ? "#111214" : "#202b30"),
     });
     battery.scale.set(1, 1, 0.82);
     battery.position.set(0, -0.145, 0.04);
@@ -403,7 +477,7 @@ export class QuadScene {
 
     const frontLight = new Mesh(this.gl, {
       geometry: new Box(this.gl, { width: 0.12, height: 0.028, depth: 0.028 }),
-      program: this.makeFlat("#bcfd49", 0.9),
+      program: this.makeFlat(this.showcase ? profile.palette.brass : "#bcfd49", 0.9),
     });
     frontLight.position.set(0, 0.07, -0.46);
     this.droneBody.addChild(frontLight);
@@ -411,14 +485,14 @@ export class QuadScene {
     [-0.22, 0.22].forEach((x) => {
       const skid = new Mesh(this.gl, {
         geometry: new Box(this.gl, { width: 0.04, height: 0.035, depth: 0.9 }),
-        program: this.makeLambert("#69777c"),
+        program: this.makeLambert(this.showcase ? "#817b72" : "#69777c"),
       });
       skid.position.set(x, -0.37, 0.04);
       this.droneBody.addChild(skid);
       [-0.25, 0.3].forEach((z) => {
         const leg = new Mesh(this.gl, {
           geometry: new Box(this.gl, { width: 0.035, height: 0.30, depth: 0.035 }),
-          program: this.makeLambert("#414d50"),
+          program: this.makeLambert(this.showcase ? "#4a4a49" : "#414d50"),
         });
         leg.position.set(x, -0.22, z);
         this.droneBody.addChild(leg);
@@ -426,12 +500,12 @@ export class QuadScene {
     });
 
     MOTOR_XZ.forEach(([mx, mz]) => {
-      const boom = new Mesh(this.gl, { geometry: boomGeo, program: this.makeLambert("#2a313c") });
+      const boom = new Mesh(this.gl, { geometry: boomGeo, program: this.makeLambert(this.showcase ? "#161719" : "#2a313c") });
       boom.position.set((mx * armLen) / 2, 0, (mz * armLen) / 2);
       boom.rotation.y = -Math.atan2(mx, mz);
       this.droneBody.addChild(boom);
 
-      const brace = new Mesh(this.gl, { geometry: new Box(this.gl, { width: armLen * 1.24, height: 0.025, depth: 0.12 }), program: this.makeLambert("#69777c") });
+      const brace = new Mesh(this.gl, { geometry: new Box(this.gl, { width: armLen * 1.18, height: this.showcase ? 0.018 : 0.025, depth: this.showcase ? 0.045 : 0.12 }), program: this.makeLambert(this.showcase ? profile.palette.ivory : "#69777c") });
       brace.position.set((mx * armLen) / 2, 0.045, (mz * armLen) / 2);
       brace.rotation.y = -Math.atan2(mx, mz);
       this.droneBody.addChild(brace);
@@ -440,17 +514,17 @@ export class QuadScene {
       node.position.set(mx * armLen, 0.06, mz * armLen);
       this.droneBody.addChild(node);
 
-      const motor = new Mesh(this.gl, { geometry: motorGeo, program: this.makeLambert("#2a313c") });
+      const motor = new Mesh(this.gl, { geometry: motorGeo, program: this.makeLambert(this.showcase ? "#202124" : "#2a313c") });
       node.addChild(motor);
 
       const cap = new Mesh(this.gl, {
         geometry: new Cylinder(this.gl, { radiusTop: 0.12, radiusBottom: 0.12, height: 0.025, radialSegments: 22 }),
-        program: this.makeLambert(mx === mz ? "#abc68b" : "#8798a9"),
+        program: this.makeLambert(this.showcase ? profile.palette.brass : mx === mz ? "#abc68b" : "#8798a9"),
       });
       cap.position.y = 0.088;
       node.addChild(cap);
 
-      const ring = new Mesh(this.gl, { geometry: ringGeo, program: this.makeFlat("#6e8d52", 0.68) });
+      const ring = new Mesh(this.gl, { geometry: ringGeo, program: this.makeFlat(this.showcase ? profile.palette.brass : "#6e8d52", 0.68) });
       ring.rotation.x = Math.PI / 2;
       ring.position.y = 0.088;
       node.addChild(ring);
@@ -459,15 +533,15 @@ export class QuadScene {
       const disc = new Transform();
       disc.position.y = 0.105;
       node.addChild(disc);
-      const discMesh = new Mesh(this.gl, { geometry: discGeo, program: this.makeFlat("#8e9aaa", 0.22) });
+      const discMesh = new Mesh(this.gl, { geometry: discGeo, program: this.makeFlat(this.showcase ? profile.palette.ivory : "#8e9aaa", this.showcase ? 0.055 : 0.22) });
       disc.addChild(discMesh);
-      const marker = new Mesh(this.gl, { geometry: markerGeo, program: this.makeFlat("#d5dae2", 0.78) });
+      const marker = new Mesh(this.gl, { geometry: markerGeo, program: this.makeFlat(this.showcase ? profile.palette.ivory : "#d5dae2", this.showcase ? 0.62 : 0.78) });
       disc.addChild(marker);
-      const secondBlade = new Mesh(this.gl, { geometry: markerGeo, program: this.makeFlat("#d5dae2", 0.55) });
+      const secondBlade = new Mesh(this.gl, { geometry: markerGeo, program: this.makeFlat(this.showcase ? profile.palette.ivory : "#d5dae2", this.showcase ? 0.34 : 0.55) });
       secondBlade.rotation.y = Math.PI / 2;
       disc.addChild(secondBlade);
 
-      const glow = new Mesh(this.gl, { geometry: glowGeo, program: this.makeFlat("#5c6470", 0.4) });
+      const glow = new Mesh(this.gl, { geometry: glowGeo, program: this.makeFlat("#5c6470", this.showcase ? 0.12 : 0.4) });
       glow.position.y = 0.045;
       node.addChild(glow);
 
@@ -475,12 +549,12 @@ export class QuadScene {
       this.glowDiscs.push(glow);
     });
 
-    const ghostBody = new Mesh(this.gl, { geometry: hullGeo, program: this.makeGhost("#bcfd49", 0.18) });
+    const ghostBody = new Mesh(this.gl, { geometry: hullGeo, program: this.makeGhost(this.showcase ? profile.palette.ivory : "#bcfd49", this.showcase ? profile.ghostAlpha : 0.18) });
     ghostBody.scale.set(1.12, 1.16, 0.92);
     ghostBody.position.y = 0.015;
     this.twinRoot.addChild(ghostBody);
     MOTOR_XZ.forEach(([mx, mz]) => {
-      const ghostArm = new Mesh(this.gl, { geometry: boomGeo, program: this.makeGhost("#96c8ff", 0.12) });
+      const ghostArm = new Mesh(this.gl, { geometry: boomGeo, program: this.makeGhost(this.showcase ? profile.palette.ivory : "#96c8ff", this.showcase ? 0.08 : 0.12) });
       ghostArm.position.set((mx * armLen) / 2, 0.03, (mz * armLen) / 2);
       ghostArm.rotation.y = -Math.atan2(mx, mz);
       this.twinRoot.addChild(ghostArm);
@@ -488,16 +562,18 @@ export class QuadScene {
   }
 
   private buildArrow(color: string) {
+    const shaftRadius = this.showcase ? 0.022 : 0.038;
+    const headRadius = this.showcase ? 0.085 : 0.13;
     const group = new Transform();
     const shaft = new Mesh(this.gl, {
-      geometry: new Cylinder(this.gl, { radiusTop: 0.038, radiusBottom: 0.038, height: 1, radialSegments: 12 }),
-      program: this.makeFlat(color, 1),
+      geometry: new Cylinder(this.gl, { radiusTop: shaftRadius, radiusBottom: shaftRadius, height: 1, radialSegments: 12 }),
+      program: this.makeFlat(color, this.showcase ? 0.84 : 1),
     });
     shaft.position.y = 0.4;
     shaft.scale.set(1, 0.8, 1);
     const head = new Mesh(this.gl, {
-      geometry: new Cylinder(this.gl, { radiusTop: 0.005, radiusBottom: 0.13, height: 0.25, radialSegments: 14 }),
-      program: this.makeFlat(color, 1),
+      geometry: new Cylinder(this.gl, { radiusTop: 0.005, radiusBottom: headRadius, height: this.showcase ? 0.2 : 0.25, radialSegments: 14 }),
+      program: this.makeFlat(color, this.showcase ? 0.84 : 1),
     });
     head.position.y = 0.9;
     group.addChild(shaft);
@@ -532,7 +608,20 @@ export class QuadScene {
   }
 
   setView(p: ViewPreset) {
-    this.controls.setView(VIEWS[p]);
+    this.activeView = p;
+    if (!this.showcase) {
+      this.controls.setView(VIEWS[p]);
+      return;
+    }
+    const hero = getProjectCameraProfile();
+    const source = VIEWS[p];
+    const baseRadius = p === "follow" ? hero.radius : source.radius * 0.84;
+    this.controls.setView(p === "follow" ? { ...hero, radius: getProjectCameraRadius(this.viewportAspect, baseRadius) } : {
+      radius: getProjectCameraRadius(this.viewportAspect, baseRadius),
+      phi: source.phi,
+      theta: source.theta,
+      targetY: source.targetY - 0.08,
+    });
   }
 
   /** Enable/disable drag-rotation (disabled while the force mode owns drags). */
@@ -554,21 +643,38 @@ export class QuadScene {
       const glow = this.glowDiscs[i];
       const u = glow.program.uniforms;
       const state = getMotorVisualState(speed);
-      if (state === "active") (u.uColor.value as Color).set("#bcfd49");
+      if (this.showcase) {
+        if (state === "active") (u.uColor.value as Color).set("#c89452");
+        else if (state === "braking") (u.uColor.value as Color).set("#8190a0");
+        else (u.uColor.value as Color).set("#575b60");
+      } else if (state === "active") (u.uColor.value as Color).set("#bcfd49");
       else if (state === "braking") (u.uColor.value as Color).set("#96c8ff");
       else (u.uColor.value as Color).set("#697b80");
-      u.uAlpha.value = 0.12 + Math.min(1.35, Math.abs(speed)) * 0.4;
+      u.uAlpha.value = (this.showcase ? 0.035 : 0.12) + Math.min(1.35, Math.abs(speed)) * (this.showcase ? 0.10 : 0.4);
       const markerScale = 0.55 + Math.min(1.35, speed) * 0.5;
       this.rotorDiscs[i].marker.scale.set(markerScale, markerScale, markerScale);
       const ringProgram = this.motorRings[i].program as Program;
-      const ringColor = state === "active" ? "#bcfd49" : state === "braking" ? "#96c8ff" : "#6e8d52";
+      const ringColor = this.showcase
+        ? state === "active" ? "#c89452" : state === "braking" ? "#8190a0" : "#6b6760"
+        : state === "active" ? "#bcfd49" : state === "braking" ? "#96c8ff" : "#6e8d52";
       (ringProgram.uniforms.uColor.value as Color).set(ringColor);
       ringProgram.uniforms.uAlpha.value = state === "neutral" ? 0.42 : 0.82;
     });
   }
 
   setArrow(name: ArrowName, spec: ArrowSpec) {
-    this.aimArrow(this.arrows[name], spec);
+    if (!this.showcase) {
+      this.aimArrow(this.arrows[name], spec);
+      return;
+    }
+    const palette = getDigitalTwinVisualProfile().palette;
+    const showcaseColor: Record<ArrowName, string> = {
+      thrust: palette.brass,
+      gravity: palette.ivory,
+      velocity: palette.steel,
+      force: "#e1ad65",
+    };
+    this.aimArrow(this.arrows[name], { ...spec, color: showcaseColor[name], alpha: Math.min(spec.alpha ?? 1, 0.84) });
   }
 
   setTargetRing(y: number | null, x = 0, z = 0) {
@@ -594,6 +700,11 @@ export class QuadScene {
     if (w === this.lastW && h === this.lastH) return;
     this.lastW = w;
     this.lastH = h;
+    const nextAspect = w / h;
+    if (this.showcase && Math.abs(nextAspect - this.viewportAspect) > 0.02) {
+      this.viewportAspect = nextAspect;
+      this.setView(this.activeView);
+    }
     this.renderer.setSize(w, h);
     // OGL's setSize writes inline px styles that override the Tailwind class
     // (h-[380px] w-full). Clear them so CSS keeps owning the display size.
