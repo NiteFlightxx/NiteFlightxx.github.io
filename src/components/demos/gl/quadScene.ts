@@ -14,10 +14,10 @@
  */
 import {
   Camera, Color, Cylinder, Box, Mesh, Program, Renderer, Transform,
-  Vec3, Quat, Plane, Mat4,
+  Vec3, Quat, Plane, Mat4, Torus,
 } from "ogl";
 import type { OGLRenderingContext } from "ogl";
-import { getRenderDpr } from "../droneSandboxLogic";
+import { getDigitalTwinVisualProfile, getMotorVisualState, getRenderDpr } from "../droneSandboxLogic";
 
 type Vec3Like = { x: number; y: number; z: number };
 
@@ -67,6 +67,21 @@ const FLAT_FRAG = /* glsl */ `
     gl_FragColor = vec4(uColor, uAlpha);
   }
 `;
+const GHOST_FRAG = /* glsl */ `
+  precision highp float;
+  uniform vec3 uColor;
+  uniform float uAlpha;
+  varying vec3 vNormal;
+  varying vec3 vViewPos;
+  void main() {
+    vec3 N = normalize(vNormal);
+    vec3 V = normalize(-vViewPos);
+    float rim = pow(1.0 - max(dot(N, V), 0.0), 1.8);
+    float face = 0.22 + 0.45 * max(dot(N, normalize(vec3(0.4, 0.8, 0.45))), 0.0);
+    vec3 col = uColor * (face + rim * 0.85);
+    gl_FragColor = vec4(col, uAlpha * (0.55 + rim * 0.9));
+  }
+`;
 const GROUND_VERT = /* glsl */ `
   attribute vec3 position;
   uniform mat4 modelViewMatrix;
@@ -86,14 +101,18 @@ const GROUND_FRAG = /* glsl */ `
     float gz = 1.0 - smoothstep(0.44, 0.5, abs(fract(vWorld.z) - 0.5));
     float line = max(gx, gz);
     float d = length(vWorld.xz);
-    float fade = 1.0 - smoothstep(2.2, 7.4, d);
-    vec3 col = mix(vec3(0.040, 0.047, 0.044), vec3(0.11, 0.13, 0.12), line * fade);
+    float fade = 1.0 - smoothstep(2.8, 8.5, d);
+    float vignette = 1.0 - smoothstep(1.5, 7.8, d);
+    vec3 col = mix(vec3(0.025, 0.031, 0.031), vec3(0.085, 0.105, 0.098), line * fade);
+    col += vec3(0.012, 0.018, 0.021) * vignette;
     float axis = 1.0 - smoothstep(0.012, 0.026, min(abs(vWorld.x), abs(vWorld.z)));
     col = mix(col, vec3(0.24, 0.31, 0.26), axis * fade * 0.42);
     float ring2 = smoothstep(0.035, 0.02, abs(d - 2.0));
-    col = mix(col, vec3(0.18, 0.23, 0.20), ring2 * fade * 0.75);
+    col = mix(col, vec3(0.12, 0.18, 0.16), ring2 * fade * 0.58);
     float ring = smoothstep(0.035, 0.022, abs(d - 1.0));
-    col = mix(col, vec3(0.56, 0.65, 0.37), ring * fade * 0.35);
+    col = mix(col, vec3(0.42, 0.58, 0.28), ring * fade * 0.24);
+    float calibration = smoothstep(0.018, 0.008, abs(d - 1.65));
+    col = mix(col, vec3(0.34, 0.52, 0.24), calibration * fade * 0.48);
     gl_FragColor = vec4(col, 1.0);
   }
 `;
@@ -219,8 +238,11 @@ export class QuadScene {
 
   private droneRoot = new Transform();
   private droneBody = new Transform();
+  private twinRoot = new Transform();
   private rotorDiscs: Array<{ node: Transform; marker: Mesh }> = [];
   private glowDiscs: Mesh[] = [];
+  private motorRings: Mesh[] = [];
+  private calibrationRings: Mesh[] = [];
 
   private arrows: Record<ArrowName, { group: Transform; shaft: Mesh; head: Mesh; program: Program }>;
   private targetRing: Mesh;
@@ -246,6 +268,7 @@ export class QuadScene {
     canvas.style.height = "";
 
     this.buildGround();
+    this.buildCalibrationSpace();
     this.buildDrone();
     this.arrows = {
       thrust: this.buildArrow("#bcfd49"),
@@ -273,6 +296,7 @@ export class QuadScene {
     }
 
     this.scene.addChild(this.droneRoot);
+    this.scene.addChild(this.twinRoot);
   }
 
   // ---- Program factories (one per mesh so uniforms stay independent) ----
@@ -289,6 +313,13 @@ export class QuadScene {
       uniforms: { uColor: { value: new Color(color) }, uAlpha: { value: alpha } },
     });
   }
+  private makeGhost(color: string, alpha: number): Program {
+    return new Program(this.gl, {
+      vertex: LAMBERT_VERT, fragment: GHOST_FRAG,
+      transparent: true, depthWrite: false,
+      uniforms: { uColor: { value: new Color(color) }, uAlpha: { value: alpha } },
+    });
+  }
 
   private buildGround() {
     const ground = new Mesh(this.gl, {
@@ -299,45 +330,83 @@ export class QuadScene {
     this.scene.addChild(ground);
   }
 
+  private buildCalibrationSpace() {
+    const profile = getDigitalTwinVisualProfile();
+    const ringGeometry = new Torus(this.gl, { radius: profile.calibrationRadius, tube: 0.009, radialSegments: 8, tubularSegments: 64 });
+    [
+      { radius: 1, color: "#789c5c", alpha: 0.26 },
+      { radius: profile.calibrationRadius, color: "#bcfd49", alpha: 0.34 },
+      { radius: 2.4, color: "#55766f", alpha: 0.18 },
+    ].forEach(({ radius, color, alpha }) => {
+      const ring = new Mesh(this.gl, {
+        geometry: radius === profile.calibrationRadius ? ringGeometry : new Torus(this.gl, { radius, tube: 0.008, radialSegments: 8, tubularSegments: 64 }),
+        program: this.makeFlat(color, alpha),
+      });
+      ring.rotation.x = Math.PI / 2;
+      ring.position.y = 0.018;
+      this.scene.addChild(ring);
+      this.calibrationRings.push(ring);
+    });
+
+    const axisGeometry = new Box(this.gl, { width: 0.012, height: 0.008, depth: 2.9 });
+    const axis = new Mesh(this.gl, { geometry: axisGeometry, program: this.makeFlat("#bcfd49", 0.12) });
+    axis.position.set(0, 0.02, 0);
+    this.scene.addChild(axis);
+    const cross = new Mesh(this.gl, { geometry: new Box(this.gl, { width: 2.9, height: 0.008, depth: 0.012 }), program: this.makeFlat("#96c8ff", 0.08) });
+    cross.position.set(0, 0.021, 0);
+    this.scene.addChild(cross);
+  }
+
   private buildDrone() {
     this.droneRoot.addChild(this.droneBody);
 
     const armLen = 1.05;
-    const boomGeo = new Box(this.gl, { width: armLen * 1.36, height: 0.07, depth: 0.078 });
-    const hullGeo = new Box(this.gl, { width: 0.52, height: 0.17, depth: 0.64 });
-    const noseGeo = new Box(this.gl, { width: 0.1, height: 0.08, depth: 0.14 });
-    const motorGeo = new Cylinder(this.gl, { radiusTop: 0.09, radiusBottom: 0.115, height: 0.13, radialSegments: 18 });
+    const boomGeo = new Box(this.gl, { width: armLen * 1.42, height: 0.065, depth: 0.075 });
+    const hullGeo = new Cylinder(this.gl, { radiusTop: 0.34, radiusBottom: 0.43, height: 0.20, radialSegments: 6 });
+    const noseGeo = new Box(this.gl, { width: 0.10, height: 0.09, depth: 0.18 });
+    const motorGeo = new Cylinder(this.gl, { radiusTop: 0.10, radiusBottom: 0.125, height: 0.15, radialSegments: 20 });
     const discGeo = new Cylinder(this.gl, { radiusTop: 0.36, radiusBottom: 0.36, height: 0.012, radialSegments: 34 });
     const markerGeo = new Box(this.gl, { width: 0.68, height: 0.022, depth: 0.038 });
     const glowGeo = new Cylinder(this.gl, { radiusTop: 0.33, radiusBottom: 0.33, height: 0.02, radialSegments: 30 });
+    const ringGeo = new Torus(this.gl, { radius: 0.105, tube: 0.014, radialSegments: 6, tubularSegments: 22 });
 
     const statusBeacon = new Mesh(this.gl, {
       geometry: new Cylinder(this.gl, { radiusTop: 0.075, radiusBottom: 0.075, height: 0.018, radialSegments: 18 }),
       program: this.makeFlat("#bcfd49", 0.9),
     });
-    statusBeacon.position.set(0, 0.105, 0.05);
+    statusBeacon.position.set(0, 0.115, 0.08);
     this.droneBody.addChild(statusBeacon);
 
     const nose = new Mesh(this.gl, { geometry: noseGeo, program: this.makeLambert("#bcfd49") });
-    nose.position.set(0, 0, -0.42);
+    nose.position.set(0, 0.005, -0.40);
     this.droneBody.addChild(nose);
 
-    const hull = new Mesh(this.gl, { geometry: hullGeo, program: this.makeLambert("#d5dae2") });
+    const hull = new Mesh(this.gl, { geometry: hullGeo, program: this.makeLambert("#47535b") });
+    hull.scale.set(1, 1, 0.82);
     this.droneBody.addChild(hull);
 
     const canopy = new Mesh(this.gl, {
-      geometry: new Box(this.gl, { width: 0.37, height: 0.08, depth: 0.39 }),
-      program: this.makeLambert("#303b40"),
+      geometry: new Cylinder(this.gl, { radiusTop: 0.26, radiusBottom: 0.31, height: 0.075, radialSegments: 6 }),
+      program: this.makeLambert("#182126"),
     });
-    canopy.position.set(0, 0.13, -0.06);
+    canopy.scale.set(1, 1, 0.82);
+    canopy.position.set(0, 0.135, -0.04);
     this.droneBody.addChild(canopy);
 
     const battery = new Mesh(this.gl, {
-      geometry: new Box(this.gl, { width: 0.29, height: 0.105, depth: 0.42 }),
-      program: this.makeLambert("#151b1d"),
+      geometry: new Cylinder(this.gl, { radiusTop: 0.28, radiusBottom: 0.34, height: 0.09, radialSegments: 6 }),
+      program: this.makeLambert("#202b30"),
     });
-    battery.position.set(0, -0.14, 0.04);
+    battery.scale.set(1, 1, 0.82);
+    battery.position.set(0, -0.145, 0.04);
     this.droneBody.addChild(battery);
+
+    const frontLight = new Mesh(this.gl, {
+      geometry: new Box(this.gl, { width: 0.12, height: 0.028, depth: 0.028 }),
+      program: this.makeFlat("#bcfd49", 0.9),
+    });
+    frontLight.position.set(0, 0.07, -0.46);
+    this.droneBody.addChild(frontLight);
 
     [-0.22, 0.22].forEach((x) => {
       const skid = new Mesh(this.gl, {
@@ -362,6 +431,11 @@ export class QuadScene {
       boom.rotation.y = -Math.atan2(mx, mz);
       this.droneBody.addChild(boom);
 
+      const brace = new Mesh(this.gl, { geometry: new Box(this.gl, { width: armLen * 1.24, height: 0.025, depth: 0.12 }), program: this.makeLambert("#69777c") });
+      brace.position.set((mx * armLen) / 2, 0.045, (mz * armLen) / 2);
+      brace.rotation.y = -Math.atan2(mx, mz);
+      this.droneBody.addChild(brace);
+
       const node = new Transform();
       node.position.set(mx * armLen, 0.06, mz * armLen);
       this.droneBody.addChild(node);
@@ -375,6 +449,12 @@ export class QuadScene {
       });
       cap.position.y = 0.088;
       node.addChild(cap);
+
+      const ring = new Mesh(this.gl, { geometry: ringGeo, program: this.makeFlat("#6e8d52", 0.68) });
+      ring.rotation.x = Math.PI / 2;
+      ring.position.y = 0.088;
+      node.addChild(ring);
+      this.motorRings.push(ring);
 
       const disc = new Transform();
       disc.position.y = 0.105;
@@ -393,6 +473,17 @@ export class QuadScene {
 
       this.rotorDiscs.push({ node: disc, marker });
       this.glowDiscs.push(glow);
+    });
+
+    const ghostBody = new Mesh(this.gl, { geometry: hullGeo, program: this.makeGhost("#bcfd49", 0.18) });
+    ghostBody.scale.set(1.12, 1.16, 0.92);
+    ghostBody.position.y = 0.015;
+    this.twinRoot.addChild(ghostBody);
+    MOTOR_XZ.forEach(([mx, mz]) => {
+      const ghostArm = new Mesh(this.gl, { geometry: boomGeo, program: this.makeGhost("#96c8ff", 0.12) });
+      ghostArm.position.set((mx * armLen) / 2, 0.03, (mz * armLen) / 2);
+      ghostArm.rotation.y = -Math.atan2(mx, mz);
+      this.twinRoot.addChild(ghostArm);
     });
   }
 
@@ -451,21 +542,28 @@ export class QuadScene {
 
   setDrone(st: DroneState) {
     this.droneRoot.position.set(st.position.x, st.position.y, st.position.z);
+    this.twinRoot.position.set(st.position.x, st.position.y, st.position.z);
     const deg = Math.PI / 180;
     // Euler order YXZ (OGL default): yaw(Y) then pitch(X) then roll(Z).
     // Nose is −Z: pitch-up = −X rotation; yaw-clockwise = −Y; roll-right = −Z.
     this.droneBody.rotation.set(-st.pitch * deg, -st.yaw * deg, -st.roll * deg);
+    this.twinRoot.rotation.set(-st.pitch * deg, -st.yaw * deg, -st.roll * deg);
 
     MOTOR_XZ.forEach((_, i) => {
       const speed = st.motors[i];
       const glow = this.glowDiscs[i];
       const u = glow.program.uniforms;
-      if (speed > 1.02) (u.uColor.value as Color).set("#bcfd49");
-      else if (speed < 0.98) (u.uColor.value as Color).set("#96c8ff");
-      else (u.uColor.value as Color).set("#5c6470");
+      const state = getMotorVisualState(speed);
+      if (state === "active") (u.uColor.value as Color).set("#bcfd49");
+      else if (state === "braking") (u.uColor.value as Color).set("#96c8ff");
+      else (u.uColor.value as Color).set("#697b80");
       u.uAlpha.value = 0.12 + Math.min(1.35, Math.abs(speed)) * 0.4;
       const markerScale = 0.55 + Math.min(1.35, speed) * 0.5;
       this.rotorDiscs[i].marker.scale.set(markerScale, markerScale, markerScale);
+      const ringProgram = this.motorRings[i].program as Program;
+      const ringColor = state === "active" ? "#bcfd49" : state === "braking" ? "#96c8ff" : "#6e8d52";
+      (ringProgram.uniforms.uColor.value as Color).set(ringColor);
+      ringProgram.uniforms.uAlpha.value = state === "neutral" ? 0.42 : 0.82;
     });
   }
 

@@ -42,7 +42,11 @@ const MOTOR_NAMES = ["FL", "FR", "RR", "RL"];
 /** Altitude [0..1] → world Y in scene units. */
 const yOf = (z: number) => 0.3 + z * 2.05;
 
-export default function DroneSandbox() {
+interface DroneSandboxProps {
+  variant?: "article" | "project";
+}
+
+export default function DroneSandbox({ variant = "article" }: DroneSandboxProps) {
   const cvRef = useRef<HTMLCanvasElement>(null);
   const plotRef = useRef<HTMLCanvasElement>(null);
   const sceneRef = useRef<QuadScene | null>(null);
@@ -335,7 +339,7 @@ export default function DroneSandbox() {
   };
 
   return (
-    <div className="my-8 overflow-hidden rounded-2xl border border-white/10 bg-[#080a09] shadow-[0_24px_80px_rgba(0,0,0,0.28)] select-none">
+    <div className={`${variant === "project" ? "m-0 rounded-none border-0 shadow-none" : "my-8 rounded-2xl border border-white/10 shadow-[0_24px_80px_rgba(0,0,0,0.28)]"} overflow-hidden bg-[#080a09] select-none`}>
       {/* Header / learning path */}
       <div className="border-b border-white/10 bg-[linear-gradient(115deg,rgba(188,253,73,0.09),rgba(255,255,255,0.025)_38%,rgba(150,200,255,0.06))] px-4 py-3 sm:px-5">
         <div className="flex flex-wrap items-start justify-between gap-3">
@@ -381,7 +385,7 @@ export default function DroneSandbox() {
       <div className="relative">
         <canvas
           ref={cvRef}
-          className={`h-[380px] w-full touch-none bg-[radial-gradient(circle_at_50%_35%,rgba(62,79,69,0.3),transparent_52%),linear-gradient(180deg,#0b1110,#080a09)] ${mode === "force" ? "cursor-crosshair" : "cursor-grab"}`}
+          className={`${variant === "project" ? "h-[340px] lg:h-[430px]" : "h-[380px]"} w-full touch-none bg-[radial-gradient(circle_at_50%_35%,rgba(62,79,69,0.3),transparent_52%),linear-gradient(180deg,#0b1110,#080a09)] ${mode === "force" ? "cursor-crosshair" : "cursor-grab"}`}
           aria-label={`无人机三维视图：${activeLesson.observe}`}
           onPointerDown={(e) => { markInteracted(); if (mode === "force") { e.currentTarget.setPointerCapture(e.pointerId); setPointerForce(e, true); } }}
           onPointerMove={(e) => { if (mode === "force" && pointer.current.active) setPointerForce(e, true); }}

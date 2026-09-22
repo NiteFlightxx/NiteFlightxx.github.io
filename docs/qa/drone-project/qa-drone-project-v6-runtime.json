@@ -1,0 +1,14 @@
+{
+  "facts": {
+    "title": "无人机基础原理 — 3D 交互沙盒",
+    "labVisible": true,
+    "desktopGrid": "none",
+    "bodyOverflow": "hidden",
+    "activeLesson": "第 2 课：姿态",
+    "viewport": [
+      390,
+      844
+    ]
+  },
+  "consoleProblems": []
+}

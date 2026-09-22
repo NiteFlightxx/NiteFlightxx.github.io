@@ -110,6 +110,13 @@ export function projectCategoryZh(c: string): string {
 export function projectStatusZh(s: string): string {
   return (PROJECT_STATUSES as Record<string, string>)[s] ?? s;
 }
+
+export type ProjectDetailPresentation = "flight-lab" | "standard";
+
+export function getProjectDetailPresentation(projectId: string): ProjectDetailPresentation {
+  return projectId === "drone-basics-interactive" ? "flight-lab" : "standard";
+}
+
 export function knowledgeCategoryZh(c: string): string {
   return (KNOWLEDGE_CATEGORIES as Record<string, string>)[c] ?? c;
 }

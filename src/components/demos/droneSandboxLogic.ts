@@ -36,3 +36,20 @@ export function getAttitudeThrustDirection(pitch: number, roll: number, yaw = 0)
     z: x2 * Math.sin(y) + z2 * Math.cos(y),
   };
 }
+
+export type MotorVisualState = "active" | "braking" | "neutral";
+
+export function getMotorVisualState(speed: number): MotorVisualState {
+  if (speed > 1.02) return "active";
+  if (speed < 0.98) return "braking";
+  return "neutral";
+}
+
+export function getDigitalTwinVisualProfile() {
+  return {
+    gridFadeStart: 2.8,
+    gridFadeEnd: 8.5,
+    ghostAlpha: 0.18,
+    calibrationRadius: 1.65,
+  } as const;
+}

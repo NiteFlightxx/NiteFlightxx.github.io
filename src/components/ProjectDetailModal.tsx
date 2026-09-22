@@ -2,8 +2,9 @@ import React, { useEffect, useRef, useState } from "react";
 import { motion } from "motion/react";
 import { X, Check, Copy, FileCode, ArrowRight, ArrowUpRight, BookOpen, ExternalLink } from "lucide-react";
 import GithubIcon from "./GithubIcon";
+import DroneProjectDetail from "./DroneProjectDetail";
 import type { Project } from "../types";
-import { projectCategoryZh, projectStatusZh } from "../lib/taxonomy";
+import { getProjectDetailPresentation, projectCategoryZh, projectStatusZh } from "../lib/taxonomy";
 import { UI_TRANSLATIONS } from "../translations";
 
 // Site base path (GitHub Pages sub-path aware), same convention as KnowledgeView.
@@ -23,7 +24,14 @@ interface ProjectDetailModalProps {
   lang: "zh" | "en";
 }
 
-export default function ProjectDetailModal({ project, onClose, lang }: ProjectDetailModalProps) {
+export default function ProjectDetailModal(props: ProjectDetailModalProps) {
+  if (getProjectDetailPresentation(props.project.id) === "flight-lab") {
+    return <DroneProjectDetail {...props} />;
+  }
+  return <StandardProjectDetailModal {...props} />;
+}
+
+function StandardProjectDetailModal({ project, onClose, lang }: ProjectDetailModalProps) {
   const t = UI_TRANSLATIONS[lang];
   const [copied, setCopied] = useState(false);
   const dialogRef = useRef<HTMLDivElement>(null);
