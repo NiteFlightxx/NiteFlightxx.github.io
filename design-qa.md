@@ -58,13 +58,13 @@ Separate original-resolution captures were inspected because the 2880 × 1000 co
 
 - Problem capture supplied by the user: `C:\Users\WANGLI~1\AppData\Local\Temp\codex-clipboard-fc7c00f2-ed3f-4595-9ad3-17c3574fb838.png`.
 - Visual target supplied by the user: `C:\Users\WANGLI~1\AppData\Local\Temp\codex-clipboard-bf9057da-f425-43cb-a8ce-2ff560e364f8.png`.
-- Final desktop render: `docs/qa/drone-project/qa-drone-project-v7-desktop.png`.
-- Final responsive render: `docs/qa/drone-project/qa-drone-project-v7-mobile.png`.
-- Runtime evidence: `docs/qa/drone-project/qa-drone-project-v7-runtime.json`.
+- Final desktop render: `docs/qa/drone-project/qa-drone-project-palette-desktop.png`.
+- Final responsive render: `docs/qa/drone-project/qa-drone-project-palette-mobile.png`.
+- Runtime evidence: `docs/qa/drone-project/qa-drone-project-palette-runtime.json`.
 - Desktop viewport: 2529 × 1216 CSS px, deviceScaleFactor 1. The measured WebGL canvas is 2103 × 760 px, replacing the previous compressed fixed-height presentation.
 - Responsive viewport: 390 × 844 CSS px, deviceScaleFactor 1. The WebGL canvas uses a 410 px presentation height and an aspect-aware camera radius so all four rotors remain visible.
 
-The final direction treats the reference as a visual-system target rather than a subject-matter clone. The scene uses an obsidian field, warm ivory structure, controlled brass highlights, restrained steel-blue telemetry and lime only for compact live-status signals. The filled target disc was replaced with a fine torus, the ground shader now works in world space, and the engineering field combines subtle Cartesian grid lines, radial spokes, concentric calibration rings and partial orbital arcs.
+The final direction treats the reference as a visual-system target rather than a subject-matter clone. The scene now uses the portfolio's semantic palette: surface-base graphite, primary cyber lime, secondary ice blue, warm amber and the existing text scale. The filled target disc was replaced with a fine torus, the ground shader now works in world space, and the engineering field combines subtle Cartesian grid lines, radial spokes, concentric calibration rings and partial orbital arcs.
 
 ### WebGL comparison history
 
@@ -76,7 +76,7 @@ The final direction treats the reference as a visual-system target rather than a
 
 - Fonts and typography: the approved project-shell hierarchy remains intact; mono diagnostic overlays stay readable against the darker stage.
 - Spacing and layout rhythm: the project canvas scales between 620 and 780 px on desktop and uses 410 px on mobile. The 2529 × 1216 evidence shows a 2103 × 760 canvas without vertical compression.
-- Colors and visual tokens: broad surfaces are neutral obsidian; brass, ivory and steel are used for hierarchy and force semantics; lime is limited to the small live/system-ready indicators.
+- Colors and visual tokens: broad surfaces use the site's surface-base/card scale; lime, ice blue and amber map directly to the existing semantic accent tokens, with the text scale providing neutral structure.
 - Image quality and asset fidelity: the final result is entirely procedural OGL geometry and shader work. No raster reference content or copied reference assets ship with the page.
 - Interaction and performance: all five learning modes, drag orbit, wheel zoom, ground-force picking, PID graph and mixer feedback remain connected. Rendering keeps the existing DPR caps and reduced-motion path.
 - Copy and content: the five-mode causal learning sequence and AircraftLab terminology are unchanged.

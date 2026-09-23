@@ -98,15 +98,16 @@ export default function DroneProjectDetail({ project, onClose, lang }: DroneProj
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       transition={{ duration: 0.2 }}
-      className="fixed inset-0 z-50 flex flex-col overflow-hidden bg-[#050505] text-text-primary"
+      className="fixed inset-0 z-50 flex flex-col overflow-hidden bg-surface-base text-text-primary"
       id="drone-flight-lab"
       style={{
-        "--color-accent-primary": "#c89452",
-        "--color-accent-primary-hover": "#e0b675",
-        "--color-accent-secondary": "#8190a0",
+        "--color-accent-primary": "#bcfd49",
+        "--color-accent-primary-hover": "#d9f99d",
+        "--color-accent-secondary": "#96c8ff",
+        "--color-accent-warm": "#fbbf24",
       } as React.CSSProperties}
     >
-      <header className="relative z-30 flex min-h-[68px] shrink-0 items-center justify-between gap-4 border-b border-white/10 bg-[#090909]/95 px-4 py-3 backdrop-blur-xl md:px-6">
+      <header className="relative z-30 flex min-h-[68px] shrink-0 items-center justify-between gap-4 border-b border-white/10 bg-surface-base/95 px-4 py-3 backdrop-blur-xl md:px-6">
         <div className="flex min-w-0 items-center gap-3 md:gap-5">
           <div className="hidden h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-accent-primary/30 bg-accent-primary/10 sm:flex">
             <Gauge className="h-4 w-4 text-accent-primary" />
@@ -124,7 +125,7 @@ export default function DroneProjectDetail({ project, onClose, lang }: DroneProj
         <div className="flex shrink-0 items-center gap-2">
           <div className="hidden items-center gap-2 font-mono text-[9px] text-text-muted lg:flex">
             <span className="inline-flex items-center gap-1.5 rounded-full border border-accent-primary/25 bg-accent-primary/8 px-2.5 py-1 text-accent-primary">
-              <span className="h-1.5 w-1.5 rounded-full bg-[#bcfd49] shadow-[0_0_8px_rgba(188,253,73,0.78)]" /> LIVE LAB
+              <span className="h-1.5 w-1.5 rounded-full bg-accent-primary shadow-[0_0_8px_rgba(188,253,73,0.78)]" /> LIVE LAB
             </span>
             <span>{project.year}</span>
             <span>OGL / WEBGL</span>
@@ -147,7 +148,7 @@ export default function DroneProjectDetail({ project, onClose, lang }: DroneProj
         </div>
       </header>
 
-      <nav className="z-20 flex shrink-0 gap-1 overflow-x-auto border-b border-white/10 bg-[#080808] px-3 py-2 lg:hidden" aria-label="项目章节">
+      <nav className="z-20 flex shrink-0 gap-1 overflow-x-auto border-b border-white/10 bg-surface-base px-3 py-2 lg:hidden" aria-label="项目章节">
         {NAV_ITEMS.map(([id, label]) => (
           <button key={id} type="button" onClick={() => jumpTo(id)} className="shrink-0 rounded-md px-3 py-1.5 font-mono text-[10px] text-text-muted hover:bg-white/[0.05] hover:text-accent-primary">
             {label}
@@ -156,7 +157,7 @@ export default function DroneProjectDetail({ project, onClose, lang }: DroneProj
       </nav>
 
       <div className="min-h-0 flex-1 overflow-y-auto lg:grid lg:grid-cols-[minmax(0,1fr)_390px] lg:overflow-hidden xl:grid-cols-[minmax(0,1fr)_420px]">
-        <main className="min-w-0 bg-[#060606] lg:overflow-y-auto">
+        <main className="min-w-0 bg-surface-base lg:overflow-y-auto">
           <section className="border-b border-white/10 px-4 py-4 md:px-6" aria-label="控制链路">
             <div className="mb-3 flex items-center justify-between gap-3">
               <div>
@@ -204,7 +205,7 @@ export default function DroneProjectDetail({ project, onClose, lang }: DroneProj
           </div>
         </main>
 
-        <aside className="bg-[#0a0a0a] lg:min-h-0 lg:overflow-y-auto lg:border-l lg:border-white/10" aria-label="项目工程说明">
+        <aside className="bg-surface-card lg:min-h-0 lg:overflow-y-auto lg:border-l lg:border-white/10" aria-label="项目工程说明">
           <div className="hidden border-b border-white/10 p-4 lg:block">
             <p className="mb-2 font-mono text-[9px] tracking-[0.16em] text-text-faint uppercase">PROJECT INDEX</p>
             <div className="grid grid-cols-4 gap-1 rounded-lg border border-white/10 bg-black/20 p-1">

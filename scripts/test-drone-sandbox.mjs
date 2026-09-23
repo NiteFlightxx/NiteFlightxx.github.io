@@ -35,14 +35,15 @@ assert.deepEqual(
     ghostAlpha: 0.13,
     calibrationRadius: 2.2,
     palette: {
-      obsidian: "#050505",
-      ivory: "#eee9df",
-      brass: "#c89452",
-      steel: "#8190a0",
+      graphite: "#060606",
+      text: "#f3f4f6",
+      lime: "#bcfd49",
+      ice: "#96c8ff",
+      amber: "#fbbf24",
       ready: "#bcfd49",
     },
   },
-  "the showcase profile should use the obsidian, ivory and brass visual language",
+  "the showcase profile should use the website semantic color tokens",
 );
 assert.equal(getProjectViewportHeight(1216, 2529), 760, "desktop viewport should use a large cinematic stage");
 assert.equal(getProjectViewportHeight(844, 390), 410, "mobile viewport should remain compact enough for controls");

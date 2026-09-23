@@ -351,11 +351,11 @@ export default function DroneSandbox({ variant = "article" }: DroneSandboxProps)
   return (
     <div className={`${variant === "project" ? "m-0 rounded-none border-0 shadow-none" : "my-8 rounded-2xl border border-white/10 shadow-[0_24px_80px_rgba(0,0,0,0.28)]"} overflow-hidden bg-[#080a09] select-none`}>
       {/* Header / learning path */}
-      <div className={`border-b border-white/10 px-4 py-3 sm:px-5 ${variant === "project" ? "bg-[linear-gradient(115deg,rgba(200,148,82,0.09),rgba(255,255,255,0.018)_38%,rgba(129,144,160,0.055))]" : "bg-[linear-gradient(115deg,rgba(188,253,73,0.09),rgba(255,255,255,0.025)_38%,rgba(150,200,255,0.06))]"}`}>
+      <div className="border-b border-white/10 bg-[linear-gradient(115deg,rgba(188,253,73,0.09),rgba(255,255,255,0.025)_38%,rgba(150,200,255,0.06))] px-4 py-3 sm:px-5">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <div className="flex items-center gap-2">
-              <span className={`inline-block h-2 w-2 rounded-full ${variant === "project" ? "bg-[#bcfd49] shadow-[0_0_12px_rgba(188,253,73,0.72)]" : "bg-accent-primary shadow-[0_0_12px_rgba(188,253,73,0.85)]"}`} />
+              <span className="inline-block h-2 w-2 rounded-full bg-accent-primary shadow-[0_0_12px_rgba(188,253,73,0.85)]" />
               <span className="font-mono text-[10px] tracking-[0.18em] text-accent-primary uppercase">FLIGHT LAB / 01</span>
             </div>
             <h3 className="mt-1 text-sm font-semibold tracking-wide text-white sm:text-base">四旋翼无人机 · 3D 原理沙盒</h3>
@@ -378,13 +378,13 @@ export default function DroneSandbox({ variant = "article" }: DroneSandboxProps)
                 aria-current={isActive ? "step" : undefined}
                 onClick={() => { setMode(lesson.key); setHasInteracted(false); }}
                 className={`group relative min-w-0 rounded-lg border px-2 py-2 text-left transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary/70 ${
-                  isActive ? `border-accent-primary/60 bg-accent-primary/12 ${variant === "project" ? "shadow-[inset_0_0_18px_rgba(200,148,82,0.10)]" : "shadow-[inset_0_0_18px_rgba(188,253,73,0.08)]"}` : "border-white/8 bg-black/15 hover:border-white/20 hover:bg-white/[0.05]"
+                  isActive ? "border-accent-primary/60 bg-accent-primary/12 shadow-[inset_0_0_18px_rgba(188,253,73,0.08)]" : "border-white/8 bg-black/15 hover:border-white/20 hover:bg-white/[0.05]"
                 }`}
               >
                 <span className={`font-mono text-[9px] ${isActive || isPast ? "text-accent-primary" : "text-text-faint"}`}>0{index + 1}</span>
                 <span className={`ml-1 truncate text-[10px] font-medium ${isActive ? "text-white" : "text-text-muted"}`}>{lesson.title}</span>
                 <span className="mt-0.5 block truncate text-[9px] text-text-faint">{lesson.short}</span>
-                {isActive && <span className={`absolute inset-x-2 -bottom-px h-px bg-accent-primary ${variant === "project" ? "shadow-[0_0_8px_rgba(200,148,82,0.8)]" : "shadow-[0_0_8px_rgba(188,253,73,0.9)]"}`} />}
+                {isActive && <span className="absolute inset-x-2 -bottom-px h-px bg-accent-primary shadow-[0_0_8px_rgba(188,253,73,0.9)]" />}
               </button>
             );
           })}
@@ -409,10 +409,10 @@ export default function DroneSandbox({ variant = "article" }: DroneSandboxProps)
           {readout}
           </div>
           <div className="hidden rounded-lg border border-white/10 bg-black/45 px-2.5 py-2 text-[9px] leading-relaxed text-text-faint backdrop-blur-md sm:block">
-            <div><span className={`mr-1.5 inline-block h-1.5 w-1.5 rounded-full ${variant === "project" ? "bg-[#c89452]" : "bg-[#bcfd49]"}`} />推力</div>
-            <div><span className={`mr-1.5 inline-block h-1.5 w-1.5 rounded-full ${variant === "project" ? "bg-[#eee9df]" : "bg-[#8b93a1]"}`} />重力</div>
-            <div><span className={`mr-1.5 inline-block h-1.5 w-1.5 rounded-full ${variant === "project" ? "bg-[#8190a0]" : "bg-[#96c8ff]"}`} />速度</div>
-            <div><span className={`mr-1.5 inline-block h-1.5 w-1.5 rounded-full ${variant === "project" ? "bg-[#e1ad65]" : "bg-[#fbbf24]"}`} />外力 / 目标</div>
+            <div><span className="mr-1.5 inline-block h-1.5 w-1.5 rounded-full bg-accent-primary" />推力</div>
+            <div><span className="mr-1.5 inline-block h-1.5 w-1.5 rounded-full bg-text-muted" />重力</div>
+            <div><span className="mr-1.5 inline-block h-1.5 w-1.5 rounded-full bg-accent-secondary" />速度</div>
+            <div><span className="mr-1.5 inline-block h-1.5 w-1.5 rounded-full bg-accent-warm" />外力 / 目标</div>
           </div>
         </div>
         <div className="pointer-events-none absolute bottom-3 left-3 right-3 flex items-end justify-between gap-2">
