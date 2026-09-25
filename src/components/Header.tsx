@@ -4,6 +4,7 @@ import { Menu, X, Sun, Moon } from "lucide-react";
 import Logo from "./Logo";
 import BilibiliIcon from "./BilibiliIcon";
 import GithubIcon from "./GithubIcon";
+import { MAIN_NAV_ITEMS } from "../lib/siteNavigation";
 import { UI_TRANSLATIONS } from "../translations";
 
 interface HeaderProps {
@@ -12,13 +13,6 @@ interface HeaderProps {
   theme: "dark" | "light";
   setTheme: (theme: "dark" | "light") => void;
 }
-
-const NAV_ITEMS = [
-  { id: "home", labelZh: "首页" },
-  { id: "projects", labelZh: "项目与专题" },
-  { id: "knowledge", labelZh: "知识库" },
-  { id: "archive", labelZh: "档案" },
-];
 
 export default function Header({
   activeTab,
@@ -52,7 +46,7 @@ export default function Header({
 
         {/* Center: Navigation Links */}
         <nav className="hidden md:flex items-center gap-3 bg-surface-base/80 border border-accent-primary/20 rounded-full px-3 py-2 shadow-[0_8px_32px_rgba(0,0,0,0.8)]">
-          {NAV_ITEMS.map((item) => {
+          {MAIN_NAV_ITEMS.map((item) => {
             const isActive = activeTab === item.id;
             return (
               <button
@@ -152,7 +146,7 @@ export default function Header({
             className="md:hidden absolute top-[73px] left-0 right-0 glass-panel border-b border-border-subtle px-6 py-6 shadow-2xl flex flex-col gap-4"
           >
             <div className="flex flex-col gap-1">
-              {NAV_ITEMS.map((item) => {
+              {MAIN_NAV_ITEMS.map((item) => {
                 const isActive = activeTab === item.id;
                 return (
                   <button

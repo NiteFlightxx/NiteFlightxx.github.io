@@ -23,13 +23,14 @@ import {
   SKILLS_ZH,
 } from "./translations";
 import type { Project, ContentArticle } from "./types";
+import { MAIN_NAV_ITEMS } from "./lib/siteNavigation";
 
 interface AppProps {
   // Lightweight Markdown metadata; full bodies stay on their article routes.
   knowledgeArticles?: ContentArticle[];
 }
 
-const VALID_TABS = ["home", "projects", "knowledge", "archive"];
+const VALID_TABS: readonly string[] = MAIN_NAV_ITEMS.map((item) => item.id);
 
 export default function App({ knowledgeArticles = [] }: AppProps) {
   const [activeTab, setActiveTab] = useState("home");

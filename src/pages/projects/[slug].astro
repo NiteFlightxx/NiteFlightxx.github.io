@@ -1,5 +1,6 @@
 ---
 import { getCollection, render, type CollectionEntry } from 'astro:content';
+import StaticSiteHeader from '../../components/StaticSiteHeader.astro';
 import BaseHead from '../../components/BaseHead.astro';
 import { SITE } from '../../consts';
 import { knowledgeCategoryZh, knowledgeSubtopicZh } from '../../lib/taxonomy';
@@ -81,17 +82,7 @@ const sortedArticles = [...articles].sort((a, b) => {
     <div class="fixed inset-0 -z-20 bg-surface-base"></div>
     <div class="grain-overlay" aria-hidden="true"></div>
 
-    <header class="sticky top-0 z-50 glass-panel border-b border-border-subtle px-6 md:px-12 py-3.5 flex items-center justify-between select-none">
-      <a href={`${baseURL}#projects`} class="flex items-center gap-2 font-display font-black text-base tracking-widest text-text-primary hover:text-accent-primary transition-colors">
-        <svg class="w-5 h-5" viewBox="132 92 284 296" fill="currentColor" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-          <path d="M150 150L170 170L170 350L150 370Z"/>
-          <path transform="translate(10, 0)" d="M340 120L360 100L360 300L340 280Z"/>
-          <path d="M140 110 C200 120,250 180,300 260 C330 305,365 340,400 355 C360 350,315 320,265 250 C220 185,195 135,140 110 Z"/>
-        </svg>
-        NITE
-      </a>
-      <a href={`${baseURL}#projects`} class="text-xs font-mono text-text-muted hover:text-text-primary transition-colors">返回项目</a>
-    </header>
+    <StaticSiteHeader activeTab="projects" />
 
     <main class="w-full max-w-5xl mx-auto px-6 md:px-8 py-12 md:py-20 space-y-14">
       <section class="space-y-6">

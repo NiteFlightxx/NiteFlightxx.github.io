@@ -22,7 +22,6 @@ export const GET: APIRoute = async () => {
   for (const e of topics) {
     urls.push({ loc: `${SITE.url}/projects/${e.slug}/`, lastmod: today });
   }
-  urls.push({ loc: `${SITE.url}/knowledge/`, lastmod: today });
   for (const e of domains) {
     urls.push({ loc: `${SITE.url}/knowledge/domain/${e.slug}/`, lastmod: today });
   }
