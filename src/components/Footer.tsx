@@ -27,8 +27,11 @@ export default function Footer({ lang }: FooterProps) {
       <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-stretch justify-between gap-8">
         {/* Left: Metadata */}
         <div className="flex flex-col justify-between gap-4 md:max-w-md">
-          <div className="flex items-center gap-2">
-            <Logo className="w-4 h-4 text-accent-primary" />
+          <div className="flex items-center gap-2 group">
+            <span className="relative w-4 h-4 overflow-hidden">
+              <Logo className="w-4 h-4 text-accent-primary" />
+              <div className="absolute inset-0 bg-gradient-to-tr from-brand-accent-orange/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+            </span>
             <span className="font-display font-medium text-xs tracking-wider text-text-primary">
               NITE — PERSONAL PORTFOLIO
             </span>

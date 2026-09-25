@@ -2,6 +2,7 @@
 import { Menu, Moon, Sun } from 'lucide-react';
 import GithubIcon from './GithubIcon';
 import BilibiliIcon from './BilibiliIcon';
+import Logo from './Logo';
 import { MAIN_NAV_ITEMS, mainNavHref } from '../lib/siteNavigation';
 
 interface Props {
@@ -20,11 +21,8 @@ const navigation = MAIN_NAV_ITEMS.map((item) => ({
   <div class="max-w-7xl mx-auto flex items-center justify-between gap-4">
     <a href={baseURL} class="flex items-center gap-3 group" aria-label="NITE 首页">
       <span class="relative w-9 h-9 rounded bg-surface-raised border border-border-strong flex items-center justify-center overflow-hidden transition-all duration-300 group-hover:border-accent-primary/50">
-        <svg class="w-5 h-5 text-text-secondary transition-colors duration-300 group-hover:text-accent-primary" viewBox="132 92 284 296" fill="currentColor" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-          <path d="M150 150L170 170L170 350L150 370Z" />
-          <path transform="translate(10, 0)" d="M340 120L360 100L360 300L340 280Z" />
-          <path d="M140 110 C200 120,250 180,300 260 C330 305,365 340,400 355 C360 350,315 320,265 250 C220 185,195 135,140 110 Z" />
-        </svg>
+        <Logo className="w-5 h-5 text-text-secondary transition-colors duration-300 group-hover:text-accent-primary" />
+        <div class="absolute inset-0 bg-gradient-to-tr from-brand-accent-orange/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
       </span>
       <span class="font-display font-black text-base tracking-widest text-text-primary group-hover:text-accent-primary transition-colors duration-300">NITE</span>
     </a>
