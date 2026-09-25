@@ -478,9 +478,7 @@ void RedBlackGaussSeidel(const FMatrix& A, const TArray<float>& b,
 }
 ```
 
-> 📺 **占位动图**：演示红节点先并行更新、黑节点再并行更新的两阶段 sweep。把 `red-black-coloring.gif` 放进 `public/gifs/` 后即显示。
-
-![Red-Black 染色并行高斯-赛德尔的两阶段 sweep 过程](/gifs/red-black-coloring.gif)
+![Red-Black 染色并行高斯-赛德尔的两阶段 sweep 过程](/images/red-black-coloring.svg)
 
 #### 5.4.6 多色排序（Multi-color）
 

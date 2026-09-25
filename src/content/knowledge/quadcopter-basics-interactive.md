@@ -4,7 +4,7 @@ excerpt: "写给所有人的无人机入门：一个可以拖拽旋转的 3D 沙
 date: "2026-09-19"
 category: "Physics"
 subtopic: "FlightController"
-tags: ["无人机", "飞控", "PID", "物理", "科普", "交互式", "WebGL"]
+tags: ["无人机", "飞控", "PID", "物理", "交互式", "WebGL"]
 readTime: "阅读约18分钟"
 ---
 

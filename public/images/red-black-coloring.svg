@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 260" role="img" aria-labelledby="title desc">
+  <title id="title">Red-black grid coloring for parallel Gauss-Seidel</title>
+  <desc id="desc">A checkerboard grid is split into red and black cells. Red cells update in parallel first, followed by black cells.</desc>
+  <rect width="720" height="260" rx="18" fill="#0d0d0d"/>
+  <g font-family="JetBrains Mono, monospace" fill="#e2e8f0">
+    <text x="40" y="40" font-size="18" fill="#bcfd49">RED → BLACK SWEEP</text>
+    <text x="40" y="72" font-size="14" fill="#a1a1a1">更新同色节点时没有直接数据依赖</text>
+  </g>
+  <g transform="translate(42 98)" stroke="#0d0d0d" stroke-width="3">
+    <rect x="0" y="0" width="42" height="42" fill="#ef5b67"/><rect x="42" y="0" width="42" height="42" fill="#111827"/>
+    <rect x="84" y="0" width="42" height="42" fill="#ef5b67"/><rect x="126" y="0" width="42" height="42" fill="#111827"/>
+    <rect x="168" y="0" width="42" height="42" fill="#ef5b67"/><rect x="210" y="0" width="42" height="42" fill="#111827"/>
+    <rect x="0" y="42" width="42" height="42" fill="#111827"/><rect x="42" y="42" width="42" height="42" fill="#ef5b67"/>
+    <rect x="84" y="42" width="42" height="42" fill="#111827"/><rect x="126" y="42" width="42" height="42" fill="#ef5b67"/>
+    <rect x="168" y="42" width="42" height="42" fill="#111827"/><rect x="210" y="42" width="42" height="42" fill="#ef5b67"/>
+    <rect x="0" y="84" width="42" height="42" fill="#ef5b67"/><rect x="42" y="84" width="42" height="42" fill="#111827"/>
+    <rect x="84" y="84" width="42" height="42" fill="#ef5b67"/><rect x="126" y="84" width="42" height="42" fill="#111827"/>
+    <rect x="168" y="84" width="42" height="42" fill="#ef5b67"/><rect x="210" y="84" width="42" height="42" fill="#111827"/>
+  </g>
+  <g font-family="JetBrains Mono, monospace" font-size="15">
+    <text x="340" y="125" fill="#ef5b67">1. red cells in parallel</text>
+    <text x="340" y="158" fill="#94a3b8">barrier</text>
+    <path d="M400 170v28" stroke="#64748b" stroke-width="2" marker-end="url(#arrow)"/>
+    <text x="340" y="230" fill="#bcfd49">2. black cells in parallel</text>
+  </g>
+  <defs>
+    <marker id="arrow" markerWidth="8" markerHeight="8" refX="4" refY="4" orient="auto">
+      <path d="M0 0L8 4L0 8z" fill="#64748b"/>
+    </marker>
+  </defs>
+</svg>

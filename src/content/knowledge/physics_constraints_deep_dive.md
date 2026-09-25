@@ -1,10 +1,10 @@
 ---
-title: "物理约束深度整理：从约束函数到实时物理求解器"
+title: "物理约束详解 — 从约束函数到实时物理求解器"
 excerpt: "系统梳理实时物理约束求解器的完整知识链：从约束函数 C(q)、Jacobian、Lagrange 乘子 λ 与有效质量 JM⁻¹Jᵀ 出发，逐一回答等式与不等式约束、互补条件、LCP/NCP/KKT、速度级与位置级约束、Baumgarte 稳定化、Impulse/Sequential Impulse 求解、Jacobi 与 Gauss-Seidel 迭代、求解器迭代与刚度的关系、PBD/XPBD 推导与柔度、约束电机、自由度锁定、Maximal 与 Generalized Coordinates、旋转约束、摩擦统一、方程与优化两种视角、XPBD/VBD/AVBD 思想差异、高刚度数值病态与 Warm Starting，最后给出工业级 Constraint Solver 的完整求解链与统一理解框架。面向已具备 Unreal Engine / Chaos / PBD / XPBD / 刚体动力学基础的工程师。"
 date: "2026-09-06"
 category: "Physics"
 subtopic: "ConstraintSolver"
-tags: ["物理", "约束求解", "Constraint Solver", "PBD", "XPBD", "Jacobian", "Lagrange 乘子"]
+tags: ["物理", "约束求解", "Constraint Solver", "PBD", "XPBD", "Jacobian"]
 readTime: "阅读约50分钟"
 ---
 
@@ -618,7 +618,7 @@ $$
 
 物理意义非常直观：
 
-#### 情况 1：分离
+### 情况 1：分离
 
 $$
 C>0
@@ -630,7 +630,7 @@ $$
 \lambda=0
 $$
 
-#### 情况 2：接触受力
+### 情况 2：接触受力
 
 $$
 \lambda>0
@@ -1142,234 +1142,49 @@ $$
 
 ## 17. PBD 约束到底是怎么解出来的
 
-PBD 希望修正位置：
+PBD 的核心是把约束误差 $C(q)$ 线性化，再沿约束梯度按 inverse mass 分配位置修正。单约束的标量投影可概括为：
 
 $$
-q\leftarrow q+\Delta q
+\Delta q=-M^{-1}\nabla C\frac{C(q)}{\nabla C^{\mathsf T}M^{-1}\nabla C}
 $$
 
-使：
-
-$$
-C(q+\Delta q)=0
-$$
-
-一阶展开：
-
-$$
-C(q)+\nabla C^T\Delta q\approx0
-$$
-
-设位置修正沿约束梯度方向：
-
-$$
-\Delta q=M^{-1}\nabla C\lambda
-$$
-
-代入：
-
-$$
-C+\nabla C^TM^{-1}\nabla C\lambda=0
-$$
-
-得到：
-
-$$
-\lambda=
--\frac{C}{\nabla C^TM^{-1}\nabla C}
-$$
-
-因此：
-
-$$
-\Delta q=
--M^{-1}\nabla C
-\frac{C}{\nabla C^TM^{-1}\nabla C}
-$$
-
-对于多个粒子：
-
-$$
-\Delta x_i=w_i\nabla_{x_i}C\lambda
-$$
-
-$$
-\lambda=-\frac{C}
-{\sum_i w_i\|\nabla_{x_i}C\|^2}
-$$
-
-这里 $w_i=1/m_i$。
-
-### 本质
-
-PBD 不是随便“把点拉回去”，而是在一阶线性化下，按 inverse mass 加权进行最小位置修正。
+这里保留统一形式，完整的距离、体积、碰撞和弯曲约束推导见 [PBD 与 XPBD 详解](/knowledge/pbd-xpbd-math/) 第 2、4 章。本文后续只讨论它在通用约束 Solver 中的接口位置。
 
 ---
 
 ## 18. XPBD 相比 PBD 到底改变了什么
 
-XPBD 引入 compliance：
+XPBD 在投影分母中加入 compliance，并累计约束乘子：
 
 $$
-\alpha=\frac1k
+\Delta\lambda=\frac{-C(q)-\tilde\alpha\lambda}{\nabla C^{\mathsf T}M^{-1}\nabla C+\tilde\alpha},\qquad \tilde\alpha=\frac{\alpha}{h^2}
 $$
 
-并离散成：
-
-$$
-\tilde\alpha=\frac{\alpha}{h^2}
-$$
-
-单约束更新常写为：
-
-$$
-\Delta\lambda=
-\frac{-C(q)-\tilde\alpha\lambda}
-{\nabla C^TM^{-1}\nabla C+\tilde\alpha}
-$$
-
-然后：
-
-$$
-\Delta q=M^{-1}\nabla C\Delta\lambda
-$$
-
-并累计：
-
-$$
-\lambda\leftarrow\lambda+\Delta\lambda
-$$
-
-### 与 PBD 的关键区别
-
-#### 1. 引入物理可解释的 Compliance
-
-$$
-\alpha=0
-$$
-
-趋近刚性约束。
-
-$$
-\alpha>0
-$$
-
-允许形变。
-
-#### 2. 引入时间步缩放
-
-$$
-\tilde\alpha=\frac{\alpha}{h^2}
-$$
-
-使刚度不再简单地随时间步变化。
-
-#### 3. 累计 Lagrange Multiplier
-
-这使 XPBD 更接近约束力的离散积分，而不是每轮独立做纯几何投影。
-
-### 为什么 XPBD 仍然不是完全 iteration-independent
-
-理论性质明显改善，但实际多约束、非线性系统中：
-
-- 迭代次数仍影响收敛误差；
-- 约束顺序仍有影响；
-- 大质量比和强耦合仍困难。
-
-因此更准确地说：
-
-> XPBD 显著降低了 material stiffness 对 timestep 和 iteration 的直接依赖，但不会消除有限迭代造成的求解误差。
+因此刚度不再直接随迭代次数变化，但有限迭代、强耦合和质量比仍会影响误差。参数含义与完整算法见 [PBD 与 XPBD 详解](/knowledge/pbd-xpbd-math/) 第 3、9 章。
 
 ---
 
 ## 19. XPBD 中的 λ 为什么需要累计
 
-在普通 PBD 中，每次 projection 常可看成独立地计算一个位置修正量。
-
-XPBD 中：
+XPBD 的 $\lambda$ 是同一时间步内的数学状态：
 
 $$
 \lambda^{k+1}=\lambda^k+\Delta\lambda
 $$
 
-这是因为其推导对应于离散化后的约束势能 / Lagrange multiplier 系统。
-
-公式中：
-
-$$
--C(q)-\tilde\alpha\lambda
-$$
-
-第二项意味着此前已经建立的约束响应会影响下一次更新。
-
-### 直观理解
-
-把一个软弹簧约束压缩后，它已经“积累”了约束力。
-
-下一轮不应该忘掉前面已经建立的约束反力，再重新从 0 开始求。
-
-### 与 Warm Start 不完全相同
-
-- XPBD 的 $\lambda$ accumulation：同一个 timestep 内的数学状态；
-- Warm Start：把上一 timestep 的解作为当前 timestep 初始猜测。
-
-两者都在“保留历史乘子”，但角色不同。
+它不能与跨时间步复用的 warm start 混为一谈。前者属于 XPBD 离散推导，后者是求解器的初值策略；两者在工程实现中可以同时存在。详细边界见 [PBD 与 XPBD 详解](/knowledge/pbd-xpbd-math/)。
 
 ---
 
 ## 20. Compliance、Stiffness、Soft Constraint 到底是什么关系
 
-理想线性弹簧：
+Compliance 是 stiffness 的倒数，soft constraint 还可以通过 ERP/CFM 或 regularization 实现。对速度级 Solver，可把有效质量系统写成：
 
 $$
-F=-kx
+\left(JM^{-1}J^{\mathsf T}+\epsilon I\right)\lambda=b
 $$
 
-其中 $k$ 是 stiffness。
-
-Compliance 定义为：
-
-$$
-\alpha=\frac1k
-$$
-
-因此：
-
-- $k\to\infty$ 时，$\alpha\to0$；
-- $k$ 小时，$\alpha$ 大。
-
-### Soft Constraint 是否等价于 Spring
-
-不一定。
-
-Soft Constraint 是更广泛概念：允许 Constraint Error 在有限负载下存在。
-
-它可以通过：
-
-- spring-damper；
-- ERP/CFM；
-- compliance；
-- regularization；
-
-实现。
-
-### Constraint Force Mixing
-
-一些速度级 Solver 会把系统：
-
-$$
-JM^{-1}J^T\lambda=b
-$$
-
-修改成：
-
-$$
-(JM^{-1}J^T+\epsilon I)\lambda=b
-$$
-
-其中 $\epsilon$ 相当于给刚性约束加入 softness / regularization。
-
-这样还能改善病态矩阵条件数。
+这里的 $\epsilon$ 既改善病态条件，也允许约束保留有限误差。本文只保留这一接口关系，具体 softness 参数比较放在 [PBD 与 XPBD 详解](/knowledge/pbd-xpbd-math/) 与 [线性方程组迭代求解详解](/knowledge/iterative-linear-solvers/) 中。
 
 ---
 

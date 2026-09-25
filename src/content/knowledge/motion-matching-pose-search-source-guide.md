@@ -1,16 +1,16 @@
 ---
-title: "Unreal Engine Motion Matching 源码详解 — Pose Search、Query、Cost 与 Blend Stack"
+title: "UE Motion Matching 源码详解 — Pose Search、Query、Cost 与 Blend Stack"
 excerpt: "基于当前 Unreal Engine 源码，追踪 Motion Matching 从 Pose History、Trajectory、Schema、Database、Cost Search 到 Anim Node 与 Blend Stack 的完整运行链路。"
 date: "2026-09-23"
 category: "Animation"
 subtopic: "MotionMatching"
-tags: ["Motion Matching", "Pose Search", "Animation", "AnimGraph", "Blend Stack", "Trajectory", "UE5源码"]
+tags: ["Motion Matching", "Pose Search", "AnimGraph", "Blend Stack", "Trajectory", "UE源码"]
 readTime: "阅读约60分钟"
 ---
 
 > 本文以 `E:\UnrealEngine\UnrealEngine_Source` 的当前 `ue5-main` 快照为事实边界。Graphify/GitNexus 只用于定位关系，最终结论以源码路径和行号为准。文中标签含义为：**源码事实**＝当前文件直接可见；**工程经验**＝可落地但需结合项目验证；**推测/需要验证**＝源码没有提供足够证据。
 
-# 先给结论
+## 先给结论
 
 Motion Matching 不是“播放一条最像的动画”，而是把角色当前的**历史姿态、当前姿态和未来运动意图**编码成 Query，再从离线建立的 Pose Search Database 中选择总 Cost 最低、且满足跳转/重选/通知过滤的离散 Pose，最后交给 `FAnimNode_MotionMatching` 的 Blend Stack 输出。当前实现中，搜索、姿态切换和最终求值都走 AnimGraph 的 AnyThread 路径；数据库索引通常在编辑器异步构建，运行时只读查询。
 
@@ -23,7 +23,7 @@ Motion Matching 不是“播放一条最像的动画”，而是把角色当前�
 5. `FAnimNode_MotionMatching` 继承 `FAnimNode_BlendStack_Standalone`，新结果通过 `BlendTo` 切入；`MaxActiveBlends==0` 时改用 Inertialization。
 6. 当前快照中未找到可读的 AnimNextPoseSearch 源码：目录只有 DLL/PDB/Intermediate 生成物，因此不能把其 trait 的内部调度写成源码事实。
 
-## 一张可执行链路图
+### 一张可执行链路图
 
 ```text
 Character / Movement State
@@ -55,9 +55,9 @@ Evaluate_AnyThread → Final Pose / Root Motion
 
 ---
 
-# 一、整体原理
+## 一、整体原理
 
-## 1. Motion Matching 解决什么问题
+### 1. Motion Matching 解决什么问题
 
 传统动画图先决定“状态”（Idle、Walk、Run、Turn），再在状态内部播放资产；Motion Matching 反过来把候选动画的每个采样 Pose 都视为可进入点，用 Query 的相似度选择“现在最合适的时间点”。这直接解决了状态边界爆炸、转向组合不足、起步/停止接缝差和脚步不连续的问题。
 
@@ -65,7 +65,7 @@ Evaluate_AnyThread → Final Pose / Root Motion
 
 **工程经验**：Motion Matching 不会凭空创造未采集的动作。数据库没有“左脚急停”样本，就只能选一个近似样本；结果抖动通常先说明资产覆盖或 Query 语义有问题。
 
-## 2. 与传统节点的区别
+### 2. 与传统节点的区别
 
 | 方案 | 决策单位 | 适合 | 主要限制 | 与 Motion Matching 的关系 |
 |---|---|---|---|---|
@@ -77,7 +77,7 @@ Evaluate_AnyThread → Final Pose / Root Motion
 
 **源码事实**：State Machine 和通用 AnimNode 都公开 `Update_AnyThread` / `Evaluate_AnyThread`（`AnimNode_StateMachine.h:L119-L248`；`AnimNodeBase.h:L746-L754`），差别是决策策略，不是线程模型。Blend Space 的公共播放接口位于 `Engine/Source/Runtime/AnimGraphRuntime/Public/BlendSpacePlayerLibrary.h`；当前快照未找到一个可替代 Pose Search Cost 的统一 Blend Space 评分接口，不能把二者的内部实现混写。
 
-## 3. 完整执行链路、时机和线程
+### 3. 完整执行链路、时机和线程
 
 | 阶段 | 当前实现 | 时机/线程 | 必须一致的内容 |
 |---|---|---|---|
@@ -98,42 +98,42 @@ Evaluate_AnyThread → Final Pose / Root Motion
 
 ---
 
-# 二、源码结构与关键类型
+## 二、源码结构与关键类型
 
-## 1. `FAnimNode_MotionMatching` 与 `FMotionMatchingState`
+### 1. `FAnimNode_MotionMatching` 与 `FMotionMatchingState`
 
 `FAnimNode_MotionMatching` 继承 `FAnimNode_BlendStack_Standalone`（`AnimNode_MotionMatching.h:L18`），所以它既是搜索节点也是资产播放器/混合器。关键默认值：`BlendTime=0.2s`（L113-L115）、`PoseJumpThresholdTime=[0,0]`（L125-L127）、`PoseReselectHistory=0.3s`（L130-L131）、`SearchThrottleTime=0s`（L133-L135）、`PlayRate=[1,1]`（L138-L139）、`bUseInertialBlend=false`（L145-L146）、`bResetOnBecomingRelevant=true`（L149-L150）、`bShouldSearch=true`（L152-L154）。
 
 `UpdateAssetPlayer` 生命周期：初始化数据库/状态 → 从 `FPoseHistoryProvider` 取得历史 → 交互分支或普通搜索 → 判断是否跳 Pose → 更新 Blend Stack/PlayRate/BlendSpace 参数 → 更新 PoseIndicesHistory（`AnimNode_MotionMatching.cpp:L84-L104、L137-L145、L155-L237、L248-L296`）。`FMotionMatchingState` 保存当前搜索结果、上次搜索时间和 Blend 相关状态；完整字段以该头文件 `L162-L216` 为准。
 
-## 2. `FAnimNode_BlendStack_Standalone`
+### 2. `FAnimNode_BlendStack_Standalone`
 
 它维护 `AnimPlayers`、主播放器和采样 Pose Link。`MaxActiveBlends` 默认 4（`AnimNode_BlendStack.h:L230-L236`），`BlendTo` 在 `AnimNode_BlendStack.cpp:L1163-L1172` 注册新动画；同一帧多次请求时最后一次胜出（L1278-L1279）。`Evaluate_AnyThread` 在 L677-L792 处理活跃播放器数量；`MaxActiveBlends==0` 时 L941-L946 走 Inertialization。过多连续跳转会丢弃旧播放器并产生 pop，这是性能与视觉的共同边界。
 
-## 3. `UPoseSearchSchema`
+### 3. `UPoseSearchSchema`
 
 Schema 是 Query 与数据库特征的契约，不是单纯的骨骼列表：`SampleRate=30`（`PoseSearchSchema.h:L71-L73`）、`Channels`/`FinalizedChannels`（L79-L85）、`DataPreprocessor=Normalize`（L90-L91）、`NumberOfPermutations=1`（L99-L109），可选择数据 padding（L112-L114）。`BuildQuery` 在 L169；骨骼/Role 兼容性 API 在 L161-L180。FinalizedChannels 还可能注入默认或调试 channel，因此不要只按编辑器里看到的 Channels 计算 cardinality。
 
-## 4. `UPoseSearchDatabase` 与索引
+### 4. `UPoseSearchDatabase` 与索引
 
 Database 持有 Schema、动画资产列表、搜索模式和运行时 SearchIndex。默认 bias：`ContinuingPoseCostBias=-0.01`、`BaseCostBias=0`、`LoopingCostBias=-0.005`（`PoseSearchDatabase.h:L509-L528`）；搜索模式默认 `PCAKDTree`、主成分数 4、KNN 邻居 200（L581-L598）。Search API 在 L688-L696；实现先等待/检查索引，再按模式分派（`PoseSearchDatabase.cpp:L1518-L1554`）。
 
 索引器对每个采样时间生成 `FPoseMetadata`，读取 `PoseSearchBlockTransition` 和 `PoseSearchModifyCost` Notify，并调用每个 Channel 的 `IndexAsset`（`PoseSearchAssetIndexer.cpp:L191-L227、L229-L258`）。因此 Block Transition 和 Base Cost 是数据库构建阶段写入、查询阶段消费的两类不同机制。
 
-## 5. `FSearchContext` 与 `FSearchResult`
+### 5. `FSearchContext` 与 `FSearchResult`
 
 `FSearchContext` 负责角色映射、Chooser Context、Pose History、Query cache、Continuing Pose Values、Pose Jump 阈值和候选跟踪。构造器和 Role API 在 `PoseSearchContext.h:L187-L220`；缓存 Query 在 L232-L235；Continuing Pose 在 L249-L266；调试候选在 L435-L499。它不是 UObject，不应跨帧持有指向临时 Context 的引用。
 
 `FSearchResult` 继承 `FDatabasePoseIdx`，包含 `PoseCost`、`AssetTime`、`bIsContinuingPoseSearch`、事件 PoseIdx（`PoseSearchResult.h:L22-L58`）。蓝图结果还暴露 `SelectedAnim/SelectedTime/WantedPlayRate/bLoop/bIsMirrored/BlendParameters/SearchCost`（L192-L231）。
 
-## 6. Pose History、Trajectory 和 Asset Sampler
+### 6. Pose History、Trajectory 和 Asset Sampler
 
 - `FPoseHistoryEntry` 保存 component-space rotations、positions、scales、curves 和累计秒数（`PoseSearchHistory.h:L102-L127`）；`FPoseIndicesHistory::Update` 记录已播放 Pose 的时间（L50-L57）。
 - Collector 暴露 `HistorySize、SamplingInterval、CollectedBones/Curves、RootBoneRecovery、bGenerateTrajectory、TrajectoryHistoryCount=10、TrajectoryPredictionCount=8`（`AnimNode_PoseSearchHistoryCollector.h:L21-L34、L45-L57、L67-L100`）。
 - `FPoseSearchTrajectoryData::FSampling` 控制历史/预测数量与每个样本的秒数；Character 轨迹生成函数默认历史间隔 0.04s、10 个历史样本、预测间隔 0.2s、8 个预测样本（`PoseSearchTrajectoryLibrary.h:L50-L60、L174-L180`）。
 - `FPoseSearchAssetSamplerPose` 同时保存 RootTransform、Local Pose 和 ComponentSpacePose；`SamplePose` 与空间转换 API 在 `PoseSearchAssetSamplerLibrary.h:L43-L103`。它适合调试“数据库 Pose 与角色当前 Pose 是否在同一空间”，不是替代 Database Search 的播放器。
 
-## 7. `MotionMatchingAnimNodeLibrary`、Chooser、Proxy
+### 7. `MotionMatchingAnimNodeLibrary`、Chooser、Proxy
 
 蓝图库提供读取 Search Result/Blend Settings、替换数据库、设置 InterruptMode 和检测本帧新 Blend（`MotionMatchingAnimNodeLibrary.h:L18-L127`）。Pose Search Chooser 的 `FPoseSearchColumn` 是实验性 Pose Match 列，要求结果资产带 `PoseSearchBranchIn`，并建议放在 Chooser 最右侧（`PoseSearchChooserColumn.h:L84-L147`）；映射器递归遍历 nested chooser、校验数据库与行资产一致性（`PoseSearchChooserColumnMapping.h:L181-L256`）。
 
@@ -141,7 +141,7 @@ Database 持有 Schema、动画资产列表、搜索模式和运行时 SearchInd
 
 ---
 
-# 三、参数逐项说明
+## 三、参数逐项说明
 
 下表将参数按“采集、索引、查询、评分、切换/混合”阶段归类。默认值只写当前源码中直接可见的值。
 
@@ -189,9 +189,9 @@ Database 持有 Schema、动画资产列表、搜索模式和运行时 SearchInd
 
 ---
 
-# 四、Cost 和搜索机制
+## 四、Cost 和搜索机制
 
-## 1. Query 与数据库 Pose
+### 1. Query 与数据库 Pose
 
 Query 构建可抽象为：
 
@@ -204,7 +204,7 @@ for channel in Schema.FinalizedChannels:
 
 必须匹配的时间语义：轨迹的零时间样本代表上一帧仿真姿态（Collector 注释，`AnimNode_PoseSearchHistoryCollector.h:L81-L83`），而不是“刚更新完的未来姿态”。如果 Query 用当前帧、索引 Pose 用上一帧，Cost 会整体偏移。
 
-## 2. Cost 公式
+### 2. Cost 公式
 
 `PoseSearchIndex.cpp:L8-L28` 给出核心公式（以权重平方根存储）：
 
@@ -220,7 +220,7 @@ C(p)=D(q,p)+c_{notify}(p)+c_{continue}+c_{interaction}+c_{context}
 
 对应 `FPoseSearchCost` 构造函数（`PoseSearchCost.h:L20-L27、L77-L99`）和 `EvaluatePoseKernel`（`PoseSearchDatabase.cpp:L165-L175`）。因此负 Bias 是先验奖励，不能替代错误的单位/坐标变换。
 
-## 3. 搜索模式
+### 3. 搜索模式
 
 - **BruteForce**：逐 Pose 完整评分，最适合验证正确性和小库。
 - **VPTree**：用欧氏距离平方根满足三角不等式；源码注释在 `PoseSearchIndex.cpp:L992-L995`。
@@ -229,7 +229,7 @@ C(p)=D(q,p)+c_{notify}(p)+c_{continue}+c_{interaction}+c_{context}
 
 工程上应先用 BruteForce 建立“正确性基线”，再切 PCAKDTree，打开编辑器比较 BruteForce 的调试 Cost（`PoseSearchDatabase.cpp:L1556-L1579`）。
 
-## 4. Continuing、Jump、Interrupt、Throttle 如何稳定
+### 4. Continuing、Jump、Interrupt、Throttle 如何稳定
 
 1. `ContinuingPoseCostBias` 让当前 Pose 在相似候选中占优；`SearchContinuingPose` 仍会计算当前 Pose 的完整特征 Cost。
 2. `PoseJumpThresholdTime` 将当前资产附近的 PoseIdx 加入 NonSelectable；实现按 `floor/ceil(interval * SampleRate)` 换算（`PoseSearchDatabase.cpp:L1623-L1663`）。
@@ -239,7 +239,7 @@ C(p)=D(q,p)+c_{notify}(p)+c_{continue}+c_{interaction}+c_{context}
 
 这几层共同避免“每帧最低 Cost 都不同”的抖动，但若 Query 预测方向错误，它们只会把错误结果保持得更久。
 
-## 5. 为什么会跳错脚、滑步或频繁换动画
+### 5. 为什么会跳错脚、滑步或频繁换动画
 
 - **频繁切换**：轨迹噪声、权重没有 continuing 先验、数据库覆盖有空洞、Throttle=0 且 Jump=0。
 - **脚步错误**：没有采集足部位置/速度/相位，或左右 Mirror 映射错。
@@ -251,9 +251,9 @@ C(p)=D(q,p)+c_{notify}(p)+c_{continue}+c_{interaction}+c_{context}
 
 ---
 
-# 五、最佳实践
+## 五、最佳实践
 
-## 数据库与资产
+### 数据库与资产
 
 1. 先按 locomotion、转向、起步/停止、特殊动作分库，再用 Chooser/BranchIn 做高层选择；避免一个库同时承担不可抢占的攻击和可连续的走跑。
 2. 每种速度、方向、转弯半径、停止距离至少有多个相位样本；数据库覆盖比高采样率更重要。
@@ -261,20 +261,20 @@ C(p)=D(q,p)+c_{notify}(p)+c_{continue}+c_{interaction}+c_{context}
 4. Mirror 只用于左右语义真正对称的资产；检查 MirrorDataTable 的骨骼对和事件/脚步标记。
 5. 采样率先 30Hz；只有脚步或高速急停出现量化误差时才升高，并同步评估 DDC/内存/搜索成本。
 
-## 轨迹、步态和动作边界
+### 轨迹、步态和动作边界
 
 1. Trajectory history 覆盖至少一个脚步相位，prediction 覆盖制动/转向提前量；先画世界空间和角色空间两条轨迹。
 2. 速度、加速度、controller yaw rate 使用同一单位（UE cm/s、deg/s）；`MaxControllerYawRate` 当前默认 70 deg/s（`PoseSearchTrajectoryLibrary.h:L64-L73`）只是数据类默认，不能当作所有项目的最佳值。
 3. 起步、停止、急停和原地转向要有独立样本，不要指望 Blend Space 插值补齐。
 4. 通过 PoseSearchBlockTransition 标记不可切入口，通过 ModifyCost 做局部先验；不要把整段动画都 Block。
 
-## 角色比例、Retarget、IK 和 Motion Warping
+### 角色比例、Retarget、IK 和 Motion Warping
 
 - Retarget 后重新验证脚长、root 高度和骨盆轨迹；Schema 的相对位置特征对比例差异敏感。
 - MM 负责选时间点，IK 负责接触修正，Motion Warping 负责目标对齐；三者顺序通常是 MM → 局部 IK → Warping/Root Motion 消费，具体要以项目 root motion ownership 验证。
 - 同时使用 Motion Warping 和 MM 时，不能让 Warping 改变的 root 轨迹又被当成未经修正的 Query；需要明确“先预测、后 warp”或“warp 结果回写 Query”的单一契约（**工程经验，需要运行时验证**）。
 
-## 网络、性能和调试
+### 网络、性能和调试
 
 - 网络只同步输入、Movement State、选定资产/时间、Mirror/PlayRate 或确定性 seed，不要每帧同步整套 Pose。
 - 客户端和服务端必须使用同一 Schema、数据库版本、采样率和归一化参数；否则相同 Query 也会得到不同 Pose。
@@ -283,7 +283,7 @@ C(p)=D(q,p)+c_{notify}(p)+c_{continue}+c_{interaction}+c_{context}
 
 ---
 
-# 六、常见问题诊断
+## 六、常见问题诊断
 
 | 现象 | 可能原因 | 检查项 | 修复方法 |
 |---|---|---|---|
@@ -302,7 +302,7 @@ C(p)=D(q,p)+c_{notify}(p)+c_{continue}+c_{interaction}+c_{context}
 
 ---
 
-# 七、推荐调参流程
+## 七、推荐调参流程
 
 按顺序推进，每一步不通过就回退，不要跨层同时改参数。
 
@@ -320,9 +320,9 @@ C(p)=D(q,p)+c_{notify}(p)+c_{continue}+c_{interaction}+c_{context}
 
 ---
 
-# 八、三套可落地配置
+## 八、三套可落地配置
 
-## A. 第三人称普通人形角色
+### A. 第三人称普通人形角色
 
 - **数据库**：Idle/Walk/Run、8 向起步/停止、原地 90/180 度转向、倒走；攻击和受击单独库。
 - **Schema**：root/骨盆位置与速度、左右脚位置/速度、root facing、Trajectory position/facing/velocity；Normalize。
@@ -332,7 +332,7 @@ C(p)=D(q,p)+c_{notify}(p)+c_{continue}+c_{interaction}+c_{context}
 - **Blend 策略**：BlendTime 0.15–0.2s，Continuing bias 小负值，Jump 0.1–0.2s，MaxActiveBlends 2–4。
 - **风险**：资产覆盖不足时会用 Walk 代替 Stop；先补停止库，不要把 BaseCostBias 调成大负数。
 
-## B. 高速角色或大型生物
+### B. 高速角色或大型生物
 
 - **数据库**：按速度区间拆分冲刺、急停、急转、跳跃/落地；大型生物增加身体重心和前肢/后肢接触特征。
 - **Schema**：root velocity/acceleration、未来轨迹位置/heading、重心/主要接触肢体位置；减少与高速无关的手指/面部 channel。
@@ -342,7 +342,7 @@ C(p)=D(q,p)+c_{notify}(p)+c_{continue}+c_{interaction}+c_{context}
 - **Blend 策略**：BlendTime 0.08–0.15s，Jump 窗口短，Throttle 接近 0；必要时 `MaxActiveBlends=0` + inertialization。
 - **风险**：预测误差会被高速放大；先验证输入延迟和控制器 yaw rate，再调整权重。
 
-## C. 网络多人游戏角色
+### C. 网络多人游戏角色
 
 - **数据库**：客户端和服务端使用同一 cooked Database/Schema；特殊 Gameplay 动作由 Montage/Ability 权威驱动。
 - **Schema**：尽量选择可由同步 Movement State 重建的 root/trajectory 特征，少依赖本地不可复现的曲线。
@@ -354,9 +354,9 @@ C(p)=D(q,p)+c_{notify}(p)+c_{continue}+c_{interaction}+c_{context}
 
 ---
 
-# 九、结论与源码边界
+## 九、结论与源码边界
 
-## Motion Matching 核心原则（10 条）
+### Motion Matching 核心原则（10 条）
 
 1. Schema 是 Query 与 Database 的 ABI。
 2. 先保证轨迹空间和时间语义，再调权重。
@@ -369,7 +369,7 @@ C(p)=D(q,p)+c_{notify}(p)+c_{continue}+c_{interaction}+c_{context}
 9. Blend Stack 的活跃播放器数是视觉与 CPU 的共同预算。
 10. 网络同步优先同步可重建输入或选择结果，而不是整套 Pose。
 
-## 最重要的参数排序
+### 最重要的参数排序
 
 1. Schema 特征与坐标/单位；
 2. 数据库资产覆盖与采样率；
@@ -380,19 +380,19 @@ C(p)=D(q,p)+c_{notify}(p)+c_{continue}+c_{interaction}+c_{context}
 7. BlendTime、MaxActiveBlends、PlayRate 限制；
 8. Mirror、Root Motion、Chooser/Interrupt。
 
-## 最容易误调的参数
+### 最容易误调的参数
 
 `ContinuingPoseCostBias`、`PoseJumpThresholdTime`、`PoseReselectHistory`、`SearchThrottleTime`、`KDTreeQueryNumNeighbors` 和 `PlayRate`。它们都能让画面“暂时稳定”，却可能掩盖错误的 Query 或数据库空洞。
 
-## 推荐最小可行配置
+### 推荐最小可行配置
 
 一个 30Hz locomotion Database；root/骨盆/双脚 position + velocity；root facing；10 个历史轨迹样本、8 个预测样本；Normalize；先 BruteForce；BlendTime 0.2s；Continuing bias 使用当前默认小负值；Jump/Reselect 从 0 和 0.3s 基线开始；确认结果后再切 PCAKDTree。
 
-## 必须结合项目测试才能确定的内容
+### 必须结合项目测试才能确定的内容
 
 角色速度范围、预测模型、脚步权重、Jump/Reselect 时间窗、BlendTime、PlayRate 上限、PCA 维数/KNN、客户端/服务端同步策略，以及 Motion Warping 与 MM 的 root ownership。当前源码给出机制和默认值，但没有为你的角色提供“正确”数值。
 
-## 当前源码已经确认的事实
+### 当前源码已经确认的事实
 
 - `FAnimNode_MotionMatching` 继承 Blend Stack，并在 Update 中构造 Search Context、调用搜索、通过 `BlendTo` 切换（`AnimNode_MotionMatching.h:L18`；`.cpp:L180-L296`）。
 - Schema 默认 SampleRate=30、Normalize；Database 默认 PCAKDTree、4 个主成分、KNN=200（`PoseSearchSchema.h:L71-L91`；`PoseSearchDatabase.h:L581-L598`）。
@@ -400,7 +400,7 @@ C(p)=D(q,p)+c_{notify}(p)+c_{continue}+c_{interaction}+c_{context}
 - Jump/Reselect 通过 NonSelectable PoseIdx 过滤；索引器读取 BlockTransition/ModifyCost Notify（`PoseSearchDatabase.cpp:L1623-L1685`；`PoseSearchAssetIndexer.cpp:L199-L227`）。
 - Blend Stack 默认最多 4 个活跃 blend，0 表示 Inertialization，且同帧多次 BlendTo 最后一次胜出（`AnimNode_BlendStack.h:L230-L236`；`AnimNode_BlendStack.cpp:L941-L946、L1278-L1279`）。
 
-## 当前源码无法确认、需要运行时验证的内容
+### 当前源码无法确认、需要运行时验证的内容
 
 - AnimNextPoseSearch trait 的内部字段、调度和默认值：当前目录缺少可读 `.h/.cpp`。
 - 不同 UE 小版本之间的编辑器显示名、Chooser UI 默认值和 cooked DDC 行为。

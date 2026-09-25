@@ -1,5 +1,4 @@
 import React, { useEffect, useRef, useState } from "react";
-import { Check, Copy } from "lucide-react";
 
 /**
  * Progressive enhancement for article pages, run after hydration:

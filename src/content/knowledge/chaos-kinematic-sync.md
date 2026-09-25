@@ -1,8 +1,8 @@
 ---
-title: "Chaos 运动学同步详解 — P.Chaos.SyncKinematicOnGameThread 的三态控制与双路径镜像"
+title: "UE Chaos 运动学同步详解 — P.Chaos.SyncKinematicOnGameThread 的三态控制与双路径镜像"
 excerpt: "从 Chaos 多线程架构出发，拆解 P.Chaos.SyncKinematicOnGameThread 的三态语义（0=即时更新、1=结果回写、-1=逐对象决策）及三个镜像判定函数如何在 SetKinematicTarget 与 PullFromPhysicsState 两条路径间维持恰一更新不变式。覆盖速度始终复制规则、dirty particle 收集优化、UpdateKinematicFromSimulation 标志默认值与 PhysicalAnimationComponent 覆盖行为。"
 date: "2026-07-02"
-category: "Engine"
+category: "Physics"
 subtopic: "ChaosPhysics"
 tags: ["Chaos", "运动学", "Kinematic", "多线程同步", "UE5", "源码分析"]
 readTime: "阅读约30分钟"

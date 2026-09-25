@@ -18,22 +18,9 @@ readTime: "阅读约40分钟"
 
 ### 1.1 PBD 框架回顾
 
-**Position Based Dynamics（PBD）** 是一种基于约束的物理模拟框架（Müller et al. 2007），其核心思想与基于力的方法有本质区别：
+PBF 复用 PBD 的 predict-correct 循环：先得到预测位置，再迭代投影密度约束，最后由位置差更新速度。PBD 的通用投影、XPBD compliance 和迭代策略不在本文重复推导，统一见 [PBD 与 XPBD 详解](/knowledge/pbd-xpbd-math/)。
 
-| | 基于力（SPH 等） | 基于位置（PBD/PBF） |
-|---|---|---|
-| 求解对象 | 力 → 加速度 → 速度 → 位置 | 直接求解位置修正 |
-| 物理表达 | 运动方程 $m\mathbf{a} = \mathbf{F}$ | 约束方程 $C(\mathbf{p}) = 0$ |
-| 时间步 | 显式积分，受 CFL 限制 | 迭代投影，无条件稳定 |
-| 稳定性 | 条件稳定（步长过大爆炸） | 无条件稳定（步长只影响精度） |
-
-PBD 的标准流程是 **predict-correct**：
-
-1. **预测**：施加外力得到预测位置 $\mathbf{p}^* = \mathbf{p} + \Delta t\,\mathbf{v}$。
-2. **投影**：迭代修正 $\mathbf{p}^*$ 使其满足所有约束 $C(\mathbf{p}) = 0$。
-3. **更新**：由实际位移反推速度 $\mathbf{v} = (\mathbf{p}^* - \mathbf{p})/\Delta t$。
-
-关键在于第二步：约束通过拉格朗日乘子法转化为位置修正 $\Delta\mathbf{p}$，而非通过力。这使得即使时间步长很大也不会"爆炸"——因为位置始终被投影到约束流形上。PBD/XPBD 的刚度控制与 compliance 机制详见&#12298;[物理模拟数值积分方法详解](/knowledge/numerical-integration-methods/)&#12299;的 XPBD 章节。
+本文只保留流体所需的接口：粒子位置 $\mathbf p$、逆质量 $w$、邻居集合和约束梯度。PBF 的新增内容是把“不可压缩”写成每个粒子的密度约束，并据此构造位置修正。
 
 ### 1.2 核心思想
 
@@ -47,14 +34,14 @@ $$
 
 ### 1.3 与 SPH 的关系
 
-PBF 与 SPH 共享核函数插值框架——密度 $\rho_i = \sum_j m_j W(\mathbf{p}_i - \mathbf{p}_j, h)$ 的计算方式完全相同。区别在于密度偏差的处理方式：
+PBF 与 SPH 共享核函数和密度估计：
 
-- **SPH**：将密度通过状态方程转为压力 $p = k(\rho - \rho_0)$，再由压力梯度力 $-\nabla p$ 驱动粒子运动（基于力）。
-- **PBF**：将密度偏差视为约束违例 $C_i \ne 0$，直接计算位置修正消除偏差（基于约束）。
+$$
 
-因此 PBF 不需要状态方程、不需要 CFL 稳定性分析、不受声速限制，代价是不可压缩性是迭代近似的而非精确的。
+\rho_i=\sum_j m_jW(\mathbf p_i-\mathbf p_j,h)
+$$
 
----
+差别只在密度偏差的处理：SPH 把偏差转成压力力并积分，PBF 把偏差直接作为位置约束投影。核函数、压力力和传统 SPH 变体见 [SPH 流体模拟详解](/knowledge/sph-fluid-simulation/)；本文从下一节开始只讨论 PBF 的约束求解。
 
 ## 二、密度约束的数学推导
 

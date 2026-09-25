@@ -64,16 +64,27 @@ const ALL_KNOWLEDGE_SUBTOPICS = [
 // 知识库 — 知识沉淀 / 技术分析 / 经验总结 / 教学内容
 const knowledge = defineCollection({
   type: 'content',
-  schema: z.object({
-    title: z.string(),
-    excerpt: z.string(),
-    date: z.string(), // ISO date, e.g. 2026-05-14
-    category: z.enum(KNOWLEDGE_CATEGORIES),
-    subtopic: z.enum(ALL_KNOWLEDGE_SUBTOPICS).optional(), // 受控子主题（见 KNOWLEDGE_SUBTOPICS），迁移期可选
-    tags: z.array(z.string()),
-    readTime: z.string(), // display string, e.g. "阅读约12分钟"
-    draft: z.boolean().optional().default(false),
-  }),
+  schema: z
+    .object({
+      title: z.string().min(1).regex(/详解\s+—\s+/, 'title must use "[主题]详解 — [副标题]"'),
+      excerpt: z.string().min(1),
+      date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'date must use YYYY-MM-DD'),
+      category: z.enum(KNOWLEDGE_CATEGORIES),
+      subtopic: z.enum(ALL_KNOWLEDGE_SUBTOPICS),
+      tags: z.array(z.string().min(1)).min(3).max(6),
+      readTime: z.string().regex(/^阅读约\d+分钟$/, 'readTime must use 阅读约N分钟'),
+      draft: z.boolean().optional().default(false),
+    })
+    .superRefine((value, ctx) => {
+      const allowed = KNOWLEDGE_SUBTOPICS[value.category] as readonly string[];
+      if (!allowed.includes(value.subtopic)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['subtopic'],
+          message: `subtopic ${value.subtopic} is not valid for category ${value.category}`,
+        });
+      }
+    }),
 });
 
 export const collections = { knowledge };

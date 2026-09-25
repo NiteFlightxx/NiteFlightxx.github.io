@@ -25,7 +25,7 @@
 
 | 分类 | 可用 subtopic |
 |---|---|
-| Engine | SourceArchitecture / ModuleSystem / MemoryManagement / JobSystem / AssetPipeline / ReflectionSerialization |
+| Engine | SourceArchitecture / ModuleSystem / MemoryManagement / JobSystem / AssetPipeline / ReflectionSerialization / VFXSystem |
 | Physics | ConstraintSolver / ChaosPhysics / Collision / RigidBodyDynamics / VehicleDynamics / FlightController / Fluid |
 | Animation | AnimationNode / ControlRigIK / Retargeting / MotionMatching / PoseSearch / ProceduralAnimation |
 | Rendering | RDG / Shader / Nanite / Lumen / Material / PostProcess |
@@ -204,7 +204,7 @@ npm run build        # 应生成对应路由 HTML
 ## 5. 检查清单（发布前逐项确认）
 
 - [ ] frontmatter 字段完整、分类枚举正确、`date` 为 ISO 格式
-- [ ] `title` 遵循「标题命名规范」句式（`[主题词] 的 [数学原理/数学与物理原理]详解 — [副标题]`，UE 专属带 `UE` 前缀，英文术语保留）
+- [ ] `title` 遵循「标题命名规范」句式（`[主题词]详解 — [副标题]`，UE 专属带 `UE` 前缀，英文术语保留）
 - [ ] 正文**无手动 `## 目录` 章节**
 - [ ] 正文**无 H1**（`#`），从 `##` 开始
 - [ ] 所有块级公式为**围栏式** `$$`（独占行）

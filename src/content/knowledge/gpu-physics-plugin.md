@@ -1,10 +1,10 @@
 ---
-title: "GPU Physics 插件详解：基于 Compute Shader 的 PBD 刚体物理系统"
+title: "GPU Physics 插件详解 — 基于 Compute Shader 的 PBD 刚体物理系统"
 excerpt: "深入分析一个自研 GPU 物理插件的全貌：从公共 API 设计、GPU Buffer SoA 架构、15 个 Compute Shader 的完整碰撞管线（Broadphase → GJK → EPA → Manifold → PBD Solver），到移动端 ES3.1 兼容、图着色并行求解、流形热启动等核心技术。"
 date: "2026-07-03"
 category: "Physics"
 subtopic: "ConstraintSolver"
-tags: ["GPU Physics", "Compute Shader", "PBD", "GJK", "EPA", "Collision Detection", "ES3.1", "Unreal Engine"]
+tags: ["GPU Physics", "Compute Shader", "PBD", "GJK", "EPA", "Collision Detection"]
 readTime: "阅读约45分钟"
 ---
 

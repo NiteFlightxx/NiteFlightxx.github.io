@@ -1,1774 +1,1175 @@
 ---
-title: "UE 物理动画线性代数详解 — 向量、矩阵、四元数与物理动画应用"
-excerpt: "系统讲解虚幻引擎物理与动画编程所需的线性代数：向量运算（点积、叉积、投影）、矩阵与变换（行列式、逆矩阵、旋转矩阵）、向量空间与线性相关性、特征值与特征向量、线性方程组求解（高斯消元、LU 分解、最小二乘）、四元数（Hamilton 乘积、Slerp 插值、万向节死锁消除）、物理应用（牛顿定律、弹道、碰撞、弹簧）、动画应用（骨骼层级、FK/IK、动画混合、根运动）与 UE 实战案例。配合 UE C++ 代码示例。"
-date: "2026-09-06"
+title: "UE 线性代数详解 — 坐标系、向量、矩阵、FTransform 与四元数"
+excerpt: "基于当前 Unreal Engine 源码，系统说明 UE 的坐标轴、LWC 数学类型、向量与投影、行向量矩阵约定、FTransform 组合、FRotator 与 FQuat、数值求解，以及它们在物理和动画中的正确用法。"
+date: "2026-09-25"
 category: "Mathematics"
 subtopic: "LinearAlgebra"
-tags: ["线性代数", "向量", "矩阵", "四元数", "UE"]
-readTime: "阅读约40分钟"
+tags: ["线性代数", "FVector", "FMatrix", "FTransform", "FQuat", "UE源码"]
+readTime: "阅读约55分钟"
 ---
 
-> 线性代数是游戏引擎的数学基石：3D 空间中物体的位置、朝向与运动由向量描述，变换由矩阵编码，旋转由四元数表示。物理模拟中的力、速度、加速度是向量运算，碰撞检测依赖叉积与行列式，动画系统依赖坐标空间变换与四元数插值，IK 求解依赖线性方程组。本文从向量出发，沿"向量 → 矩阵 → 坐标变换 → 四元数 → 物理应用 → 动画应用 → UE 实战"的主线系统梳理全链。
+> 本文以当前 `E:\UnrealEngine\UnrealEngine_Source` 源码快照为 UE 行为依据。数学公式会明确采用列向量还是 UE 的行向量语义；代码示例区分可直接使用的 UE API 与算法伪代码，避免把教材约定直接套进 Unreal Engine。
 >
-> 本文为教材式总览。微积分基础见&#12298;[微积分详解](/knowledge/calculus-foundations/)&#12299;，微分方程与数值方法见&#12298;[常微分方程与数值方法详解](/knowledge/differential-equations/)&#12299;，偏微分方程见&#12298;[偏微分方程与数值离散详解](/knowledge/partial-differential-equations/)&#12299;，数学符号速查见&#12298;[高等数学符号速查详解](/knowledge/mathematical-notation-reference/)&#12299;。雅可比矩阵的深拆见&#12298;[雅可比矩阵详解](/knowledge/jacobian-matrix/)&#12299;，海森矩阵的深拆见&#12298;[海森矩阵详解](/knowledge/hessian-matrix/)&#12299;，线性方程组迭代求解的深拆见&#12298;[线性方程组迭代求解详解](/knowledge/iterative-linear-solvers/)&#12299;。
+> 物理积分、弹簧、碰撞、PBD/XPBD、IK 和动画节点已有独立专题。本文保留它们与线性代数的接口，但不重复完整推导。
 
 ---
 
-## 一、引言：为什么游戏开发需要线性代数
+## 先给结论
 
-线性代数在游戏引擎中的应用贯穿以下环节：
+在 UE 中写对线性代数，首先要记住下面十件事：
 
-- **位置与方向**：用 3D 向量表示物体的位置和朝向
-- **运动**：通过向量运算计算移动、旋转、缩放
-- **物理模拟**：力、速度、加速度的计算与碰撞检测
-- **动画**：骨骼变换的层级组合、插值与混合
-- **碰撞检测**：通过叉积、行列式判断物体相交关系
+1. UE 世界坐标轴是 **X 前、Y 右、Z 上**。
+2. 当前源码中 `FVector`、`FQuat`、`FMatrix`、`FTransform`、`FRotator` 都是 **double 版本**；显式 float 类型带 `3f/4f/44f` 后缀。
+3. 点和方向都可由三个数表示，但点受平移影响，方向不受平移影响。
+4. `FMatrix` 使用 UE 的行向量变换语义；平移存放在 `M[3][0..2]`。
+5. 对 `FMatrix/FTransform`，组合式 $A \mathbin{*} B$ 表示先应用 $A$，再应用 $B$。
+6. 对 `FQuat`，组合式 $A \mathbin{*} B$ 表示先应用 $B$，再应用 $A$，和 `FTransform` 相反。
+7. UE 的 Pitch 绕 Y，Yaw 绕 Z，Roll 绕 X；不是 X/Y/Z 顺序的同义词。
+8. `TransformPosition` 用于点，`TransformVector` 用于方向/位移，`TransformVectorNoScale` 用于不应受缩放影响的方向。
+9. 固定绝对误差不能可靠判断所有尺度下的平行、奇异和退化；容差必须结合问题尺度。
+10. 正规方程、直接求逆和欧拉角累加都适合教学说明，但不应默认作为生产级数值方案。
 
-本文面向已有基础编程经验、希望系统掌握虚幻引擎物理与动画底层数学的读者。
+源码锚点：
+
+- 数学类型别名：`Engine/Source/Runtime/Core/Public/Math/MathFwd.h:L47-L79`
+- Rotator 轴和顺序：`Engine/Source/Runtime/Core/Public/Math/Rotator.h:L21-L52`
+- Matrix 组合语义：`Engine/Source/Runtime/Core/Public/Math/Matrix.h:L27-L35`
+- Transform 组合语义：`Engine/Source/Runtime/Core/Public/Math/TransformNonVectorized.h:L13-L26`
+- Quaternion 组合语义：`Engine/Source/Runtime/Core/Public/Math/Quat.h:L25-L35`
+
+## 阅读路线
+
+- **只想正确使用 UE API**：第 1、2、4、5、8 章。
+- **物理开发**：第 1～4、6、7 章，然后转到碰撞、约束和数值积分专题。
+- **动画开发**：第 1～5、7 章，然后转到 FullBody IK、动画节点和 Motion Matching 专题。
+- **复习数学**：按全文顺序阅读。
 
 ---
 
-## 二、向量
+## 一、UE 的数学约定
 
-### 2.1 向量基础与虚幻引擎类型
+### 1.1 坐标轴和方向
 
-向量是具有**大小**和**方向**的量。在 3D 图形中，向量通常表示：
-
-- 位置（Position）
-- 方向（Direction）
-- 速度（Velocity）
-- 力（Force）
-
-虚幻引擎中的向量类型：
+当前源码中的方向常量为：
 
 ```cpp
-FVector   // 3D 向量 (X, Y, Z)
-FVector2D // 2D 向量 (X, Y)
-FVector4  // 4D 向量 (X, Y, Z, W)
+FVector::ForwardVector  // (1, 0, 0)，+X
+FVector::RightVector    // (0, 1, 0)，+Y
+FVector::UpVector       // (0, 0, 1)，+Z
 ```
 
-基本用法：
+源码定义位于 `Engine/Source/Runtime/Core/Private/Math/UnrealMath.cpp:L35-L50`。
+
+这会直接影响叉积和旋转方向。例如：
 
 ```cpp
-FVector Position(100.0f, 200.0f, 50.0f);
-FVector Direction(1.0f, 0.0f, 0.0f); // X 轴正方向
+const FVector Forward = FVector::ForwardVector;
+const FVector Up = FVector::UpVector;
+
+const FVector Left = FVector::CrossProduct(Forward, Up);   // (0, -1, 0)
+const FVector Right = FVector::CrossProduct(Up, Forward);  // (0,  1, 0)
 ```
 
-### 2.2 向量运算
-
-#### 加法与减法
+叉积实现仍然是标准代数公式：
 
 $$
-\vec{V_1} + \vec{V_2} = (x_1+x_2,\; y_1+y_2,\; z_1+z_2)
+a\times b=
+\left(
+a_yb_z-a_zb_y,
+a_zb_x-a_xb_z,
+a_xb_y-a_yb_x
+\right)
 $$
 
-$$
-\vec{V_1} - \vec{V_2} = (x_1-x_2,\; y_1-y_2,\; z_1-z_2)
-$$
+源码：`Engine/Source/Runtime/Core/Public/Math/Vector.h:L1522-L1542`。
 
-加法得到新位置，减法求两点之间的方向向量。
+### 1.2 当前 LWC 类型
+
+当前 UE 使用 Large World Coordinates 类型别名：
+
+| 默认类型 | 实际模板类型 | 显式 float 版本 |
+|---|---|---|
+| `FVector` | `TVector<double>` | `FVector3f` |
+| `FQuat` | `TQuat<double>` | `FQuat4f` |
+| `FMatrix` | `TMatrix<double>` | `FMatrix44f` |
+| `FTransform` | `TTransform<double>` | `FTransform3f` |
+| `FRotator` | `TRotator<double>` | `FRotator3f` |
+
+源码：`Engine/Source/Runtime/Core/Public/Math/MathFwd.h:L47-L79`。
+
+因此不要无意识地把 `FVector::Size()`、点积或距离结果截断到 `float`：
 
 ```cpp
-FVector A(100, 0, 0);
-FVector B(50, 100, 0);
-FVector Sum = A + B;        // (150, 100, 0)
-FVector Diff = A - B;       // (50, -100, 0)
+const FVector Delta = End - Start;
+const double Distance = Delta.Size();
+const double DistanceSquared = Delta.SizeSquared();
 ```
 
-#### 标量乘法
+只有当数据接口明确要求 float、并且范围已经验证时，才转换为 `FVector3f` 或 `float`。
 
-$$
-k \cdot \vec{V} = (kx,\; ky,\; kz)
-$$
+### 1.3 点、方向和法线不是同一种语义
 
-标量乘法改变向量的大小但不改变方向，常用于缩放速度或力的大小。
+数学上：
+
+- 点的齐次分量是 $w=1$，受平移影响；
+- 方向的齐次分量是 $w=0$，不受平移影响；
+- 法线是协向量，存在非均匀缩放时不能简单按普通方向变换。
+
+对应 UE API：
 
 ```cpp
-FVector Velocity(10, 0, 0);
-FVector DoubleSpeed = Velocity * 2.0f; // (20, 0, 0)
+const FTransform LocalToWorld = Actor->GetActorTransform();
+
+const FVector WorldPoint = LocalToWorld.TransformPosition(LocalPoint);
+const FVector WorldOffset = LocalToWorld.TransformVector(LocalOffset);
+const FVector WorldDirection = LocalToWorld.TransformVectorNoScale(LocalDirection);
+
+const FVector LocalPointAgain = LocalToWorld.InverseTransformPosition(WorldPoint);
 ```
 
-### 2.3 向量长度与距离
+如果变量叫 `Offset`、`Direction` 或 `Velocity`，却调用 `TransformPosition`，通常意味着空间语义已经混乱。
 
-#### 长度（模）
+### 1.4 单位约定
 
-$$
-|\vec{V}| = \sqrt{x^2 + y^2 + z^2}
-$$
+常见 UE 单位：
 
-```cpp
-FVector V(3, 4, 0);
-float Length = V.Size();              // 5.0
-float SquaredLength = V.SizeSquared(); // 25.0（更快，避免开方）
-```
+- 距离：厘米（cm）；
+- 速度：cm/s；
+- 加速度：$\mathrm{cm}/\mathrm{s}^2$；
+- `FRotator`：度；
+- `FQuat(Axis, Angle)`：弧度；
+- `AddTorqueInRadians`：名字明确表示角度语义采用弧度版本。
 
-**性能提示**：比较距离时优先使用 `SizeSquared()` 避免开方运算。
-
-#### 距离公式
-
-$$
-d(\vec{A}, \vec{B}) = |\vec{B} - \vec{A}| = \sqrt{(x_2-x_1)^2 + (y_2-y_1)^2 + (z_2-z_1)^2}
-$$
+角度转换必须显式：
 
 ```cpp
-float Distance = FVector::Distance(A, B);
-float DistSquared = FVector::DistSquared(A, B); // 更快
-```
-
-### 2.4 向量归一化
-
-将向量转换为长度为 1 的单位向量，保持方向不变：
-
-$$
-\hat{V} = \frac{\vec{V}}{|\vec{V}|}
-$$
-
-```cpp
-FVector Direction(3, 4, 0);
-FVector UnitDirection = Direction.GetSafeNormal(); // (0.6, 0.8, 0)
-bool bIsNormalized = Direction.IsNormalized();
-```
-
-`GetSafeNormal()` 在向量长度接近零时返回零向量，避免除以零。
-
-### 2.5 点积
-
-#### 定义
-
-$$
-\vec{V_1} \cdot \vec{V_2} = x_1 x_2 + y_1 y_2 + z_1 z_2 = |\vec{V_1}| \cdot |\vec{V_2}| \cdot \cos\theta
-$$
-
-#### 几何意义
-
-点积测量两个向量的**相似程度**：
-
-- 点积 > 0：夹角 < 90°（同向）
-- 点积 = 0：夹角 = 90°（垂直）
-- 点积 < 0：夹角 > 90°（反向）
-
-#### 重要性质
-
-- **交换律**：$\vec{A} \cdot \vec{B} = \vec{B} \cdot \vec{A}$
-- **分配律**：$\vec{A} \cdot (\vec{B} + \vec{C}) = \vec{A} \cdot \vec{B} + \vec{A} \cdot \vec{C}$
-- **自身点积**：$\vec{A} \cdot \vec{A} = |\vec{A}|^2$
-
-#### 计算夹角
-
-$$
-\theta = \arccos\left(\frac{\vec{V_1} \cdot \vec{V_2}}{|\vec{V_1}| \cdot |\vec{V_2}|}\right)
-$$
-
-```cpp
-FVector Forward = Actor->GetActorForwardVector();
-FVector ToTarget = (Target - Actor->GetActorLocation()).GetSafeNormal();
-
-float Dot = FVector::DotProduct(Forward, ToTarget);
-
-if (Dot > 0.7f) // cos(45°) ≈ 0.707
-{
-    // 目标在前方约 45° 范围内
-}
-```
-
-**常见应用**：视野检测（判断目标是否在视野角度内）、朝向判断、Lambert 光照模型中的光照计算、向量投影。
-
-### 2.6 叉积
-
-#### 定义
-
-$$
-\vec{V_1} \times \vec{V_2} = (y_1 z_2 - z_1 y_2,\; z_1 x_2 - x_1 z_2,\; x_1 y_2 - y_1 x_2)
-$$
-
-#### 几何意义
-
-- 结果是**垂直于两个向量的新向量**
-- 大小：$|\vec{V_1} \times \vec{V_2}| = |\vec{V_1}| \cdot |\vec{V_2}| \cdot \sin\theta$
-- 方向遵循**右手定则**
-
-#### 重要性质
-
-- **反交换律**：$\vec{A} \times \vec{B} = -(\vec{B} \times \vec{A})$
-- **分配律**：$\vec{A} \times (\vec{B} + \vec{C}) = \vec{A} \times \vec{B} + \vec{A} \times \vec{C}$
-- **平行向量**：$\vec{A} \times \vec{A} = \vec{0}$
-- **正交性**：$(\vec{A} \times \vec{B}) \cdot \vec{A} = 0$，$(\vec{A} \times \vec{B}) \cdot \vec{B} = 0$
-
-```cpp
-FVector Up = FVector::UpVector;          // (0, 0, 1)
-FVector Forward = FVector::ForwardVector; // (1, 0, 0)
-FVector Right = FVector::CrossProduct(Forward, Up); // (0, 1, 0)
-```
-
-**常见应用**：构建坐标系（由两个轴求第三个轴）、判断目标在左侧还是右侧、计算三角形表面法线、判断旋转方向。
-
-```cpp
-FVector Forward = Actor->GetActorForwardVector();
-FVector ToTarget = (Target - Actor->GetActorLocation()).GetSafeNormal();
-FVector Cross = FVector::CrossProduct(Forward, ToTarget);
-
-if (Cross.Z > 0)
-{
-    // 目标在右侧
-}
-else
-{
-    // 目标在左侧
-}
-```
-
-### 2.7 向量投影
-
-计算向量 $\vec{A}$ 在向量 $\vec{B}$ 上的投影：
-
-$$
-\text{Proj}_{\vec{B}}(\vec{A}) = \frac{\vec{A} \cdot \vec{B}}{|\vec{B}|^2} \cdot \vec{B}
-$$
-
-常用于分解速度或力的分量。例如碰撞响应中，将速度分解为沿表面方向和沿法线方向：
-
-```cpp
-FVector Velocity(10, 10, 0);
-FVector SurfaceNormal(0, 1, 0);
-
-// 投影到表面法线（法线方向分量）
-float ProjectionLength = FVector::DotProduct(Velocity, SurfaceNormal);
-FVector NormalComponent = SurfaceNormal * ProjectionLength;
-
-// 沿表面的速度分量（切向）
-FVector SurfaceVelocity = Velocity - NormalComponent;
+const double AngleRadians = FMath::DegreesToRadians(90.0);
+const FQuat QuarterTurn(FVector::UpVector, AngleRadians);
 ```
 
 ---
 
-## 三、矩阵
+## 二、向量：方向、距离与几何关系
 
-### 3.1 矩阵基础与单位矩阵
+### 2.1 基础运算
 
-矩阵是按行列排列的数字阵列，用于表示**线性变换**。
-
-- **4×4 矩阵**：完整的 3D 变换（位置、旋转、缩放）
-- **3×3 矩阵**：仅旋转和缩放
-- **单位矩阵**：不做任何变换
+给定两个向量：
 
 $$
-\mathbf{I} = \begin{bmatrix}
-1 & 0 & 0 & 0 \\
-0 & 1 & 0 & 0 \\
-0 & 0 & 1 & 0 \\
-0 & 0 & 0 & 1
-\end{bmatrix}
+a=(a_x,a_y,a_z),\qquad b=(b_x,b_y,b_z)
 $$
 
-单位矩阵的性质：$\mathbf{M} \times \mathbf{I} = \mathbf{I} \times \mathbf{M} = \mathbf{M}$。
+则：
+
+$$
+a+b=(a_x+b_x,a_y+b_y,a_z+b_z)
+$$
+
+$$
+\lVert a\rVert=\sqrt{a_x^2+a_y^2+a_z^2}
+$$
 
 ```cpp
-FMatrix M = FMatrix::Identity;
+const FVector Delta = Target - Origin;
+const double DistanceSquared = Delta.SizeSquared();
+
+if (DistanceSquared <= FMath::Square(AcceptanceRadius))
+{
+    // 已进入半径，不需要开方
+}
 ```
 
-### 3.2 矩阵乘法
+距离比较优先使用平方距离；但最终需要真实长度、归一化或时间估计时仍需要开方。
 
-矩阵乘法**不可交换**：$\mathbf{A} \times \mathbf{B} \neq \mathbf{B} \times \mathbf{A}$，但满足**结合律**：$(\mathbf{A} \times \mathbf{B}) \times \mathbf{C} = \mathbf{A} \times (\mathbf{B} \times \mathbf{C})$。
-
-对于矩阵 $\mathbf{A}_{m \times n}$ 和 $\mathbf{B}_{n \times p}$：
+### 2.2 安全归一化
 
 $$
-(\mathbf{AB})_{ij} = \sum_{k=1}^{n} A_{ik} B_{kj}
+\hat v=\frac{v}{\lVert v\rVert}
 $$
-
-结果矩阵的维度为 $m \times p$。
 
 ```cpp
-FVector TransformedPoint = Matrix.TransformPosition(Point);  // 变换位置点（受平移影响）
-FVector TransformedVector = Matrix.TransformVector(Direction); // 变换方向向量（不受平移影响）
+const FVector Direction = Delta.GetSafeNormal();
 ```
 
-`TransformPosition` 与 `TransformVector` 的区别：前者将点视为齐次坐标 $(x, y, z, 1)$，受平移分量影响；后者将向量视为 $(x, y, z, 0)$，不受平移影响。这在法线变换、光线方向变换等场景中至关重要。
+`GetSafeNormal` 的容差参数比较的是**平方长度**，源码注释位于 `Vector.h:L640-L647`。不要把“最小长度”直接作为这个参数传入而忘记平方。
 
-### 3.3 变换矩阵
+如果零向量在业务上表示错误，应该显式检查，而不是默默接受返回的零向量：
 
-#### 平移矩阵
+```cpp
+if (Delta.IsNearlyZero())
+{
+    return;
+}
+
+const FVector Direction = Delta.GetSafeNormal();
+```
+
+### 2.3 点积
 
 $$
+a\cdot b=a_xb_x+a_yb_y+a_zb_z
+=\lVert a\rVert\lVert b\rVert\cos\theta
+$$
+
+只有当两个向量都已归一化时，点积才直接等于夹角余弦：
+
+```cpp
+const FVector Forward = Actor->GetActorForwardVector();
+const FVector ToTarget = (TargetLocation - Actor->GetActorLocation()).GetSafeNormal();
+const double CosAngle = FVector::DotProduct(Forward, ToTarget);
+
+const double HalfFovRadians = FMath::DegreesToRadians(FieldOfViewDegrees * 0.5);
+const bool bInsideFov = CosAngle >= FMath::Cos(HalfFovRadians);
+```
+
+常见用途：
+
+- 前后判断；
+- 视野锥检测；
+- 向量投影；
+- 接触法向速度；
+- Lambert 光照项。
+
+### 2.4 叉积
+
+叉积结果垂直于输入平面，长度为：
+
+$$
+\lVert a\times b\rVert=\lVert a\rVert\lVert b\rVert\sin\theta
+$$
+
+判断目标位于角色左右侧：
+
+```cpp
+const FVector Forward = Actor->GetActorForwardVector();
+const FVector ToTarget = (TargetLocation - Actor->GetActorLocation()).GetSafeNormal();
+const double SignedSide = FVector::CrossProduct(Forward, ToTarget).Z;
+
+if (SignedSide > 0.0)
+{
+    // 在 UE 的 X 前、Y 右、Z 上坐标下，目标偏右
+}
+```
+
+注意：这个判断假设角色主要绕世界 Z 轴转动。任意表面或飞行姿态应把结果投影到角色自身 Up 轴：
+
+```cpp
+const double SignedSide3D = FVector::DotProduct(
+    FVector::CrossProduct(Forward, ToTarget),
+    Actor->GetActorUpVector());
+```
+
+### 2.5 投影、拒绝分量与反射
+
+向量 $v$ 在非零向量 $n$ 上的投影：
+
+$$
+\operatorname{proj}_n(v)=\frac{v\cdot n}{n\cdot n}n
+$$
+
+如果 $n$ 已归一化：
+
+$$
+v_n=(v\cdot n)n,\qquad v_t=v-v_n
+$$
+
+```cpp
+const FVector UnitNormal = Hit.Normal.GetSafeNormal();
+const FVector NormalVelocity = UnitNormal * FVector::DotProduct(Velocity, UnitNormal);
+const FVector TangentVelocity = Velocity - NormalVelocity;
+```
+
+反射方向：
+
+$$
+r=v-2(v\cdot n)n
+$$
+
+```cpp
+const FVector Reflected = FMath::GetReflectionVector(Velocity, UnitNormal);
+```
+
+### 2.6 稳健的平行与退化判断
+
+直接检查 `Cross.SizeSquared() < SMALL_NUMBER` 会随向量长度变化。更稳健的相对判断是：
+
+$$
+\frac{\lVert a\times b\rVert^2}
+{\lVert a\rVert^2\lVert b\rVert^2}<\varepsilon^2
+$$
+
+```cpp
+bool AreDirectionsNearlyParallel(const FVector& A, const FVector& B, double SinTolerance)
+{
+    const double Denominator = A.SizeSquared() * B.SizeSquared();
+    if (Denominator <= UE_DOUBLE_SMALL_NUMBER)
+    {
+        return false; // 零向量没有可靠方向
+    }
+
+    const double CrossSquared = FVector::CrossProduct(A, B).SizeSquared();
+    return CrossSquared <= FMath::Square(SinTolerance) * Denominator;
+}
+```
+
+---
+
+## 三、矩阵：理解 UE 的行向量语义
+
+### 3.1 矩阵表示什么
+
+矩阵把向量线性映射到另一个空间。$3 \times 3$ 矩阵可表达旋转、缩放和剪切；$4 \times 4$ 齐次矩阵还可表达平移。
+
+单位矩阵：
+
+$$
+I=
 \begin{bmatrix}
-1 & 0 & 0 & T_x \\
-0 & 1 & 0 & T_y \\
-0 & 0 & 1 & T_z \\
-0 & 0 & 0 & 1
+1&0&0&0\\
+0&1&0&0\\
+0&0&1&0\\
+0&0&0&1
 \end{bmatrix}
 $$
 
-#### 缩放矩阵
+```cpp
+const FMatrix Identity = FMatrix::Identity;
+```
+
+### 3.2 UE 的矩阵布局
+
+`FMatrix` 元素按 `M[RowIndex][ColumnIndex]` 访问。UE 的点变换可写成行向量形式：
 
 $$
+p'=pM
+$$
+
+平移矩阵为：
+
+$$
+T=
 \begin{bmatrix}
-S_x & 0 & 0 & 0 \\
-0 & S_y & 0 & 0 \\
-0 & 0 & S_z & 0 \\
-0 & 0 & 0 & 1
+1&0&0&0\\
+0&1&0&0\\
+0&0&1&0\\
+t_x&t_y&t_z&1
 \end{bmatrix}
 $$
 
-#### 旋转矩阵
+因此平移位于最后一行，而不是许多列向量教材中的最后一列。引擎构造旋转平移矩阵时明确写入：
 
-**绕 X 轴旋转**（Pitch）：
+```cpp
+M[3][0] = Origin.X
+M[3][1] = Origin.Y
+M[3][2] = Origin.Z
+```
+
+源码：`Engine/Source/Runtime/Core/Public/Math/RotationTranslationMatrix.h:L87-L89`。
+
+### 3.3 矩阵组合顺序
+
+源码明确规定：
 
 $$
-\mathbf{R_x}(\theta) = \begin{bmatrix}
-1 & 0 & 0 & 0 \\
-0 & \cos\theta & -\sin\theta & 0 \\
-0 & \sin\theta & \cos\theta & 0 \\
-0 & 0 & 0 & 1
+C = A \mathbin{*} B
+$$
+
+逻辑上先应用 A，再应用 B：
+
+$$
+\operatorname{TransformPosition}(A \mathbin{*} B, P)
+=
+\operatorname{TransformPosition}
+\!\left(B,\operatorname{TransformPosition}(A,P)\right)
+$$
+
+源码：`Matrix.h:L30-L35`。
+
+因此 UE 行向量语义下，先缩放、再旋转、最后平移写作：
+
+$$
+M_{SRT}=SRT
+$$
+
+而不是列向量教材常见的 $TRS$。遇到外部论文或图形学资料，第一步必须确认它采用行向量还是列向量。
+
+### 3.4 行列式、秩和可逆性
+
+$2 \times 2$ 行列式：
+
+$$
+\det
+\begin{bmatrix}
+a&b\\c&d
 \end{bmatrix}
+=ad-bc
 $$
 
-**绕 Y 轴旋转**（Yaw）：
+3D 中，三个向量张成的有向体积为标量三重积：
 
 $$
-\mathbf{R_y}(\theta) = \begin{bmatrix}
-\cos\theta & 0 & \sin\theta & 0 \\
-0 & 1 & 0 & 0 \\
--\sin\theta & 0 & \cos\theta & 0 \\
-0 & 0 & 0 & 1
-\end{bmatrix}
+\det[a,b,c]=a\cdot(b\times c)
 $$
 
-**绕 Z 轴旋转**（Roll）：
+行列式告诉我们：
+
+- $\det(M)=0$：矩阵降秩，不存在唯一逆；
+- $\det(M)<0$：变换发生方向翻转，常见于奇数个负缩放轴；
+- $\lvert\det(M)\rvert$：体积缩放因子。
+
+但是生产代码不应仅用固定 `1e-6` 判定任意尺度矩阵是否奇异。数值求解时应使用与矩阵范数相关的阈值、条件数估计或可靠分解。
+
+### 3.5 逆、转置和法线
+
+逆矩阵满足：
 
 $$
-\mathbf{R_z}(\theta) = \begin{bmatrix}
-\cos\theta & -\sin\theta & 0 & 0 \\
-\sin\theta & \cos\theta & 0 & 0 \\
-0 & 0 & 1 & 0 \\
-0 & 0 & 0 & 1
-\end{bmatrix}
+MM^{-1}=I
 $$
 
-**欧拉角组合旋转**（Yaw-Pitch-Roll 顺序）：
+对于纯旋转正交矩阵：
 
 $$
-\mathbf{R} = \mathbf{R_z}(\text{roll}) \times \mathbf{R_x}(\text{pitch}) \times \mathbf{R_y}(\text{yaw})
+R^{-1}=R^T
 $$
 
-旋转顺序会影响最终结果，这是欧拉角表示的固有特性，也是万向节死锁问题的根源（详见 4.4 节）。
+法线在非均匀缩放下应使用逆转置：
 
-### 3.4 逆矩阵与转置
+$$
+n'=(M^{-1})^Tn
+$$
 
-#### 逆矩阵
+原因是法线需要继续与变换后的切平面正交，而普通方向变换无法保证这一点。
 
-逆矩阵用于**反向变换**，满足 $\mathbf{M} \times \mathbf{M}^{-1} = \mathbf{I}$。
+### 3.6 自定义基
+
+设三个基向量 $e_1,e_2,e_3$。从基坐标恢复标准坐标最清楚的写法是线性组合：
 
 ```cpp
-FMatrix Inverse = Matrix.Inverse();
-```
-
-典型应用：世界空间与本地空间之间的转换。若 $\mathbf{M}_{\text{world}}$ 将本地坐标变换到世界坐标，则 $\mathbf{M}_{\text{world}}^{-1}$ 将世界坐标变换回本地坐标。
-
-#### 转置矩阵
-
-转置矩阵将行列互换。对于**正交矩阵**（如旋转矩阵），转置等于逆：
-
-$$
-\mathbf{M}^T = \mathbf{M}^{-1}
-$$
-
-```cpp
-FMatrix Transposed = Matrix.GetTransposed();
-```
-
-这一性质在法线变换中尤为重要：法线应使用变换矩阵的逆转置 $\left(\mathbf{M}^{-1}\right)^T$ 进行变换，以在存在非均匀缩放时保持法线与表面垂直。
-
-### 3.5 行列式
-
-行列式是方阵的一个标量值，揭示矩阵对空间变换的本质特征。
-
-#### 定义
-
-**2×2 矩阵的行列式**：
-
-$$
-\det\begin{pmatrix}
-a & b \\
-c & d
-\end{pmatrix} = ad - bc
-$$
-
-**3×3 矩阵的行列式**（按第一行余子式展开）：
-
-$$
-\det\begin{pmatrix}
-a & b & c \\
-d & e & f \\
-g & h & i
-\end{pmatrix}
-= a(ei - fh) - b(di - fg) + c(dh - eg)
-$$
-
-```cpp
-// 3×3 行列式
-float Det3x3(float a, float b, float c,
-             float d, float e, float f,
-             float g, float h, float i)
+FVector ToWorldBasis(
+    const FVector& Coordinates,
+    const FVector& E1,
+    const FVector& E2,
+    const FVector& E3)
 {
-    return a * (e * i - f * h)
-         - b * (d * i - f * g)
-         + c * (d * h - e * g);
-}
-
-// 使用 FMatrix 计算行列式
-float Det = Matrix.Determinant();
-```
-
-#### 几何意义
-
-- **2D**：行列式的绝对值 = 两个向量张成的**平行四边形面积**
-- **3D**：行列式的绝对值 = 三个向量张成的**平行六面体体积**
-
-```cpp
-// 计算平行六面体体积（混合积 det = V1 · (V2 × V3)）
-float ParallelepipedVolume(FVector V1, FVector V2, FVector V3)
-{
-    FVector Cross = FVector::CrossProduct(V2, V3);
-    float Det = FVector::DotProduct(V1, Cross);
-    return FMath::Abs(Det);
-}
-
-// 四面体体积 = 平行六面体体积 / 6
-float TetrahedronVolume(FVector A, FVector B, FVector C, FVector D)
-{
-    return ParallelepipedVolume(B - A, C - A, D - A) / 6.0f;
+    return Coordinates.X * E1
+         + Coordinates.Y * E2
+         + Coordinates.Z * E3;
 }
 ```
 
-#### 重要性质
-
-1. **行列式为零 ⟺ 矩阵不可逆（奇异矩阵）**
-2. **行列式为零 ⟺ 列向量（或行向量）线性相关**
-3. **转置不改变行列式**：$\det(\mathbf{M}^T) = \det(\mathbf{M})$
-4. **乘积的行列式 = 行列式的乘积**：$\det(\mathbf{AB}) = \det(\mathbf{A}) \cdot \det(\mathbf{B})$
-5. **逆矩阵的行列式**：$\det(\mathbf{M}^{-1}) = \dfrac{1}{\det(\mathbf{M})}$
-6. **行列式的符号表示方向性**：
-   - $\det > 0$：保持方向（右手系 → 右手系）
-   - $\det < 0$：翻转方向（右手系 → 左手系）
-   - $\det = 0$：降维（压缩到低维空间）
+如果基是标准正交基，反向转换只需要三个点积：
 
 ```cpp
-// 判断矩阵是否可逆
-bool IsMatrixInvertible(const FMatrix& M)
+FVector ToBasisCoordinates(
+    const FVector& V,
+    const FVector& E1,
+    const FVector& E2,
+    const FVector& E3)
 {
-    return !FMath::IsNearlyZero(M.Determinant(), 1e-6f);
-}
-
-// 检测镜像变换（负缩放导致 det < 0）
-bool HasMirroringTransform(const FTransform& Transform)
-{
-    FVector Scale = Transform.GetScale3D();
-    int NegativeScales = 0;
-    if (Scale.X < 0) NegativeScales++;
-    if (Scale.Y < 0) NegativeScales++;
-    if (Scale.Z < 0) NegativeScales++;
-    return (NegativeScales % 2) == 1;
+    return FVector(
+        FVector::DotProduct(V, E1),
+        FVector::DotProduct(V, E2),
+        FVector::DotProduct(V, E3));
 }
 ```
 
-#### 行列式与叉积的关系
-
-3D 叉积可以形式化表示为行列式：
-
-$$
-\vec{a} \times \vec{b} = \begin{vmatrix}
-\vec{i} & \vec{j} & \vec{k} \\
-a_x & a_y & a_z \\
-b_x & b_y & b_z
-\end{vmatrix}
-$$
-
-#### Cramer 法则
-
-对于线性方程组 $\mathbf{A}\vec{x} = \vec{b}$，当 $\det(\mathbf{A}) \neq 0$ 时：
-
-$$
-x_i = \frac{\det(\mathbf{A}_i)}{\det(\mathbf{A})}
-$$
-
-其中 $\mathbf{A}_i$ 是将 $\mathbf{A}$ 的第 $i$ 列替换为 $\vec{b}$ 后的矩阵。
-
-```cpp
-// 使用 Cramer 法则求解 2×2 线性方程组
-// ax + by = e
-// cx + dy = f
-bool Solve2x2(float a, float b, float c, float d,
-              float e, float f, float& x, float& y)
-{
-    float Det = a * d - b * c;
-    if (FMath::IsNearlyZero(Det, 1e-6f))
-        return false; // 无解或无穷多解
-    x = (e * d - b * f) / Det;
-    y = (a * f - e * c) / Det;
-    return true;
-}
-```
-
-#### 游戏开发中的实际应用
-
-**判断点在三角形内（2D）**——利用行列式（叉积）的符号一致性：
-
-```cpp
-bool IsPointInTriangle2D(FVector2D P, FVector2D A, FVector2D B, FVector2D C)
-{
-    auto Sign = [](FVector2D P1, FVector2D P2, FVector2D P3) -> float
-    {
-        return (P1.X - P3.X) * (P2.Y - P3.Y) - (P2.X - P3.X) * (P1.Y - P3.Y);
-    };
-
-    float d1 = Sign(P, A, B);
-    float d2 = Sign(P, B, C);
-    float d3 = Sign(P, C, A);
-
-    bool HasNeg = (d1 < 0) || (d2 < 0) || (d3 < 0);
-    bool HasPos = (d1 > 0) || (d2 > 0) || (d3 > 0);
-
-    return !(HasNeg && HasPos); // 所有符号相同 → 在三角形内
-}
-```
-
-**计算多边形面积（Shoelace 公式）**——行列式的几何应用：
-
-```cpp
-float PolygonArea(const TArray<FVector2D>& Vertices)
-{
-    float Area = 0.0f;
-    int32 n = Vertices.Num();
-    for (int32 i = 0; i < n; ++i)
-    {
-        int32 j = (i + 1) % n;
-        Area += Vertices[i].X * Vertices[j].Y;
-        Area -= Vertices[i].Y * Vertices[j].X;
-    }
-    return FMath::Abs(Area) * 0.5f;
-}
-```
-
-**判断三角形是否退化**——行列式（叉积）为零意味着面积为零：
-
-```cpp
-bool IsTriangleDegenerate(FVector A, FVector B, FVector C)
-{
-    FVector Edge1 = B - A;
-    FVector Edge2 = C - A;
-    FVector Cross = FVector::CrossProduct(Edge1, Edge2);
-    return Cross.SizeSquared() < SMALL_NUMBER;
-}
-```
-
-| 行列式值 | 几何含义 | 应用 |
-|---------|---------|------|
-| $\det = 0$ | 矩阵奇异（不可逆） | 检查矩阵可逆性 |
-| $\|\det\|$ | 体积/面积缩放因子 | 计算面积、体积 |
-| $\det > 0$ | 保持方向 | 判断右手/左手系 |
-| $\det < 0$ | 翻转方向 | 检测镜像变换 |
-| $\|\det\| = 1$ | 保持体积 | 识别正交变换 |
-
-### 3.6 向量空间与线性相关性
-
-行列式揭示了矩阵与向量组的深层关系——一个矩阵是否可逆取决于其列向量是否线性无关。由此自然进入向量空间理论，它是线性代数的理论框架，帮助我们理解向量和矩阵的本质。
-
-#### 线性组合
-
-向量 $\vec{v}$ 是向量 $\vec{v}_1, \vec{v}_2, \ldots, \vec{v}_n$ 的**线性组合**，如果存在标量 $c_1, c_2, \ldots, c_n$ 使得：
-
-$$
-\vec{v} = c_1 \vec{v}_1 + c_2 \vec{v}_2 + \cdots + c_n \vec{v}_n
-$$
-
-线性插值（Lerp）就是线性组合的特例，系数和为 1：
-
-```cpp
-FVector Lerp(FVector A, FVector B, float Alpha)
-{
-    return (1.0f - Alpha) * A + Alpha * B;
-}
-```
-
-#### 线性相关与线性无关
-
-向量组 $\{\vec{v}_1, \vec{v}_2, \ldots, \vec{v}_n\}$ **线性相关**，如果存在不全为零的系数使得：
-
-$$
-c_1 \vec{v}_1 + c_2 \vec{v}_2 + \cdots + c_n \vec{v}_n = \vec{0}
-$$
-
-否则称为**线性无关**。
-
-**几何理解**：
-
-- 2 个向量线性相关 ⟺ 平行（共线）
-- 3 个向量线性相关 ⟺ 共面
-- 线性无关 ⟺ 张成不同的方向
-
-```cpp
-// 判断两个向量是否线性相关（平行）
-bool AreVectorsParallel(FVector V1, FVector V2)
-{
-    FVector Cross = FVector::CrossProduct(V1, V2);
-    return Cross.SizeSquared() < SMALL_NUMBER;
-}
-
-// 判断三个向量是否线性相关（共面）
-bool AreVectorsCoplanar(FVector V1, FVector V2, FVector V3)
-{
-    // 混合积（标量三重积）为零 ⟺ 共面
-    FVector Cross = FVector::CrossProduct(V2, V3);
-    float ScalarTripleProduct = FVector::DotProduct(V1, Cross);
-    return FMath::Abs(ScalarTripleProduct) < SMALL_NUMBER;
-}
-```
-
-#### 基与维度
-
-向量空间的**基**是一组线性无关的向量，能够通过线性组合表示空间中的任意向量。
-
-3D 空间的标准基：
-
-$$
-\vec{i} = (1, 0, 0), \quad \vec{j} = (0, 1, 0), \quad \vec{k} = (0, 0, 1)
-$$
-
-任意向量可表示为 $\vec{v} = x\vec{i} + y\vec{j} + z\vec{k}$。**维度**即基中向量的个数，3D 空间的维度是 3。
-
-```cpp
-const FVector BasisX = FVector(1, 0, 0); // FVector::ForwardVector
-const FVector BasisY = FVector(0, 1, 0); // FVector::RightVector
-const FVector BasisZ = FVector(0, 0, 1); // FVector::UpVector
-```
-
-在自定义基下表示向量，需要构建以基向量为列的矩阵并求逆：
-
-```cpp
-struct FCustomBasis
-{
-    FVector E1, E2, E3;
-
-    // 标准坐标 → 自定义基坐标（需对 [E1 E2 E3] 求逆）
-    FVector ToCustom(FVector StandardVec)
-    {
-        FMatrix M = FMatrix(E1, E2, E3, FVector::ZeroVector);
-        return M.Inverse().TransformVector(StandardVec);
-    }
-
-    // 自定义基坐标 → 标准坐标（线性组合）
-    FVector ToStandard(FVector CustomVec)
-    {
-        return CustomVec.X * E1 + CustomVec.Y * E2 + CustomVec.Z * E3;
-    }
-};
-```
-
-#### 矩阵的秩
-
-矩阵的**秩**（Rank）是其列向量（或行向量）中线性无关向量的最大个数。
-
-- $\text{rank}(\mathbf{M}) \leq \min(m, n)$（对于 $m \times n$ 矩阵）
-- $\text{rank}(\mathbf{M}) = n$ ⟺ 列满秩（列向量线性无关）
-- $\text{rank}(\mathbf{M}) < n$ ⟺ 矩阵奇异（不可逆）
-
-**秩-零化度定理**：
-
-$$
-\text{rank}(\mathbf{M}) + \text{nullity}(\mathbf{M}) = n
-$$
-
-其中零化度（nullity）是零空间（核空间）的维度。秩的几何意义是矩阵变换后空间的维度——秩降低意味着变换将空间压缩到了更低维度。
-
-```cpp
-// 对于方阵，满秩 ⟺ 行列式非零
-bool IsFullRank(const FMatrix& M)
-{
-    return !FMath::IsNearlyZero(M.Determinant(), 1e-6f);
-}
-```
-
-### 3.7 特征值与特征向量
-
-向量空间理论为理解矩阵本质提供了框架。在此基础上，特征值与特征向量揭示了矩阵变换中方向不变的轴——这在物理稳定性分析和主成分分析中至关重要。
-
-#### 定义
-
-对于矩阵 $\mathbf{M}$，如果存在非零向量 $\vec{v}$ 和标量 $\lambda$ 使得：
-
-$$
-\mathbf{M}\vec{v} = \lambda\vec{v}
-$$
-
-则称 $\lambda$ 为**特征值**（Eigenvalue），$\vec{v}$ 为对应的**特征向量**（Eigenvector）。
-
-**几何意义**：特征向量在矩阵变换下**方向不变**，只是被缩放了 $\lambda$ 倍。
-
-#### 特征值的计算
-
-特征值满足**特征方程**：
-
-$$
-\det(\mathbf{M} - \lambda \mathbf{I}) = 0
-$$
-
-对于 2×2 矩阵 $\mathbf{M} = \begin{pmatrix} a & b \\ c & d \end{pmatrix}$，特征多项式为：
-
-$$
-\lambda^2 - (a+d)\lambda + (ad - bc) = 0
-$$
-
-$$
-\lambda = \frac{(a+d) \pm \sqrt{(a+d)^2 - 4(ad-bc)}}{2}
-$$
-
-```cpp
-struct FEigenvalues2D
-{
-    float Lambda1;
-    float Lambda2;
-    bool bIsComplex;
-};
-
-FEigenvalues2D ComputeEigenvalues2x2(float a, float b, float c, float d)
-{
-    FEigenvalues2D Result;
-    float Trace = a + d;       // 迹 = 特征值之和
-    float Det = a * d - b * c; // 行列式 = 特征值之积
-    float Discriminant = Trace * Trace - 4.0f * Det;
-
-    if (Discriminant >= 0)
-    {
-        float SqrtDisc = FMath::Sqrt(Discriminant);
-        Result.Lambda1 = (Trace + SqrtDisc) * 0.5f;
-        Result.Lambda2 = (Trace - SqrtDisc) * 0.5f;
-        Result.bIsComplex = false;
-    }
-    else
-    {
-        // 复特征值（旋转矩阵的特征值即为复数）
-        Result.Lambda1 = Trace * 0.5f;                    // 实部
-        Result.Lambda2 = FMath::Sqrt(-Discriminant) * 0.5f; // 虚部
-        Result.bIsComplex = true;
-    }
-    return Result;
-}
-```
-
-> 3×3 矩阵的特征值求解涉及三次方程，通常使用数值迭代方法（如幂迭代法、Jacobi 特征值算法）。这属于线性方程组迭代求解的范畴，详见&#12298;[线性方程组迭代求解详解](/knowledge/iterative-linear-solvers/)&#12299;。
-
-#### 特征向量
-
-对于特征值 $\lambda$，特征向量 $\vec{v}$ 满足 $(\mathbf{M} - \lambda\mathbf{I})\vec{v} = \vec{0}$，即特征向量位于 $\mathbf{M} - \lambda\mathbf{I}$ 的零空间中。
-
-#### 重要性质
-
-1. **迹 = 特征值之和**：$\text{tr}(\mathbf{M}) = \lambda_1 + \lambda_2 + \cdots + \lambda_n$
-2. **行列式 = 特征值之积**：$\det(\mathbf{M}) = \lambda_1 \cdot \lambda_2 \cdots \lambda_n$
-3. **对称矩阵的特征值都是实数**
-4. **正定矩阵的所有特征值都大于 0**
-
-#### 旋转矩阵的特征值
-
-3D 旋转矩阵的特征值：
-
-- $\lambda_1 = 1$（对应旋转轴方向的特征向量，即旋转轴本身）
-- $\lambda_2, \lambda_3 = e^{\pm i\theta}$（复数，模为 1，$\theta$ 为旋转角度）
-
-#### 稳定性分析
-
-特征值可用于分析物理系统的稳定性。弹簧-阻尼系统的运动方程 $\mathbf{M}\ddot{x} + \mathbf{C}\dot{x} + \mathbf{K}x = 0$ 的特征方程为 $M\lambda^2 + C\lambda + K = 0$：
-
-```cpp
-bool IsSpringSystemStable(float Stiffness, float Damping, float Mass)
-{
-    // 特征方程：M·λ² + C·λ + K = 0
-    float a = Mass;
-    float b = Damping;
-    float c = Stiffness;
-
-    float Discriminant = b * b - 4.0f * a * c;
-    float SqrtDisc = FMath::Sqrt(FMath::Max(0.0f, Discriminant));
-    float Lambda1 = (-b + SqrtDisc) / (2.0f * a);
-    float Lambda2 = (-b - SqrtDisc) / (2.0f * a);
-
-    // 系统稳定 ⟺ 所有特征值实部为负
-    return Lambda1 < 0 && Lambda2 < 0;
-}
-```
-
-> 特征值分析在雅可比矩阵中同样关键——雅可比矩阵的特征值决定了系统的局部行为，详见&#12298;[雅可比矩阵详解](/knowledge/jacobian-matrix/)&#12299;。海森矩阵的特征值判定极值类型，详见&#12298;[海森矩阵详解](/knowledge/hessian-matrix/)&#12299;。
-
-### 3.8 线性方程组求解
-
-特征值分析与线性方程组求解是矩阵计算的两条主线。前文已涉及 Cramer 法则与行列式，此处系统梳理高斯消元、LU 分解与最小二乘法——它们是 IK 求解、约束求解和曲线拟合的数学基础。迭代求解方法（Jacobi、Gauss-Seidel、共轭梯度）的深拆见&#12298;[线性方程组迭代求解详解](/knowledge/iterative-linear-solvers/)&#12299;。
-
-#### 高斯消元法
-
-将增广矩阵化为行阶梯形，然后回代求解。算法分两步：
-
-1. **前向消元**：通过行变换化为上三角矩阵
-2. **回代**：从最后一行开始逐步求解
-
-```cpp
-bool SolveGaussian(TArray<TArray<float>>& A, TArray<float>& b, TArray<float>& x)
-{
-    int32 n = A.Num();
-    if (n == 0 || A[0].Num() != n || b.Num() != n)
-        return false;
-
-    // 构建增广矩阵 [A|b]
-    TArray<TArray<float>> Aug;
-    Aug.SetNum(n);
-    for (int32 i = 0; i < n; ++i)
-    {
-        Aug[i].SetNum(n + 1);
-        for (int32 j = 0; j < n; ++j)
-            Aug[i][j] = A[i][j];
-        Aug[i][n] = b[i];
-    }
-
-    // 前向消元（部分选主元）
-    for (int32 k = 0; k < n; ++k)
-    {
-        // 选择主元（列中绝对值最大的行）
-        int32 PivotRow = k;
-        float MaxPivot = FMath::Abs(Aug[k][k]);
-        for (int32 i = k + 1; i < n; ++i)
-        {
-            if (FMath::Abs(Aug[i][k]) > MaxPivot)
-            {
-                MaxPivot = FMath::Abs(Aug[i][k]);
-                PivotRow = i;
-            }
-        }
-
-        if (FMath::IsNearlyZero(MaxPivot, 1e-10f))
-            return false; // 矩阵奇异
-
-        if (PivotRow != k)
-            Swap(Aug[k], Aug[PivotRow]);
-
-        for (int32 i = k + 1; i < n; ++i)
-        {
-            float Factor = Aug[i][k] / Aug[k][k];
-            for (int32 j = k; j <= n; ++j)
-                Aug[i][j] -= Factor * Aug[k][j];
-        }
-    }
-
-    // 回代
-    x.SetNum(n);
-    for (int32 i = n - 1; i >= 0; --i)
-    {
-        float Sum = Aug[i][n];
-        for (int32 j = i + 1; j < n; ++j)
-            Sum -= Aug[i][j] * x[j];
-        x[i] = Sum / Aug[i][i];
-    }
-    return true;
-}
-```
-
-#### LU 分解
-
-将矩阵 $\mathbf{A}$ 分解为下三角矩阵 $\mathbf{L}$ 和上三角矩阵 $\mathbf{U}$：
-
-$$
-\mathbf{A} = \mathbf{LU}
-$$
-
-LU 分解的优势在于分解完成后可重复使用，适合多次求解同一系数矩阵但不同右端项的方程组。求解分两步：
-
-1. 前向替换解 $\mathbf{L}\vec{y} = \vec{b}$
-2. 回代解 $\mathbf{U}\vec{x} = \vec{y}$
-
-#### 最小二乘法
-
-当方程组无精确解时（超定系统，方程数多于未知数），求**最小平方误差解**：
-
-$$
-\min_{\vec{x}} \|\mathbf{A}\vec{x} - \vec{b}\|^2
-$$
-
-**正规方程**：
-
-$$
-\mathbf{A}^T \mathbf{A} \vec{x} = \mathbf{A}^T \vec{b}
-$$
-
-```cpp
-TArray<float> SolveLeastSquares(const TArray<TArray<float>>& A, const TArray<float>& b)
-{
-    int32 m = A.Num();    // 方程个数
-    int32 n = A[0].Num(); // 未知数个数
-
-    // 构建 A^T·A（n×n）
-    TArray<TArray<float>> ATA;
-    ATA.SetNum(n);
-    for (int32 i = 0; i < n; ++i)
-    {
-        ATA[i].SetNum(n);
-        for (int32 j = 0; j < n; ++j)
-        {
-            float Sum = 0.0f;
-            for (int32 k = 0; k < m; ++k)
-                Sum += A[k][i] * A[k][j];
-            ATA[i][j] = Sum;
-        }
-    }
-
-    // 构建 A^T·b（n）
-    TArray<float> ATb;
-    ATb.SetNum(n);
-    for (int32 i = 0; i < n; ++i)
-    {
-        float Sum = 0.0f;
-        for (int32 k = 0; k < m; ++k)
-            Sum += A[k][i] * b[k];
-        ATb[i] = Sum;
-    }
-
-    // 求解正规方程
-    TArray<float> x;
-    SolveGaussian(ATA, ATb, x);
-    return x;
-}
-```
-
-#### 应用：IK 雅可比求解
-
-IK 的核心是将目标位置差转化为关节角度修正，通过求解线性方程组 $\mathbf{J}\Delta\theta = \Delta x$ 实现：
-
-```cpp
-void SolveIKJacobian(TArray<float>& JointAngles,
-                     FVector TargetPosition,
-                     FVector CurrentEndEffectorPos,
-                     TArray<TArray<float>>& Jacobian)
-{
-    FVector DeltaPos = TargetPosition - CurrentEndEffectorPos;
-    TArray<float> DeltaX = {DeltaPos.X, DeltaPos.Y, DeltaPos.Z};
-    TArray<float> DeltaTheta;
-
-    // 求解 J·Δθ = Δx
-    if (SolveGaussian(Jacobian, DeltaX, DeltaTheta))
-    {
-        for (int32 i = 0; i < JointAngles.Num(); ++i)
-            JointAngles[i] += DeltaTheta[i] * 0.1f; // 阻尼系数
-    }
-}
-```
-
-> 雅可比矩阵的构建与 IK 中的具体应用详见&#12298;[雅可比矩阵详解](/knowledge/jacobian-matrix/)&#12299;。对于大规模稀疏系统（如布料、流体约束），迭代方法比直接法更高效，详见&#12298;[线性方程组迭代求解详解](/knowledge/iterative-linear-solvers/)&#12299;。
+非正交基才需要解线性方程组；不要默认通过显式求逆完成。
 
 ---
 
-## 四、坐标变换
+## 四、FTransform：UE 中最常用的空间变换
 
-### 4.1 变换的组合
+### 4.1 内部表示和应用顺序
 
-3D 物体的完整变换通常按 **SRT** 顺序应用：
+`FTransform` 保存：
 
-1. **缩放（Scale）**：改变大小
-2. **旋转（Rotation）**：改变朝向
-3. **平移（Translation）**：改变位置
+- `Rotation`：四元数；
+- `Translation`：向量；
+- `Scale3D`：向量。
 
-矩阵乘法的顺序对应变换的应用顺序：$\mathbf{M}_{\text{total}} = \mathbf{T} \times \mathbf{R} \times \mathbf{S}$，即先缩放、再旋转、最后平移。
-
-### 4.2 FTransform
-
-虚幻引擎使用 `FTransform` 封装完整变换，内部以"旋转（四元数）+ 平移（向量）+ 缩放（向量）"三元组存储，比 4×4 矩阵更紧凑且数值更稳定：
-
-```cpp
-FTransform Transform;
-Transform.SetLocation(FVector(100, 200, 50));
-Transform.SetRotation(FQuat(FRotator(0, 90, 0))); // 旋转 90°
-Transform.SetScale3D(FVector(2, 2, 2));           // 放大 2 倍
-
-// 变换点（本地 → 世界）
-FVector WorldPoint = Transform.TransformPosition(LocalPoint);
-
-// 反向变换（世界 → 本地）
-FVector LocalPoint = Transform.InverseTransformPosition(WorldPoint);
-```
-
-### 4.3 坐标空间
-
-#### 常见坐标空间
-
-1. **本地空间（Local Space）**：相对于物体自身的坐标系
-2. **世界空间（World Space）**：场景的全局坐标系
-3. **视图空间（View Space）**：相对于相机的坐标系
-4. **骨骼空间（Bone Space）**：相对于骨骼的坐标系
-
-#### 空间转换
-
-```cpp
-// 本地 → 世界
-FVector WorldOffset = Actor->GetActorTransform().TransformPosition(LocalOffset);
-
-// 世界 → 本地
-FVector TargetLocal = Actor->GetActorTransform().InverseTransformPosition(TargetWorld);
-```
-
-### 4.4 旋转表示与万向节死锁
-
-#### 欧拉角
-
-欧拉角用三个角度表示旋转：
-
-- **Pitch**：俯仰角（绕 X 轴）
-- **Yaw**：偏航角（绕 Z 轴）
-- **Roll**：翻滚角（绕 Y 轴）
-
-```cpp
-FRotator Rotation(Pitch, Yaw, Roll);
-```
-
-**优点**：直观易懂、容易手动编辑、占用内存小（3 个浮点数）
-
-**缺点**：**万向节死锁**、插值不平滑、旋转顺序依赖
-
-#### 万向节死锁
-
-万向节死锁是欧拉角表示旋转时的**根本性缺陷**：当中间旋转轴（通常 Pitch）达到 ±90° 时，外环和内环的旋转轴会重合对齐，导致失去一个旋转自由度。
-
-**数学原理**：当 $\text{Pitch} = 90°$ 时，旋转矩阵退化为：
+对位置的应用顺序是：
 
 $$
-\mathbf{R} = \mathbf{R_z}(\psi) \times \mathbf{R_x}(90°) \times \mathbf{R_y}(\phi) \approx \mathbf{R_z}(\psi - \phi)
+\mathrm{Scale}\rightarrow\mathrm{Rotate}\rightarrow\mathrm{Translate}
 $$
 
-Yaw 和 Roll 的效果合并，两者控制的是**同一个旋转**。
-
-**实际影响**：
+对方向不应用 Translation。源码：`TransformNonVectorized.h:L13-L23`。
 
 ```cpp
-// 飞行模拟器：飞机垂直爬升时
-FRotator Rotation(90.0f, 0.0f, 0.0f); // Pitch = 90°，死锁！
-Rotation.Yaw += 10.0f;   // 尝试左转
-Rotation.Roll += 10.0f;  // 尝试右滚
-// 两个操作效果叠加，无法独立控制！
+const FTransform LocalToWorld(
+    Rotation,
+    Translation,
+    Scale);
+
+const FVector WorldPoint = LocalToWorld.TransformPosition(LocalPoint);
+const FVector LocalPointAgain = LocalToWorld.InverseTransformPosition(WorldPoint);
 ```
 
-**避免万向节死锁的方法**：
+### 4.2 FTransform 的组合顺序
 
-方法一——限制旋转角度（适用于第一人称相机）：
+对于 `FTransform`：
+
+$$
+C = A \mathbin{*} B
+$$
+
+表示先 A 后 B。骨骼层级因此应写成：
 
 ```cpp
-void ClampPitch(FRotator& Rotation)
-{
-    Rotation.Pitch = FMath::Clamp(Rotation.Pitch, -89.0f, 89.0f);
-}
+const FTransform BoneComponentTransform = BoneLocalTransform * ParentComponentTransform;
 ```
 
-方法二——使用四元数（最佳方案）：
+完整链为：
+
+$$
+T_{bone\to component}
+=T_{bone\to parent}
+T_{parent\to grandparent}
+\cdots
+T_{root\to component}
+$$
+
+不要写成 `Parent * Local`；那会先应用父变换，再应用局部变换。
+
+### 4.3 局部旋转和世界旋转
+
+源码给出的语义示例：
 
 ```cpp
-// 错误：欧拉角插值可能经过死锁点
-FRotator BadInterp = FMath::Lerp(Start, End, 0.5f);
-
-// 正确：四元数 Slerp，平滑无死锁
-FQuat GoodInterp = FQuat::Slerp(Start.Quaternion(), End.Quaternion(), 0.5f);
-FRotator Result = GoodInterp.Rotator();
+// 对 FTransform：
+LocalToWorld = DeltaRotation * LocalToWorld; // 局部空间增量
+LocalToWorld = LocalToWorld * DeltaRotation; // 世界空间增量
 ```
 
-| 场景 | 问题表现 | 解决方案 |
-|------|---------|---------|
-| 第一人称相机 | 垂直上下看时旋转异常 | 限制 Pitch 到 ±89° |
-| 飞行模拟 | 垂直爬升时无法控制方向 | 使用四元数 |
-| 骨骼动画 | 关节旋转到极限时抖动 | 使用四元数 + IK 约束 |
-| 动画插值 | 旋转路径突然跳变 | Slerp（四元数插值） |
-| 物理模拟 | 旋转物体行为异常 | 物理引擎内部使用四元数 |
+这和 `FQuat` 的乘法方向不同，是 UE 旋转代码中最容易混淆的地方之一。
 
-**核心原则**：显示和编辑用欧拉角（直观），计算和插值用四元数（无死锁）。
+### 4.4 非均匀缩放和剪切边界
+
+`FTransform` 只存旋转、平移和逐轴缩放，不能独立保存剪切。非均匀缩放与旋转组合可能在矩阵意义上产生剪切，因此：
+
+- 需要精确保留任意仿射变换时使用矩阵；
+- 骨骼层级尽量避免带旋转的非均匀缩放；
+- 法线和碰撞几何必须单独验证；
+- 不要假设任意 $\texttt{FMatrix}\rightarrow\texttt{FTransform}\rightarrow\texttt{FMatrix}$ 都能无损往返。
 
 ---
 
-## 五、四元数
+## 五、旋转：FRotator 与 FQuat
 
-### 5.1 为什么使用四元数
+### 5.1 FRotator 的真实轴和顺序
 
-四元数是表示 3D 旋转的最佳方式，优于欧拉角和旋转矩阵：
+当前源码定义：
 
-**优点**：
+| 分量 | 旋转轴 | 直观含义 |
+|---|---|---|
+| Pitch | Y，角色 Right 轴 | 抬头/低头 |
+| Yaw | Z，角色 Up 轴 | 左右转向 |
+| Roll | X，角色 Forward 轴 | 侧倾 |
 
-- 无万向节死锁
-- 插值平滑（Slerp）
-- 占用内存小（4 个浮点数）
-- 旋转组合高效
-- 数值稳定
-
-**缺点**：不直观，难以直接编辑
-
-### 5.2 四元数表示
-
-四元数由 4 个分量组成：
+内在旋转顺序是：
 
 $$
-\mathbf{q} = (x, y, z, w) = w + xi + yj + zk
+\mathrm{Yaw}\rightarrow\mathrm{Pitch}\rightarrow\mathrm{Roll}
 $$
 
-其中 $w$ 是标量部分，$(x, y, z)$ 是向量部分，虚数单位满足 $i^2 = j^2 = k^2 = ijk = -1$。
+源码：`Rotator.h:L21-L52`。
 
-**四元数的模**：
+```cpp
+const FRotator Rotation(PitchDegrees, YawDegrees, RollDegrees);
+```
+
+`FRotator` 适合编辑、显示和受限相机角度；不适合长期累积任意 3D 姿态。
+
+### 5.2 万向节死锁
+
+欧拉角通过三个顺序旋转参数化姿态。当 Pitch 接近 $\pm 90^\circ$ 时，两个有效旋转轴趋于重合，局部参数化失去一个独立自由度。
+
+正确的工程策略：
+
+- 第一人称相机：限制 Pitch，并用 Yaw/Pitch 作为控制参数；
+- 飞行器和任意姿态：内部累积四元数；
+- 骨骼动画：使用四元数插值和关节约束；
+- 仅在 UI、序列化或调试显示时转换为 Rotator。
+
+四元数避免的是欧拉参数化的奇异性，不代表任何四元数算法都会自动选择正确的业务旋转路径。
+
+### 5.3 四元数表示
+
+单位四元数：
 
 $$
-|\mathbf{q}| = \sqrt{w^2 + x^2 + y^2 + z^2}
+q=(x,y,z,w),\qquad \lVert q\rVert=1
 $$
 
-**单位四元数**（$|\mathbf{q}| = 1$）用于表示旋转。
-
-### 5.3 四元数运算
-
-#### 从轴角创建
-
-给定旋转轴 $\vec{n}$（单位向量）和旋转角度 $\theta$：
+轴角构造：
 
 $$
-\mathbf{q} = \left(n_x \sin\frac{\theta}{2},\; n_y \sin\frac{\theta}{2},\; n_z \sin\frac{\theta}{2},\; \cos\frac{\theta}{2}\right)
+q=\left(
+n_x\sin\frac\theta2,
+n_y\sin\frac\theta2,
+n_z\sin\frac\theta2,
+\cos\frac\theta2
+\right)
 $$
 
 ```cpp
-FQuat Quat = FQuat(FVector::UpVector, FMath::DegreesToRadians(90.0f));
+const FVector Axis = FVector::UpVector;
+const double AngleRadians = FMath::DegreesToRadians(90.0);
+const FQuat Rotation(Axis, AngleRadians);
 ```
 
-#### 从欧拉角创建
+轴应当归一化，角度使用弧度。
+
+### 5.4 Quaternion 的乘法顺序
+
+对于 `FQuat`：
 
 ```cpp
-FRotator Rotator(0, 90, 0);
-FQuat Quat = Rotator.Quaternion();
+const FQuat Combined = Rotation2 * Rotation1;
 ```
 
-#### 四元数乘法（组合旋转）
+表示先应用 `Rotation1`，再应用 `Rotation2`。源码：`Quat.h:L29-L35`。
 
-Hamilton 乘积：
-
-$$
-\mathbf{q_1} \otimes \mathbf{q_2} = \begin{pmatrix}
-w_1 w_2 - x_1 x_2 - y_1 y_2 - z_1 z_2 \\
-w_1 x_2 + x_1 w_2 + y_1 z_2 - z_1 y_2 \\
-w_1 y_2 - x_1 z_2 + y_1 w_2 + z_1 x_2 \\
-w_1 z_2 + x_1 y_2 - y_1 x_2 + z_1 w_2
-\end{pmatrix}
-$$
-
-向量形式的简化记法：
+对比：
 
 $$
-\mathbf{q_1} \otimes \mathbf{q_2} = \left(w_1 w_2 - \vec{v_1} \cdot \vec{v_2},\; w_1 \vec{v_2} + w_2 \vec{v_1} + \vec{v_1} \times \vec{v_2}\right)
+\begin{aligned}
+\texttt{FMatrix/FTransform}:\quad&A \mathbin{*} B &&= \text{先 }A\text{，后 }B,\\
+\texttt{FQuat}:\quad&A \mathbin{*} B &&= \text{先 }B\text{，后 }A.
+\end{aligned}
 $$
 
-```cpp
-FQuat Combined = Rotation2 * Rotation1; // 先应用 Rotation1，再应用 Rotation2
-```
-
-四元数乘法不可交换：$\mathbf{q_1} \otimes \mathbf{q_2} \neq \mathbf{q_2} \otimes \mathbf{q_1}$。
-
-#### 四元数求逆（反向旋转）
-
-**共轭**：$\mathbf{q}^* = (w, -x, -y, -z)$
-
-**逆**：$\mathbf{q}^{-1} = \dfrac{\mathbf{q}^*}{|\mathbf{q}|^2}$，对于单位四元数，$\mathbf{q}^{-1} = \mathbf{q}^*$。
-
-```cpp
-FQuat Inverse = Quat.Inverse();
-```
-
-### 5.4 四元数插值
-
-#### Slerp（球面线性插值）
-
-Slerp 是最常用的旋转插值方法，在四元数球面上沿大圆弧均匀插值，产生恒定角速度的平滑旋转动画：
-
-$$
-\text{Slerp}(\mathbf{q_1}, \mathbf{q_2}, \alpha) = \frac{\sin((1-\alpha)\theta)}{\sin\theta}\mathbf{q_1} + \frac{\sin(\alpha\theta)}{\sin\theta}\mathbf{q_2}
-$$
-
-其中 $\theta$ 是两个四元数之间的角度：$\cos\theta = \mathbf{q_1} \cdot \mathbf{q_2}$。
-
-```cpp
-FQuat Interpolated = FQuat::Slerp(StartQuat, EndQuat, Alpha);
-```
-
-应用：角色转身动画、相机平滑旋转、骨骼动画混合。
-
-#### Nlerp（归一化线性插值）
-
-快速但角速度不恒定的插值，适合对精度要求不高的场景：
-
-```cpp
-FQuat Interpolated = FQuat::FastLerp(StartQuat, EndQuat, Alpha);
-Interpolated.Normalize(); // 必须归一化
-```
+这是 API 约定，不是 Hamilton 乘积本身发生了变化。
 
 ### 5.5 旋转向量
 
-使用四元数旋转向量的标准公式：
+把 $v$ 看作纯四元数 $(v_x,v_y,v_z,0)$：
 
 $$
-\vec{v'} = \mathbf{q} \otimes \vec{v} \otimes \mathbf{q}^{-1}
-$$
-
-其中 $\vec{v}$ 被视为纯四元数 $(0, v_x, v_y, v_z)$。
-
-**优化公式**（避免完整的四元数乘法，减少运算量）：
-
-$$
-\vec{v'} = \vec{v} + 2\vec{q_{xyz}} \times (\vec{q_{xyz}} \times \vec{v} + q_w \vec{v})
+v'=qvq^{-1}
 $$
 
 ```cpp
-FQuat Rotation = FQuat(FRotator(0, 90, 0));
-FVector Rotated = Rotation.RotateVector(FVector::ForwardVector);
+const FVector Rotated = Rotation.RotateVector(FVector::ForwardVector);
 ```
 
-### 5.6 实用函数
+如果只需要把一个单位方向转到另一个单位方向：
 
 ```cpp
-// 获取旋转轴和角度
-FVector Axis;
-float Angle;
-Quat.ToAxisAndAngle(Axis, Angle);
-
-// 转换为欧拉角
-FRotator Rotator = Quat.Rotator();
-
-// 归一化
-Quat.Normalize();
-bool bIsNormalized = Quat.IsNormalized();
-
-// 点积（比较旋转相似度）
-float Dot = FQuat::DotProduct(Quat1, Quat2);
+const FQuat Delta = FQuat::FindBetweenNormals(FromDirection, ToDirection);
 ```
+
+反向或近零向量是退化情况，应提前处理。
+
+### 5.6 Slerp、FastLerp 与双覆盖
+
+$q$ 和 $-q$ 表示同一个空间旋转，这叫四元数双覆盖。插值时如果不修正符号，可能沿四维球面的长路径旋转。
+
+```cpp
+const FQuat Smooth = FQuat::Slerp(Start, End, Alpha);
+
+FQuat Fast = FQuat::FastLerp(Start, End, Alpha);
+Fast.Normalize();
+```
+
+当前源码中：
+
+- `Slerp` 会校正 alignment，并返回归一化结果；
+- `SlerpFullPath` 不检查最短路径；
+- `FastLerp` 会选择短路径，但返回结果未归一化。
+
+源码：`Quat.h:L641-L677、L1366-L1377`。
+
+因此“Slerp 永远优于 Lerp”过于绝对。动画批量混合中，归一化线性插值可能是合理的性能选择；相机恒定角速度转向则更适合 Slerp。
 
 ---
 
-## 六、物理应用
+## 六、向量空间、秩与特征值
 
-### 6.1 牛顿运动定律
+### 6.1 线性组合、基和维度
 
-牛顿第二定律：
-
-$$
-\vec{F} = m\vec{a}
-$$
-
-```cpp
-FVector Force(1000, 0, 0);
-float Mass = 10.0f;
-FVector Acceleration = Force / Mass;
-
-Velocity += Acceleration * DeltaTime;
-Location += Velocity * DeltaTime;
-```
-
-### 6.2 物理组件
-
-```cpp
-UPrimitiveComponent* PhysicsComp = GetMesh();
-
-PhysicsComp->AddForce(FVector(1000, 0, 0));       // 施加力（持续作用）
-PhysicsComp->AddImpulse(FVector(500, 0, 1000));   // 施加冲量（立即改变速度）
-PhysicsComp->AddTorque(FVector(0, 0, 10000));     // 施加扭矩（旋转力）
-```
-
-### 6.3 射线检测与反射
-
-**反射向量公式**：
+若：
 
 $$
-\vec{R} = \vec{I} - 2(\vec{I} \cdot \vec{N})\vec{N}
+v=c_1v_1+c_2v_2+\cdots+c_nv_n
 $$
 
-其中 $\vec{I}$ 是入射向量，$\vec{N}$ 是表面法线（单位向量）。
+则 $v$ 是这些向量的线性组合。基是一组能张成空间且线性无关的向量。
 
-```cpp
-FVector Start = Actor->GetActorLocation();
-FVector Forward = Actor->GetActorForwardVector();
-FVector End = Start + Forward * 1000.0f;
+在游戏开发中，“换基”实际对应：
 
-FHitResult HitResult;
-FCollisionQueryParams Params;
+- 世界空间到角色空间；
+- 组件空间到骨骼空间；
+- 接触法线/切线空间；
+- 相机 View Basis；
+- 惯性主轴坐标系。
 
-if (GetWorld()->LineTraceSingleByChannel(HitResult, Start, End, ECC_Visibility, Params))
-{
-    FVector HitNormal = HitResult.Normal;
-    // 反射向量（弹射效果）
-    FVector Reflected = Forward - 2 * FVector::DotProduct(Forward, HitNormal) * HitNormal;
-}
-```
+### 6.2 秩和零空间
 
-### 6.4 弹道计算
-
-抛体运动的运动学方程：
+矩阵的秩是独立行或列的最大数量：
 
 $$
-\vec{v}(t) = \vec{v_0} + \vec{a}t
+\operatorname{rank}(A)+\operatorname{nullity}(A)=n
 $$
 
-$$
-\vec{s}(t) = \vec{s_0} + \vec{v_0}t + \frac{1}{2}\vec{a}t^2
-$$
+在 IK 和约束求解中：
 
-```cpp
-FVector Velocity = InitialVelocity;
-FVector Gravity(0, 0, -980.0f); // cm/s²
+- 秩不足意味着某些目标方向无法由当前自由度产生；
+- 零空间表示“不影响主任务”的关节运动；
+- 接近秩亏时，直接求逆会产生巨大修正量。
 
-Velocity += Gravity * DeltaTime;
-Location += Velocity * DeltaTime;
-```
-
-### 6.5 碰撞响应
-
-一维弹性碰撞（动量守恒 + 动能守恒）：
+### 6.3 特征值与特征向量
 
 $$
-\vec{v_1'} = \frac{(m_1 - m_2)\vec{v_1} + 2m_2 \vec{v_2}}{m_1 + m_2}
+Av=\lambda v
 $$
 
-$$
-\vec{v_2'} = \frac{(m_2 - m_1)\vec{v_2} + 2m_1 \vec{v_1}}{m_1 + m_2}
-$$
+特征向量在变换后保持方向，特征值描述该方向的缩放或动态响应。
 
-```cpp
-float Mass1 = 10.0f, Mass2 = 5.0f;
-FVector V1 = Object1->GetVelocity();
-FVector V2 = Object2->GetVelocity();
+典型用途：
 
-FVector V1New = ((Mass1 - Mass2) * V1 + 2 * Mass2 * V2) / (Mass1 + Mass2);
-FVector V2New = ((Mass2 - Mass1) * V2 + 2 * Mass1 * V1) / (Mass1 + Mass2);
-```
+- 惯性张量主轴；
+- 协方差矩阵和 PCA；
+- 线性系统稳定性；
+- 刚度矩阵和模态；
+- 迭代算法收敛分析。
 
-> 3D 碰撞冲量法的完整推导见&#12298;[2D 物理引擎详解](/knowledge/2d-physics-engine/)&#12299;，其中包含法向冲量、切向摩擦冲量和 Coulomb 限位的系统讲解。
+对称矩阵拥有实特征值和正交特征向量；正定矩阵所有特征值为正。一般矩阵可能出现复特征值，不能把所有问题都塞进只返回两个实数的结构。
 
-### 6.6 弹簧系统
+### 6.4 条件数比“是否可逆”更重要
 
-胡克定律（弹簧力）与阻尼力：
+即使矩阵在数学上可逆，也可能因为条件数很大而无法稳定求解。微小输入误差会被放大：
 
 $$
-\vec{F}_{\text{spring}} = -k\vec{x}
+\frac{\lVert\delta x\rVert}{\lVert x\rVert}
+\lesssim
+\kappa(A)
+\frac{\lVert\delta b\rVert}{\lVert b\rVert}
 $$
 
-$$
-\vec{F}_{\text{damping}} = -c\vec{v}
-$$
+工程上需要区分：
 
-$$
-\vec{F}_{\text{total}} = -k\vec{x} - c\vec{v}
-$$
-
-其中 $k$ 是弹簧常数，$c$ 是阻尼常数，$\vec{x}$ 是位移，$\vec{v}$ 是速度。
-
-```cpp
-FVector Displacement = TargetPos - CurrentPos;
-FVector SpringForce = SpringConstant * Displacement;
-FVector DampingForce = -DampingConstant * Velocity;
-FVector TotalForce = SpringForce + DampingForce;
-
-Velocity += (TotalForce / Mass) * DeltaTime;
-```
-
-> 弹簧-阻尼系统的临界阻尼条件 $c = 2\sqrt{km}$ 与数值稳定性分析详见&#12298;[常微分方程与数值方法详解](/knowledge/differential-equations/)&#12299;。
+- 精确奇异；
+- 数值上接近奇异；
+- 条件尚可但迭代预算不足；
+- 模型本身自由度不够。
 
 ---
 
-## 七、动画应用
+## 七、线性方程组、最小二乘与 IK
 
-### 7.1 骨骼变换层级
+### 7.1 不要默认显式求逆
 
-骨骼动画基于层级变换链：根骨骼 → 脊柱 → 肩膀 → 上臂 → 前臂 → 手。每个骨骼都有相对于父骨骼的**本地变换**，最终世界变换是所有父骨骼变换的累积。
-
-$$
-\mathbf{T}_{\text{world}} = \mathbf{T}_{\text{parent}} \times \mathbf{T}_{\text{local}}
-$$
-
-对于完整骨骼链：
+求解：
 
 $$
-\mathbf{T}_{\text{final}} = \mathbf{T}_{\text{root}} \times \mathbf{T}_{\text{bone1}} \times \mathbf{T}_{\text{bone2}} \times \cdots \times \mathbf{T}_{\text{boneN}}
+Ax=b
+$$
+
+理论上可写 $x=A^{-1}b$，但实际通常使用分解：
+
+- LU：一般方阵，多次右端项；
+- Cholesky：对称正定矩阵；
+- QR：最小二乘，比正规方程稳定；
+- SVD：秩亏、伪逆和高鲁棒性场景；
+- CG：大型稀疏对称正定系统；
+- Gauss-Seidel/Jacobi：约束和实时迭代系统中的基础方法。
+
+延伸阅读：&#12298;[线性方程组迭代求解详解](/knowledge/iterative-linear-solvers/)&#12299;。
+
+### 7.2 高斯消元的最低要求
+
+教学实现至少需要：
+
+1. 验证每一行尺寸一致；
+2. 部分选主元；
+3. 相对而非固定绝对阈值；
+4. 区分无解、无穷多解和数值失败；
+5. 把失败显式返回给调用方。
+
+生产代码还应避免 `TArray<TArray<...>>` 的碎片化布局，并优先使用经过验证的矩阵库或引擎现有求解器。
+
+### 7.3 最小二乘
+
+超定系统求：
+
+$$
+\min_x\lVert Ax-b\rVert^2
+$$
+
+正规方程：
+
+$$
+A^TAx=A^Tb
+$$
+
+适合解释推导，但会使条件数近似平方：
+
+$$
+\kappa(A^TA)\approx\kappa(A)^2
+$$
+
+因此建议：
+
+- 条件良好、规模很小：可使用正规方程；
+- 通用最小二乘：QR；
+- 秩亏或需要伪逆：SVD；
+- 实时 IK：Damped Least Squares。
+
+### 7.4 IK 的阻尼最小二乘
+
+线性化 IK：
+
+$$
+J\Delta\theta=\Delta x
+$$
+
+Jacobian 往往是矩形矩阵，不能直接交给只接受方阵的高斯消元。常用阻尼最小二乘：
+
+$$
+\Delta\theta
+=J^T(JJ^T+\lambda^2I)^{-1}\Delta x
+$$
+
+其中：
+
+- $\lambda$ 是阻尼，防止奇异附近修正爆炸；
+- 更新步长 $\alpha$ 与阻尼不同；
+- 最终更新为 $\theta_{next}=\theta+\alpha\Delta\theta$。
+
+完整 Jacobian、转置、伪逆和 DLS 推导见&#12298;[雅可比矩阵详解](/knowledge/jacobian-matrix/)&#12299;；UE FullBody IK 的引擎应用见&#12298;[UE FullBody IK 数学详解](/knowledge/ue-fullbody-ik-math/)&#12299;。
+
+---
+
+## 八、物理中的线性代数接口
+
+本章只说明线性代数负责什么；积分器、碰撞和约束求解转到对应专题。
+
+### 8.1 力、冲量和扭矩
+
+$$
+F=ma,\qquad \Delta v=\frac{J}{m},\qquad \tau=r\times F
 $$
 
 ```cpp
-// 世界空间变换 = 父变换 × 本地变换
-FTransform WorldTransform = ParentTransform * LocalTransform;
+UPrimitiveComponent* Body = GetMesh();
+
+Body->AddForce(WorldForce);
+Body->AddImpulse(WorldImpulse);
+Body->AddTorqueInRadians(WorldTorque);
 ```
 
-### 7.2 正向运动学（FK）
+当前公开接口为 `AddTorqueInRadians` / `AddTorqueInDegrees`，源码位于 `Engine/Source/Runtime/Engine/Classes/Components/PrimitiveComponent.h:L1799-L1818`。
 
-从根骨骼向末端依次传递变换：
+### 8.2 碰撞响应
+
+3D 碰撞不能直接把“一维弹性碰撞公式”逐分量套到 FVector。应先沿接触法线计算相对速度和冲量，再把冲量施加回刚体：
+
+$$
+v_{rel,n}=(v_A-v_B)\cdot n
+$$
+
+旋转刚体还需要接触臂、逆惯性张量和角速度项。完整推导见：
+
+- &#12298;[2D 物理引擎详解](/knowledge/2d-physics-engine/)&#12299;
+- &#12298;[GJK / EPA / SAT 碰撞检测](/knowledge/collision-detection-gjk-epa-sat/)&#12299;
+- &#12298;[Chaos 物理引擎详解](/knowledge/ue-chaos-physics-engine/)&#12299;
+
+### 8.3 数值积分和弹簧
+
+连续运动方程需要离散积分。显式 Euler、半隐式 Euler、Verlet 和高阶方法有不同的稳定性与能量行为，不能只凭公式外观替换。
+
+当前 `FMath::SpringDamper` 是原地更新 value/rate 的 `void` 函数：
 
 ```cpp
-void UpdateBoneChain(TArray<FTransform>& LocalTransforms)
-{
-    TArray<FTransform> WorldTransforms;
-    WorldTransforms.Add(LocalTransforms[0]); // 根骨骼
+FVector Current = GetActorLocation();
+FVector CurrentVelocity = Velocity;
+const FVector TargetVelocity = FVector::ZeroVector;
 
-    for (int32 i = 1; i < LocalTransforms.Num(); ++i)
-    {
-        // 子骨骼世界变换 = 父世界变换 × 子本地变换
-        WorldTransforms.Add(WorldTransforms[i - 1] * LocalTransforms[i]);
-    }
+FMath::SpringDamper(
+    Current,
+    CurrentVelocity,
+    Target,
+    TargetVelocity,
+    DeltaTime,
+    UndampedFrequencyHz,
+    DampingRatio);
+```
+
+函数签名和稳定性注释见 `Engine/Source/Runtime/Core/Public/Math/UnrealMathUtility.h:L1654-L1705`。
+
+深入阅读：
+
+- &#12298;[常微分方程与数值方法详解](/knowledge/differential-equations/)&#12299;
+- &#12298;[PBD 与 XPBD 详解](/knowledge/pbd-xpbd-math/)&#12299;
+- &#12298;[位置基弹性杆详解](/knowledge/position-based-elastic-rods/)&#12299;
+- &#12298;[VBD / AVBD 数学详解](/knowledge/vbd-avbd-math/)&#12299;
+
+---
+
+## 九、动画中的线性代数接口
+
+### 9.1 骨骼层级
+
+每个骨骼保存相对父骨骼的局部变换。按 UE `FTransform` 语义：
+
+```cpp
+ComponentTransforms[RootIndex] = LocalTransforms[RootIndex];
+
+for (int32 BoneIndex = 1; BoneIndex < LocalTransforms.Num(); ++BoneIndex)
+{
+    const int32 ParentIndex = ParentIndices[BoneIndex];
+    ComponentTransforms[BoneIndex]
+        = LocalTransforms[BoneIndex] * ComponentTransforms[ParentIndex];
 }
 ```
 
-### 7.3 反向运动学（IK）
+真实 Skeleton 不是一条线性链，必须通过 ParentIndices 取父骨骼，不能默认 `i-1` 就是父节点。
 
-从目标位置反推骨骼旋转，常用于脚步贴合地面、手部抓取物体、角色看向目标。
+### 9.2 动画混合
 
-**Two-Bone IK**（双骨骼 IK）用于手臂、腿部等由两段骨骼组成的链：
-
-```cpp
-// 在动画蓝图中使用 Two Bone IK 节点
-// 或在 C++ 中：
-FAnimNode_TwoBoneIK TwoBoneIK;
-TwoBoneIK.EffectorLocation = TargetLocation;     // 末端位置（手/脚）
-TwoBoneIK.JointTargetLocation = HintLocation;     // 关节提示位置（肘/膝盖方向）
-```
-
-> IK 求解中雅可比矩阵的构建与线性方程组求解见 3.8 节，深拆见&#12298;[雅可比矩阵详解](/knowledge/jacobian-matrix/)&#12299;。UE FullBody IK 的完整数学见&#12298;[UE FullBody IK 数学详解](/knowledge/ue-fullbody-ik-math/)&#12299;。
-
-### 7.4 动画混合
-
-**线性插值（Lerp）**用于位置和缩放：
-
-$$
-\text{Lerp}(\vec{A}, \vec{B}, \alpha) = (1-\alpha)\vec{A} + \alpha\vec{B}
-$$
-
-**球面线性插值（Slerp）**用于旋转：
-
-$$
-\text{Slerp}(\mathbf{q_1}, \mathbf{q_2}, \alpha) = \frac{\sin((1-\alpha)\theta)}{\sin\theta}\mathbf{q_1} + \frac{\sin(\alpha\theta)}{\sin\theta}\mathbf{q_2}
-$$
-
-其中 $\cos\theta = \mathbf{q_1} \cdot \mathbf{q_2}$。
+位置和缩放可线性插值；旋转需要考虑四元数双覆盖、归一化和路径：
 
 ```cpp
-float Alpha = 0.7f; // 70% PoseB, 30% PoseA
 FTransform Blended;
-
-Blended.SetLocation(
-    FMath::Lerp(PoseA.GetLocation(), PoseB.GetLocation(), Alpha));
-Blended.SetRotation(
-    FQuat::Slerp(PoseA.GetRotation(), PoseB.GetRotation(), Alpha));
-Blended.SetScale3D(
-    FMath::Lerp(PoseA.GetScale3D(), PoseB.GetScale3D(), Alpha));
+Blended.SetLocation(FMath::Lerp(A.GetLocation(), B.GetLocation(), Alpha));
+Blended.SetScale3D(FMath::Lerp(A.GetScale3D(), B.GetScale3D(), Alpha));
+Blended.SetRotation(FQuat::Slerp(A.GetRotation(), B.GetRotation(), Alpha));
 ```
 
-旋转必须使用 Slerp 而非 Lerp，否则会产生非均匀角速度和数值不稳定。
+实际 AnimGraph 还会处理：
 
-### 7.5 注视目标（Look At）
+- 每骨骼权重；
+- Additive Pose；
+- 曲线与 Attribute；
+- Sync Group；
+- Inertialization / Blend Stack；
+- Root Motion 权重。
 
-让骨骼（如头部、眼睛）朝向目标：
+因此上面的 `FTransform` 示例只用于解释局部数学，不是 AnimGraph 混合器的替代实现。
+
+### 9.3 Look At
+
+“方向转 Rotator”默认让 X 轴朝向目标。如果骨骼前向轴不是 X，必须额外补偿：
 
 ```cpp
-FVector BoneLocation = GetBoneLocation(TEXT("Head"));
-FVector Direction = (TargetLocation - BoneLocation).GetSafeNormal();
-
-// 创建朝向目标的旋转
-FQuat LookAtQuat = Direction.Rotation().Quaternion();
-
-// 平滑过渡（Slerp 朝向目标）
-FQuat CurrentQuat = GetBoneRotation(TEXT("Head"));
-FQuat NewQuat = FQuat::Slerp(CurrentQuat, LookAtQuat, DeltaTime * InterpSpeed);
+const FVector Direction = (TargetWorld - BoneWorld).GetSafeNormal();
+if (!Direction.IsNearlyZero())
+{
+    const FQuat AimRotation = FRotationMatrix::MakeFromX(Direction).ToQuat();
+    const FQuat Smoothed = FQuat::Slerp(CurrentRotation, AimRotation, Alpha);
+}
 ```
 
-### 7.6 根运动（Root Motion）
+还应明确 Bone Space、Component Space 和 World Space，避免把世界目标直接写入组件空间控制节点。
 
-角色移动由动画驱动而非代码控制：
+### 9.4 Root Motion
 
-```cpp
-// 提取根骨骼位移增量
-FTransform RootMotionDelta = AnimInstance->ExtractRootMotion(DeltaTime);
+Root Motion 不是“取出一个位移后调用 `AddMovementInput`”。在当前动画链路中：
 
-// 应用到角色
-FVector Movement = RootMotionDelta.GetLocation();
-Character->AddMovementInput(Movement, 1.0f);
-```
+- 动画资产通过 `FAnimExtractContext` 决定是否提取 Root Motion；
+- AnimGraph 可通过 `IAnimRootMotionProvider` 在 Attribute 中读取/覆盖 Root Motion；
+- `UAnimInstance::ConsumeExtractedRootMotion(float Alpha)` 提供消费入口；
+- CharacterMovement 负责把 Root Motion 与移动、碰撞和网络状态结合。
 
-### 7.7 动画曲线与插值
+源码入口：
 
-缓动函数控制动画的加速/减速：
+- `Engine/Source/Runtime/Engine/Public/Animation/AnimRootMotionProvider.h:L26-L40`
+- `Engine/Source/Runtime/Engine/Classes/Animation/AnimInstance.h:L446、L1665`
+- `Engine/Source/Runtime/Engine/Classes/Animation/AnimSequence.h:L420`
 
-```cpp
-// 平滑开始和结束
-float EaseInOut = FMath::InterpEaseInOut(0.0f, 1.0f, Alpha, 2.0f);
+相关专题：
 
-// 弹性效果
-float Spring = FMath::SpringDamper(Current, Target, Velocity, Stiffness, Damping, DeltaTime);
-```
-
-> 缓动函数的数学推导（Taylor 级数近似、SmoothStep）见&#12298;[微积分详解](/knowledge/calculus-foundations/)&#12299;。
+- &#12298;[UE 动画节点数学详解](/knowledge/ue-animation-node-math/)&#12299;
+- &#12298;[UE FullBody IK 数学详解](/knowledge/ue-fullbody-ik-math/)&#12299;
+- &#12298;[IK Retargeter 数学与 Ops](/knowledge/ik-retargeter-ops-math/)&#12299;
+- &#12298;[Motion Matching 源码详解](/knowledge/motion-matching-pose-search-source-guide/)&#12299;
 
 ---
 
-## 八、UE 实战案例
+## 十、常用 UE 模式
 
-### 8.1 角色移动
-
-```cpp
-void AMyCharacter::MoveForward(float Value)
-{
-    if (Controller && Value != 0.0f)
-    {
-        FRotator Rotation = Controller->GetControlRotation();
-        FRotator YawRotation(0, Rotation.Yaw, 0);
-
-        // 获取控制器朝向的前向向量
-        FVector Direction = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::X);
-        AddMovementInput(Direction, Value);
-    }
-}
-```
-
-### 8.2 相机平滑跟随
+### 10.1 世界方向转换到角色局部空间
 
 ```cpp
-void ACameraActor::SmoothFollow(AActor* Target, float DeltaTime)
-{
-    FVector TargetLocation = Target->GetActorLocation();
-    FVector CurrentLocation = GetActorLocation();
+const FTransform ActorTransform = Actor->GetActorTransform();
+const FVector LocalDirection = ActorTransform.InverseTransformVectorNoScale(WorldDirection);
 
-    // 向量插值平滑移动
-    FVector NewLocation = FMath::VInterpTo(CurrentLocation, TargetLocation, DeltaTime, InterpSpeed);
-    SetActorLocation(NewLocation);
-
-    // 四元数插值平滑旋转
-    FRotator TargetRotation = (TargetLocation - NewLocation).Rotation();
-    FRotator NewRotation = FMath::RInterpTo(GetActorRotation(), TargetRotation, DeltaTime, RotationSpeed);
-    SetActorRotation(NewRotation);
-}
+const double ForwardAmount = LocalDirection.X;
+const double RightAmount = LocalDirection.Y;
 ```
 
-### 8.3 弹道预测
+这比用世界 X/Y 分量判断角色前后左右更可靠。
+
+### 10.2 角度计算时 Clamp
+
+浮点误差可能让点积略超出 $[-1,1]$：
 
 ```cpp
-TArray<FVector> PredictProjectilePath(FVector StartPos, FVector Velocity, float TimeStep, int32 Steps)
-{
-    TArray<FVector> Path;
-    FVector Gravity(0, 0, -980.0f);
-
-    FVector Pos = StartPos;
-    FVector Vel = Velocity;
-
-    for (int32 i = 0; i < Steps; ++i)
-    {
-        Path.Add(Pos);
-        Vel += Gravity * TimeStep;
-        Pos += Vel * TimeStep;
-    }
-    return Path;
-}
+const FVector A = DirectionA.GetSafeNormal();
+const FVector B = DirectionB.GetSafeNormal();
+const double CosAngle = FMath::Clamp(FVector::DotProduct(A, B), -1.0, 1.0);
+const double AngleRadians = FMath::Acos(CosAngle);
 ```
 
-### 8.4 AI 视野检测
+### 10.3 固定时间步与帧率无关插值
 
-结合点积（角度判断）与射线检测（遮挡判断）：
+线性代数只定义状态关系，不保证时间离散正确。使用：
 
 ```cpp
-bool CanSeeTarget(AActor* Observer, AActor* Target)
-{
-    FVector ObserverLoc = Observer->GetActorLocation();
-    FVector TargetLoc = Target->GetActorLocation();
-    FVector ObserverForward = Observer->GetActorForwardVector();
-
-    FVector ToTarget = (TargetLoc - ObserverLoc).GetSafeNormal();
-    float Dot = FVector::DotProduct(ObserverForward, ToTarget);
-
-    float FOVAngle = 60.0f;
-    float CosineFOV = FMath::Cos(FMath::DegreesToRadians(FOVAngle / 2.0f));
-
-    if (Dot > CosineFOV) // 在视野角度内
-    {
-        FHitResult Hit;
-        FCollisionQueryParams Params;
-        Params.AddIgnoredActor(Observer);
-
-        if (GetWorld()->LineTraceSingleByChannel(Hit, ObserverLoc, TargetLoc, ECC_Visibility, Params))
-        {
-            return Hit.GetActor() == Target; // 确认无遮挡
-        }
-    }
-    return false;
-}
+Current = FMath::VInterpTo(Current, Target, DeltaTime, InterpSpeed);
 ```
 
-### 8.5 程序化脚步 IK
+时要知道它不是固定持续时间的线性插值，也不是物理弹簧。网络重放、物理子步和确定性需求应选择明确的时间模型。
+
+### 10.4 调试空间和方向
 
 ```cpp
-void ACharacter::UpdateFootIK()
-{
-    FVector LeftFootLocation = GetMesh()->GetSocketLocation(TEXT("foot_l"));
-    FVector TraceStart = LeftFootLocation + FVector(0, 0, 50);
-    FVector TraceEnd = LeftFootLocation - FVector(0, 0, 100);
+DrawDebugCoordinateSystem(
+    GetWorld(),
+    Transform.GetLocation(),
+    Transform.Rotator(),
+    30.0f,
+    false,
+    0.0f);
 
-    FHitResult Hit;
-    if (GetWorld()->LineTraceSingleByChannel(Hit, TraceStart, TraceEnd, ECC_Visibility))
-    {
-        // 计算脚部偏移
-        float Offset = Hit.Location.Z - LeftFootLocation.Z;
-
-        // 平滑插值
-        LeftFootOffset = FMath::FInterpTo(LeftFootOffset, Offset,
-                                          GetWorld()->DeltaTimeSeconds, 10.0f);
-
-        // 在动画蓝图中使用此值调整脚部位置
-    }
-}
+DrawDebugDirectionalArrow(
+    GetWorld(),
+    Origin,
+    Origin + Direction * 100.0,
+    20.0f,
+    FColor::Green,
+    false,
+    0.0f);
 ```
 
-### 8.6 绳索与布料模拟（Verlet 积分）
+调试图至少同时画：
 
-Verlet 积分公式：
+- 原点；
+- X/Y/Z 轴；
+- 输入向量；
+- 变换后的向量；
+- 当前空间名称。
 
-$$
-\vec{x}(t + \Delta t) = 2\vec{x}(t) - \vec{x}(t - \Delta t) + \vec{a}(t)\Delta t^2
-$$
-
-其中 $\vec{x}(t) - \vec{x}(t - \Delta t)$ 近似为速度。
-
-```cpp
-void UpdateRopeSimulation(TArray<FVector>& Points, TArray<FVector>& OldPoints, float DeltaTime)
-{
-    FVector Gravity(0, 0, -980.0f);
-
-    // Verlet 积分
-    for (int32 i = 1; i < Points.Num() - 1; ++i) // 跳过固定端点
-    {
-        FVector Velocity = Points[i] - OldPoints[i];
-        OldPoints[i] = Points[i];
-        Points[i] = Points[i] + Velocity + Gravity * DeltaTime * DeltaTime;
-    }
-
-    // 约束求解（保持相邻点间距离）
-    for (int32 Iter = 0; Iter < 5; ++Iter)
-    {
-        for (int32 i = 0; i < Points.Num() - 1; ++i)
-        {
-            FVector Delta = Points[i + 1] - Points[i];
-            float Distance = Delta.Size();
-            float Difference = (Distance - RestLength) / Distance;
-
-            Points[i] += Delta * 0.5f * Difference;
-            Points[i + 1] -= Delta * 0.5f * Difference;
-        }
-    }
-}
-```
-
-> Verlet 积分的数学推导与精度分析见&#12298;[常微分方程与数值方法详解](/knowledge/differential-equations/)&#12299;，位置基约束求解的深拆见&#12298;[PBD 与 XPBD 详解](/knowledge/pbd-xpbd-math/)&#12299;。
+只打印三个数，很难发现“数值正确但空间错误”。
 
 ---
 
-## 九、常用 API 速查
+## 十一、API 速查
 
-### 9.1 FVector
+### 11.1 FVector
 
 ```cpp
-FVector V(1, 2, 3);
+const double Length = V.Size();
+const double LengthSquared = V.SizeSquared();
 
-// 长度
-float Length = V.Size();
-float SquaredLength = V.SizeSquared();
+const FVector Direction = V.GetSafeNormal();
+const double Distance = FVector::Distance(A, B);
+const double DistanceSquared = FVector::DistSquared(A, B);
 
-// 归一化
-FVector Normalized = V.GetSafeNormal();
-V.Normalize(); // 原地归一化
+const double Dot = FVector::DotProduct(A, B);
+const FVector Cross = FVector::CrossProduct(A, B);
 
-// 距离
-float Distance = FVector::Distance(V1, V2);
-float DistSquared = FVector::DistSquared(V1, V2);
-
-// 点积与叉积
-float Dot = FVector::DotProduct(V1, V2);
-FVector Cross = FVector::CrossProduct(V1, V2);
-
-// 插值
-FVector Lerped = FMath::Lerp(V1, V2, Alpha);
-FVector Interped = FMath::VInterpTo(Current, Target, DeltaTime, Speed);
+const FVector Lerp = FMath::Lerp(A, B, Alpha);
+const FVector Reflected = FMath::GetReflectionVector(V, UnitNormal);
 ```
 
-### 9.2 FQuat
+### 11.2 FTransform
 
 ```cpp
-// 创建
-FQuat Q1 = FQuat(FRotator(Pitch, Yaw, Roll));
-FQuat Q2 = FQuat(Axis, AngleRadians);
+const FVector WorldPoint = Transform.TransformPosition(LocalPoint);
+const FVector WorldVector = Transform.TransformVector(LocalVector);
+const FVector WorldDirection = Transform.TransformVectorNoScale(LocalDirection);
 
-// 插值
-FQuat Slerped = FQuat::Slerp(Q1, Q2, Alpha);
-FQuat FastLerped = FQuat::FastLerp(Q1, Q2, Alpha);
+const FVector LocalPointAgain = Transform.InverseTransformPosition(WorldPoint);
 
-// 旋转向量
-FVector Rotated = Q.RotateVector(V);
-
-// 组合旋转
-FQuat Combined = Q2 * Q1; // 先 Q1 后 Q2
-
-// 求逆
-FQuat Inverse = Q.Inverse();
+const FTransform LocalToWorld = LocalToParent * ParentToWorld;
 ```
 
-### 9.3 FRotator
+### 11.3 FRotator 和 FQuat
 
 ```cpp
-FRotator R(Pitch, Yaw, Roll);
+const FRotator Rotator(PitchDegrees, YawDegrees, RollDegrees);
+const FQuat Quat = Rotator.Quaternion();
 
-// 转换
-FQuat Quat = R.Quaternion();
-FVector Forward = R.Vector();
+const FQuat AxisAngle(UnitAxis, AngleRadians);
+const FVector Rotated = AxisAngle.RotateVector(Vector);
 
-// 归一化（-180 到 180）
-FRotator Normalized = R.GetNormalized();
+const FQuat Combined = Rotation2 * Rotation1; // 先 Rotation1，后 Rotation2
+const FQuat Smooth = FQuat::Slerp(Start, End, Alpha);
 
-// 插值
-FRotator Interped = FMath::RInterpTo(Current, Target, DeltaTime, Speed);
+FQuat Fast = FQuat::FastLerp(Start, End, Alpha);
+Fast.Normalize();
+```
+
+### 11.4 物理组件
+
+```cpp
+Body->AddForce(Force);
+Body->AddImpulse(Impulse);
+Body->AddTorqueInRadians(Torque);
 ```
 
 ---
 
-## 十、可视化调试
+## 十二、常见错误检查表
 
-线性代数运算的结果往往是抽象的向量或矩阵，可视化调试是将数学与引擎表现对应起来的关键手段：
-
-```cpp
-// 绘制线段
-DrawDebugLine(GetWorld(), Start, End, FColor::Red, false, 2.0f, 0, 2.0f);
-
-// 绘制方向箭头
-DrawDebugDirectionalArrow(GetWorld(), Start, End, 50.0f, FColor::Green, false, 2.0f);
-
-// 绘制坐标系（显示三轴朝向）
-DrawDebugCoordinateSystem(GetWorld(), Location, Rotation, 100.0f, false, 2.0f);
-
-// 绘制球体
-DrawDebugSphere(GetWorld(), Center, Radius, 12, FColor::Blue, false, 2.0f);
-
-// 屏幕调试信息
-if (GEngine)
-{
-    GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Yellow,
-        FString::Printf(TEXT("Dot Product: %f"), DotProduct));
-}
-```
+| 现象 | 首先检查 |
+|---|---|
+| 左右方向反了 | 叉积参数顺序、使用的 Up 轴、世界/角色空间 |
+| 旋转顺序怪异 | 是否混淆 FQuat 与 FTransform 的乘法顺序 |
+| 骨骼飞离父节点 | 是否写成 `Parent * Local`；父索引是否真的为 $i-1$ |
+| 位移被额外加了一次平移 | Offset/Direction 是否误用 `TransformPosition` |
+| 非均匀缩放后光照错误 | 法线是否使用正确的逆转置语义 |
+| 插值绕远路 | 四元数符号、是否需要最短路径、是否使用 FullPath |
+| IK 在伸直状态爆炸 | Jacobian 秩、阻尼、步长和目标可达性 |
+| 矩阵“可逆”但结果巨大 | 条件数和问题尺度，而不只是 determinant 是否为零 |
+| 大世界位置精度丢失 | 是否把 `FVector` 过早缩窄为 `FVector3f` |
+| Root Motion 与移动组件冲突 | 是否绕过 AnimGraph/CharacterMovement 的消费链 |
 
 ---
 
-## 十一、延伸阅读
+## 十三、延伸阅读
 
-- **3D Math Primer for Graphics and Game Development**（Fletcher Dunn, Ian Parberry）——游戏开发线性代数的经典入门，涵盖向量、矩阵、四元数与几何应用的完整链路。
-- **Essential Mathematics for Games and Interactive Applications**（James M. Van Verth, Lars M. Bishop）——游戏数学的全面参考，包含坐标变换、几何检测与动画数学。
-- **Visualizing Quaternions**（Andrew J. Hanson）——四元数的可视化与几何直觉，深入理解 Slerp 与万向节死锁的本质。
+### 数学与数值方法
 
-本站相关文章：
+- &#12298;[微积分详解](/knowledge/calculus-foundations/)&#12299;
+- &#12298;[常微分方程与数值方法详解](/knowledge/differential-equations/)&#12299;
+- &#12298;[雅可比矩阵详解](/knowledge/jacobian-matrix/)&#12299;
+- &#12298;[海森矩阵详解](/knowledge/hessian-matrix/)&#12299;
+- &#12298;[线性方程组迭代求解详解](/knowledge/iterative-linear-solvers/)&#12299;
 
-- &#12298;[微积分详解](/knowledge/calculus-foundations/)&#12299;——微积分基础，含缓动函数的 Taylor 级数推导
-- &#12298;[常微分方程与数值方法详解](/knowledge/differential-equations/)&#12299;——Verlet 积分与弹簧-阻尼系统
-- &#12298;[偏微分方程与数值离散详解](/knowledge/partial-differential-equations/)&#12299;——流体方程的有限差分离散
-- &#12298;[高等数学符号速查详解](/knowledge/mathematical-notation-reference/)&#12299;——数学符号与 LaTeX 书写参考
-- &#12298;[雅可比矩阵详解](/knowledge/jacobian-matrix/)&#12299;——雅可比矩阵在 IK 与物理中的应用
-- &#12298;[海森矩阵详解](/knowledge/hessian-matrix/)&#12299;——海森矩阵在优化与极值判定中的应用
-- &#12298;[线性方程组迭代求解详解](/knowledge/iterative-linear-solvers/)&#12299;——Jacobi、Gauss-Seidel、共轭梯度与约束求解
-- &#12298;[2D 物理引擎详解](/knowledge/2d-physics-engine/)&#12299;——向量与刚体的完整物理引擎实现
-- &#12298;[PBD 与 XPBD 详解](/knowledge/pbd-xpbd-math/)&#12299;——位置基约束求解（绳索/布料的约束方法）
+### 物理
+
+- &#12298;[2D 物理引擎详解](/knowledge/2d-physics-engine/)&#12299;
+- &#12298;[GJK / EPA / SAT 碰撞检测](/knowledge/collision-detection-gjk-epa-sat/)&#12299;
+- &#12298;[PBD 与 XPBD 详解](/knowledge/pbd-xpbd-math/)&#12299;
+- &#12298;[位置基弹性杆详解](/knowledge/position-based-elastic-rods/)&#12299;
+- &#12298;[VBD / AVBD 数学详解](/knowledge/vbd-avbd-math/)&#12299;
+
+### 动画
+
+- &#12298;[UE 动画节点数学详解](/knowledge/ue-animation-node-math/)&#12299;
+- &#12298;[UE FullBody IK 数学详解](/knowledge/ue-fullbody-ik-math/)&#12299;
+- &#12298;[IK Retargeter 数学与 Ops](/knowledge/ik-retargeter-ops-math/)&#12299;
+- &#12298;[Motion Matching 源码详解](/knowledge/motion-matching-pose-search-source-guide/)&#12299;
+
+### 书籍
+
+- *3D Math Primer for Graphics and Game Development* — Fletcher Dunn, Ian Parberry
+- *Essential Mathematics for Games and Interactive Applications* — James M. Van Verth, Lars M. Bishop
+- *Visualizing Quaternions* — Andrew J. Hanson
+
+---
+
+### 最终原则
+
+线性代数公式本身通常不是 UE Bug 的来源，真正的问题更常发生在四个边界：
+
+1. 把列向量教材约定套进 UE 行向量矩阵；
+2. 混淆 FQuat 与 FTransform 的组合顺序；
+3. 混淆点、方向、法线及其所在空间；
+4. 把数学上存在的解误认为数值上稳定、工程上可用的解。
+
+每次实现前先写清楚：**数据是什么空间、采用什么单位、按什么顺序应用、容差相对什么尺度**。这四个问题明确后，大部分“玄学旋转”“骨骼飞走”“IK 爆炸”和“大世界抖动”都会变成可追踪的问题。

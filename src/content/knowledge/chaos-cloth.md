@@ -1,10 +1,10 @@
 ---
-title: "Chaos Cloth 详解 — 布料模拟架构、Dataflow 节点与约束系统"
+title: "UE Chaos Cloth 详解 — 布料模拟架构、Dataflow 节点与约束系统"
 excerpt: "基于 ChaosClothAssetDataflowNodes 插件源码与 Chaos 物理引擎约束系统，系统解析 Chaos Cloth 的布料物理属性、应用场景、参数推荐值、Dataflow 图节点功能与注意事项，以及全部 Cloth Constraint 约束类型的数学原理与创建条件。覆盖 PBD/XPBD 双求解器、各向同性/各向异性分布、弯曲与屈曲机制、自碰撞与交叉修复，以及从导入到终端的完整工作流。"
 date: "2026-07-02"
 category: "Physics"
 subtopic: "ChaosPhysics"
-tags: ["物理", "Chaos", "布料", "Cloth", "XPBD", "PBD", "约束", "C++"]
+tags: ["Chaos", "布料", "Cloth", "XPBD", "PBD", "约束"]
 readTime: "阅读约60分钟"
 ---
 

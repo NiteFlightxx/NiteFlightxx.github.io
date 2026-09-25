@@ -301,7 +301,7 @@ $$
 **term2**（迹对位置的导数）：
 
 $$
-\text{term2} = \sum_{n=1}^{3}\left[\left(\frac{\partial \mathbf{d}_n^A}{\partial \mathbf{p}_m}\right)^T \mathbf{d}_n^B + (\text{若 } \mathbf{p}_m \in B \text{ 则加 } \left(\frac{\partial \mathbf{d}_n^B}{\partial \mathbf{p}_m}\right)^T \mathbf{d}_n^A \right)\right]
+\text{term2} = \sum_{n=1}^{3}\left[\left(\frac{\partial \mathbf{d}_n^A}{\partial \mathbf{p}_m}\right)^T \mathbf{d}_n^B + \mathbf{1}_{\mathbf{p}_m \in B}\left(\frac{\partial \mathbf{d}_n^B}{\partial \mathbf{p}_m}\right)^T \mathbf{d}_n^A\right]
 $$
 
 ### 6.2 系统矩阵求解

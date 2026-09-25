@@ -562,13 +562,7 @@ float AlphaBend    = AlphaStretch * 100.f;  // 弯曲比拉伸软
 
 ### 8.2 Position Based Fluids (PBF)
 
-PBF（Macklin & Müller, 2013）将 PBD 应用于流体。核心约束为**密度约束**——每个粒子邻域的密度应等于参考密度：
-
-$$
-C_i = \frac{\rho_i}{\rho_0} - 1 = 0
-$$
-
-其中 $\rho_i=\sum_j m_j\,W(\mathbf{p}_i-\mathbf{p}_j,h)$ 是 SPH 核函数计算的密度。梯度涉及核函数 $\nabla W$ 对各邻居粒子的偏导。PBF 是 PBD 在流体领域的直接应用。
+PBF（Macklin & Müller, 2013）把 PBD 应用于流体，核心是对每个粒子的密度约束进行位置投影。完整的核函数、单边约束、XSPH 粘度和 GPU 实现见 [PBF 流体模拟详解](/knowledge/pbf-fluid-simulation/)，这里不重复展开。
 
 ### 8.3 软体模拟
 

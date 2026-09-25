@@ -8,7 +8,7 @@ tags: ["数学", "符号", "LaTeX", "速查", "参考"]
 readTime: "阅读约15分钟"
 ---
 
-> 数学符号是技术写作的"字母表"。本文按领域归类高等数学中最常用的符号及其 LaTeX 代码，统一使用 `$...$` 与 `$$...$$` 语法（本站 KaTeX 渲染管线同样依赖这两种分隔符）。阅读本站&#12298;[微积分详解](/knowledge/calculus-foundations/)&#12299;、&#12298;[UE 物理动画线性代数详解](/knowledge/ue-linear-algebra-guide/)&#12299;、&#12298;[常微分方程与数值方法详解](/knowledge/differential-equations/)&#12299; 等文章时遇到不熟悉的记号，可随时回到本篇对照。
+> 数学符号是技术写作的"字母表"。本文按领域归类高等数学中最常用的符号及其 LaTeX 代码，统一使用 `$...$` 与 `$$...$$` 语法（本站 KaTeX 渲染管线同样依赖这两种分隔符）。阅读本站&#12298;[微积分详解](/knowledge/calculus-foundations/)&#12299;、&#12298;[UE 线性代数详解](/knowledge/ue-linear-algebra-guide/)&#12299;、&#12298;[常微分方程与数值方法详解](/knowledge/differential-equations/)&#12299; 等文章时遇到不熟悉的记号，可随时回到本篇对照。
 
 ---
 
