@@ -56,25 +56,30 @@ export default function HomeView({
       <section className="relative min-h-[85svh] md:min-h-[90vh] flex items-center justify-center select-none overflow-hidden">
         {/* Geometric art from Nite_BG, drawn as native SVG */}
         <div className="absolute inset-0 -z-10">
+          {/* Keep the full signature N inside the hero at every viewport size. */}
+          <svg
+            className="absolute left-[4%] top-[40%] h-auto -translate-y-1/2"
+            style={{ width: "min(60vw, 63vh, 600px)" }}
+            viewBox="0 0 317 357"
+            aria-hidden="true"
+          >
+            <g fill="#f3f4f6" opacity="0.035">
+              <path d="M15,102 L23,113 L36,128 L49,143 L49,293 L42,308 L27,323 L15,336 Z" />
+              <path d="M0,0 L8,35 L22,63 L38,84 L59,105 L80,126 L101,147 L122,168 L143,189 L164,210 L185,231 L205,252 L226,273 L247,294 L269,315 L290,336 L311,357 L317,357 L300,308 L280,280 L253,252 L232,231 L211,210 L190,189 L169,168 L148,147 L127,126 L106,105 L85,84 L64,63 L43,42 L22,21 L1,0 Z" />
+              <path d="M303,43 L303,253 L304,267 L289,248 L276,233 L269,218 L269,83 L278,68 L293,53 L303,43 Z" />
+            </g>
+            <g fill="none" stroke="#bcfd49" strokeWidth="0.6" opacity="0.1">
+              <path d="M15,102 L23,113 L36,128 L49,143 L49,293 L42,308 L27,323 L15,336 Z" />
+              <path d="M0,0 L8,35 L22,63 L38,84 L59,105 L80,126 L101,147 L122,168 L143,189 L164,210 L185,231 L205,252 L226,273 L247,294 L269,315 L290,336 L311,357 L317,357 L300,308 L280,280 L253,252 L232,231 L211,210 L190,189 L169,168 L148,147 L127,126 L106,105 L85,84 L64,63 L43,42 L22,21 L1,0 Z" />
+              <path d="M303,43 L303,253 L304,267 L289,248 L276,233 L269,218 L269,83 L278,68 L293,53 L303,43 Z" />
+            </g>
+          </svg>
           <svg
             className="absolute inset-0 w-full h-full"
             viewBox="0 0 1440 900"
             preserveAspectRatio="xMidYMid slice"
             aria-hidden="true"
           >
-            {/* Left: large blocky N — the Nite signature shape */}
-            <g transform="translate(-40, 180) scale(2.6)" fill="#f3f4f6" opacity="0.035">
-              <path d="M15,102 L23,113 L36,128 L49,143 L49,293 L42,308 L27,323 L15,336 Z" />
-              <path d="M0,0 L8,35 L22,63 L38,84 L59,105 L80,126 L101,147 L122,168 L143,189 L164,210 L185,231 L205,252 L226,273 L247,294 L269,315 L290,336 L311,357 L317,357 L300,308 L280,280 L253,252 L232,231 L211,210 L190,189 L169,168 L148,147 L127,126 L106,105 L85,84 L64,63 L43,42 L22,21 L1,0 Z" />
-              <path d="M303,43 L303,253 L304,267 L289,248 L276,233 L269,218 L269,83 L278,68 L293,53 L303,43 Z" />
-            </g>
-            {/* N outline trace for definition */}
-            <g transform="translate(-40, 180) scale(2.6)" fill="none" stroke="#bcfd49" strokeWidth="0.6" opacity="0.1">
-              <path d="M15,102 L23,113 L36,128 L49,143 L49,293 L42,308 L27,323 L15,336 Z" />
-              <path d="M0,0 L8,35 L22,63 L38,84 L59,105 L80,126 L101,147 L122,168 L143,189 L164,210 L185,231 L205,252 L226,273 L247,294 L269,315 L290,336 L311,357 L317,357 L300,308 L280,280 L253,252 L232,231 L211,210 L190,189 L169,168 L148,147 L127,126 L106,105 L85,84 L64,63 L43,42 L22,21 L1,0 Z" />
-              <path d="M303,43 L303,253 L304,267 L289,248 L276,233 L269,218 L269,83 L278,68 L293,53 L303,43 Z" />
-            </g>
-
             {/* Right: vertical accent line */}
             <line x1="1330" y1="60" x2="1330" y2="840" stroke="#bcfd49" strokeWidth="1.5" opacity="0.15" />
 
@@ -89,8 +94,6 @@ export default function HomeView({
           <div className="absolute w-[600px] h-[400px] bg-surface-raised/20 glow-ambient bottom-10" />
           {/* Grid overlay */}
           <div className="absolute inset-0 opacity-10 bg-[linear-gradient(rgba(255,255,255,0.02)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.02)_1px,transparent_1px)] bg-[size:32px_32px]" />
-          {/* Vignette */}
-          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,transparent_25%,rgba(6,6,6,0.8)_100%)] pointer-events-none" />
         </div>
 
         {/* Hero content — centered with generous breathing space */}
