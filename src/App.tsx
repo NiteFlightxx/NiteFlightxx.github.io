@@ -22,16 +22,18 @@ import {
   PROJECTS_ZH,
   SKILLS_ZH,
 } from "./translations";
-import type { Project, ContentArticle } from "./types";
+import type { Project, ContentArticle, ContentTopicSummary, KnowledgeDomain } from "./types";
 
 interface AppProps {
   // Lightweight Markdown metadata; full bodies stay on their article routes.
   knowledgeArticles?: ContentArticle[];
+  knowledgeDomains?: KnowledgeDomain[];
+  knowledgeTopics?: ContentTopicSummary[];
 }
 
 const VALID_TABS = ["home", "projects", "knowledge", "archive"];
 
-export default function App({ knowledgeArticles = [] }: AppProps) {
+export default function App({ knowledgeArticles = [], knowledgeDomains = [], knowledgeTopics = [] }: AppProps) {
   const [activeTab, setActiveTab] = useState("home");
   // Lazy initial theme: read the persisted value (or system preference) once
   // at first render so the rays layer never flashes dark→light on load.
@@ -106,18 +108,20 @@ export default function App({ knowledgeArticles = [] }: AppProps) {
             lang={lang}
           />
         );
+      case "knowledge":
+        return (
+          <KnowledgeView
+            articles={knowledge}
+            domains={knowledgeDomains}
+            topics={knowledgeTopics}
+            lang={lang}
+          />
+        );
       case "projects":
         return (
           <ProjectsView
             projects={projects}
             onSelectProject={openProject}
-            lang={lang}
-          />
-        );
-      case "knowledge":
-        return (
-          <KnowledgeView
-            articles={knowledge}
             lang={lang}
           />
         );

@@ -1,0 +1,14 @@
+---
+import BaseHead from '../../components/BaseHead.astro';
+import KnowledgeSiteHeader from '../../components/KnowledgeSiteHeader.astro';
+import { SITE } from '../../consts';
+import '../../index.css';
+const baseURL = import.meta.env.BASE_URL;
+---
+<!doctype html>
+<html lang="zh-CN">
+  <head><meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta http-equiv="refresh" content={`0;url=${baseURL}knowledge/library/`} /><BaseHead title={`文章库 · ${SITE.shortTitle}`} description="知识文章库" type="website" canonicalPath={`${baseURL}knowledge/library/`} /></head>
+  <body class="bg-surface-base text-text-secondary"><KnowledgeSiteHeader current="knowledge" /><main class="max-w-xl mx-auto px-6 py-24 text-center"><h1 class="font-display font-bold text-2xl text-text-primary">正在打开文章库</h1><p class="mt-3 text-sm text-text-muted"><a class="text-accent-primary" href={`${baseURL}knowledge/library/`}>如果没有自动跳转，请点击这里</a></p></main></body>
+</html>
+
+

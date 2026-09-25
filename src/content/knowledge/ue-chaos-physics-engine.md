@@ -11,6 +11,10 @@ topics:
     stage: "architecture"
     role: "source"
     order: 10
+kind: "source"
+level: "advanced"
+prerequisites: ["numerical-integration-methods", "pbd-xpbd-math", "iterative-linear-solvers"]
+nextArticles: ["gjk-collision-detection", "chaos-kinematic-sync", "gpu-physics-plugin"]
 ---
 
 > Chaos 是 Unreal Engine 5 的默认刚体物理引擎，取代了 UE4 时代的 PhysX。它不是一个"换了名字的 PhysX"，而是一次从求解器内核开始的重新设计：以 **PBD（Position-Based Dynamics）** 作为刚体约束的核心范式，用"预测位置 → 投影约束 → 反推速度"的循环取代了传统基于力/冲量的 Sequential Impulse 主循环。

@@ -1,0 +1,26 @@
+---
+import BaseHead from '../../components/BaseHead.astro';
+import KnowledgeSiteHeader from '../../components/KnowledgeSiteHeader.astro';
+import KnowledgeLibrary from '../../components/KnowledgeLibrary';
+import { SITE } from '../../consts';
+import { loadKnowledge } from '../../lib/content';
+import '../../index.css';
+const articles = await loadKnowledge();
+const baseURL = import.meta.env.BASE_URL;
+---
+<!doctype html>
+<html lang="zh-CN">
+  <head><meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" /><BaseHead title={`文章库 · ${SITE.shortTitle}`} description="搜索和筛选全部知识文章" type="website" canonicalPath={Astro.url.pathname} /></head>
+  <body class="bg-surface-base text-text-secondary">
+    <div class="fixed inset-0 -z-20 bg-surface-base"></div><div class="grain-overlay" aria-hidden="true"></div>
+    <KnowledgeSiteHeader current="knowledge" />
+    <main class="max-w-4xl mx-auto px-6 md:px-8 py-12 md:py-20 space-y-9">
+      <nav aria-label="面包屑" class="text-xs font-mono text-text-faint"><a href={`${baseURL}knowledge/`} class="hover:text-accent-primary">知识库</a> / 文章库</nav>
+      <section><h1 class="font-display font-black text-4xl md:text-5xl text-text-primary">文章库</h1><p class="mt-4 text-sm text-text-muted">按关键词、领域、文章类型和难度查找内容。筛选条件会保存在地址栏中。</p></section>
+      <KnowledgeLibrary client:load articles={articles} />
+    </main>
+  </body>
+</html>
+
+
+

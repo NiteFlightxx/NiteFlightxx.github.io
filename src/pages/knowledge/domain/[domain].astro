@@ -1,0 +1,130 @@
+---
+import { getCollection, render, type CollectionEntry } from 'astro:content';
+import BaseHead from '../../../components/BaseHead.astro';
+import KnowledgeSiteHeader from '../../../components/KnowledgeSiteHeader.astro';
+import { SITE } from '../../../consts';
+import { knowledgeCategoryZh, knowledgeSubtopicZh } from '../../../lib/taxonomy';
+import '../../../index.css';
+
+type DomainEntry = CollectionEntry<'knowledgeDomains'>;
+type ArticleEntry = CollectionEntry<'knowledge'>;
+
+interface Props {
+  domain: DomainEntry;
+  articles: ArticleEntry[];
+  allArticles: ArticleEntry[];
+}
+
+export async function getStaticPaths() {
+  const [domains, articles] = await Promise.all([
+    getCollection('knowledgeDomains'),
+    getCollection('knowledge', (entry) => !entry.data.draft),
+  ]);
+  return domains.map((domain) => ({
+    params: { domain: domain.slug },
+    props: {
+      domain,
+      articles: articles.filter((article) => article.data.category === domain.data.category),
+      allArticles: articles,
+    },
+  }));
+}
+
+const { domain, articles, allArticles } = Astro.props as Props;
+const { Content } = await render(domain);
+const baseURL = import.meta.env.BASE_URL;
+const articleBySlug = new Map(allArticles.map((article) => [article.slug, article]));
+const featured = domain.data.featured.map((slug) => articleBySlug.get(slug)).filter(Boolean) as ArticleEntry[];
+const subtopics = [...new Set(articles.map((article) => article.data.subtopic))];
+const sortedArticles = [...articles].sort((a, b) => new Date(b.data.date).getTime() - new Date(a.data.date).getTime());
+const articlesBySubtopic = subtopics.map((subtopic) => ({
+  key: subtopic,
+  title: knowledgeSubtopicZh(domain.data.category, subtopic),
+  articles: sortedArticles.filter((article) => article.data.subtopic === subtopic),
+}));
+---
+
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <BaseHead title={`${domain.data.title} · ${SITE.shortTitle}`} description={domain.data.excerpt} type="article" canonicalPath={Astro.url.pathname} />
+  </head>
+  <body class="bg-surface-base text-text-secondary">
+    <div class="fixed inset-0 -z-20 bg-surface-base"></div>
+    <div class="grain-overlay" aria-hidden="true"></div>
+    <KnowledgeSiteHeader current="knowledge" />
+
+    <main class="w-full max-w-5xl mx-auto px-6 md:px-8 py-12 md:py-20 space-y-14">
+      <section class="space-y-5">
+        <div class="text-[10px] font-mono text-accent-primary uppercase tracking-widest">Knowledge Domain / {knowledgeCategoryZh(domain.data.category)}</div>
+        <h1 class="font-display font-black text-4xl md:text-6xl text-text-primary tracking-tight">{domain.data.title}</h1>
+        <p class="max-w-3xl text-base md:text-lg text-text-secondary leading-relaxed">{domain.data.excerpt}</p>
+        <div class="flex flex-wrap gap-2 text-[10px] font-mono text-text-faint">
+          <span class="px-2.5 py-1 rounded border border-border-subtle bg-surface-card">{articles.length} 篇文章</span>
+          <span class="px-2.5 py-1 rounded border border-border-subtle bg-surface-card">{subtopics.length} 个子主题</span>
+        </div>
+      </section>
+
+      <section class="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_280px] gap-8 items-start">
+        <article class="article-body max-w-none prose prose-invert"><Content /></article>
+        <aside class="lg:sticky lg:top-24 p-5 rounded-xl border border-border-subtle bg-surface-card space-y-4">
+          <div class="text-[10px] font-mono text-accent-primary uppercase tracking-widest">子主题</div>
+          <div class="flex flex-wrap gap-2">
+            {subtopics.map((subtopic) => <span class="px-2 py-1 rounded bg-surface-base text-[10px] font-mono text-text-muted">{knowledgeSubtopicZh(domain.data.category, subtopic)}</span>)}
+          </div>
+          <a href={`${baseURL}knowledge/library/?domain=${domain.data.category}`} class="block pt-3 border-t border-border-subtle text-xs font-mono text-text-muted hover:text-accent-primary transition-colors">在文章库中筛选 →</a>
+        </aside>
+      </section>
+
+      {featured.length > 0 && (
+        <section class="space-y-5">
+          <div class="text-[10px] font-mono text-accent-primary uppercase tracking-widest">精选文章</div>
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {featured.map((article) => (
+              <a href={`${baseURL}knowledge/${article.slug}/`} class="group p-5 rounded-xl border border-accent-primary/20 bg-accent-primary/5 hover:border-accent-primary/50 transition-colors">
+                <div class="text-[9px] font-mono text-accent-primary">{knowledgeSubtopicZh(article.data.category, article.data.subtopic)}</div>
+                <h2 class="mt-3 font-display font-semibold text-base text-text-primary group-hover:text-accent-primary transition-colors">{article.data.title}</h2>
+                <p class="mt-2 text-xs text-text-muted leading-relaxed line-clamp-3">{article.data.excerpt}</p>
+              </a>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {domain.data.learningPaths.length > 0 && (
+        <section class="space-y-6">
+          <div>
+            <div class="text-[10px] font-mono text-accent-primary uppercase tracking-widest">Learning Paths</div>
+            <h2 class="mt-2 font-display font-bold text-2xl text-text-primary">学习路线</h2>
+          </div>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {domain.data.learningPaths.map((path) => (
+              <div class="p-5 rounded-xl border border-border-subtle bg-surface-card">
+                <h3 class="font-display font-semibold text-lg text-text-primary">{path.title}</h3>
+                <p class="mt-2 text-xs text-text-muted leading-relaxed">{path.description}</p>
+                <ol class="mt-4 space-y-2">
+                  {path.articles.map((slug, index) => {
+                    const article = articleBySlug.get(slug);
+                    if (!article) return null;
+                    return <li><a href={`${baseURL}knowledge/${slug}/`} class="flex gap-2 text-xs text-text-muted hover:text-accent-primary transition-colors"><span class="font-mono text-accent-primary">{String(index + 1).padStart(2, '0')}</span><span>{article.data.title}</span></a></li>;
+                  })}
+                </ol>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      <section class="space-y-8">
+        <div class="flex items-end justify-between gap-4"><div><div class="text-[10px] font-mono text-accent-primary uppercase tracking-widest">By Subtopic</div><h2 class="mt-2 font-display font-bold text-2xl text-text-primary">按子主题浏览</h2></div><a href={`${baseURL}knowledge/library/?domain=${domain.data.category}`} class="text-xs text-accent-primary hover:text-text-primary">打开文章库 →</a></div>
+        {articlesBySubtopic.map((group) => <section class="space-y-3"><div class="flex items-center gap-3"><h3 class="font-display font-semibold text-lg text-text-primary">{group.title}</h3><span class="text-[10px] font-mono text-text-faint">{group.articles.length} 篇</span></div><div class="space-y-2">{group.articles.map((article) => <a href={`${baseURL}knowledge/${article.slug}/`} class="group flex flex-col md:flex-row md:items-center gap-2 md:gap-5 p-4 rounded-lg border border-border-subtle bg-surface-card hover:border-accent-primary/30 transition-colors"><span class="flex-1 font-display font-semibold text-sm text-text-primary group-hover:text-accent-primary transition-colors">{article.data.title}</span><span class="text-[10px] font-mono text-text-faint">{article.data.kind} · {article.data.readTime}</span></a>)}</div></section>)}
+      </section>
+    </main>
+  </body>
+</html>
+
+
+

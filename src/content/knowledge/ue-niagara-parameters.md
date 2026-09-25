@@ -6,6 +6,8 @@ category: "Engine"
 subtopic: "VFXSystem"
 tags: ["Niagara", "UE5", "粒子系统", "VFX", "C++"]
 readTime: "阅读约45分钟"
+kind: "source"
+level: "intermediate"
 ---
 
 > **Niagara** 是虚幻引擎 4.26+ 引入的新一代粒子系统，采用模块化、数据驱动的设计，支持 GPU 计算与自定义扩展。相比传统 Cascade，它提供了更灵活的节点式编辑器和可编程模型，使复杂视觉特效（VFX）的开发从美术配置到程序员扩展形成完整闭环。

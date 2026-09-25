@@ -42,6 +42,37 @@ export interface ArticleTopicRef {
   order: number;
 }
 
+export type ArticleKind = ArticleTopicRole;
+export type ArticleLevel = "foundation" | "intermediate" | "advanced";
+
+export interface KnowledgePath {
+  id: string;
+  title: string;
+  description: string;
+  articles: string[];
+}
+
+export interface KnowledgeDomain {
+  id: string;
+  categoryKey: string;
+  title: string;
+  excerpt: string;
+  articleCount: number;
+  subtopicCount: number;
+  featured: string[];
+  learningPaths: KnowledgePath[];
+}
+
+export interface ContentTopicSummary {
+  id: string;
+  title: string;
+  excerpt: string;
+  categoryKey: string;
+  status: "active" | "planned" | "archived";
+  stageCount: number;
+  articleCount: number;
+}
+
 // ---- Shared runtime shape for Markdown-backed content (Knowledge) ----
 // The knowledge loader returns objects satisfying this interface so
 // ArticleViewer can render them.
@@ -57,6 +88,10 @@ export interface ContentArticle {
   tags: string[];
   readTime?: string; // estimated reading time
   topics?: ArticleTopicRef[];
+  kind?: ArticleKind;
+  level?: ArticleLevel;
+  prerequisites?: string[];
+  nextArticles?: string[];
   searchText?: string; // lowercased body text, lazily loaded for full-text search
 }
 

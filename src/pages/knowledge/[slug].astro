@@ -56,6 +56,18 @@ const allArticles: ContentArticle[] = allEntries.map((e) => toArticleShape(e.slu
 const currentArticle = toArticleShape(entry.slug, entry.data as Record<string, any>);
 const relatedArticles = getRelatedArticles(currentArticle, allArticles, 3);
 
+const articleBySlug = new Map(allEntries.map((candidate) => [candidate.slug, candidate]));
+const learningLinks = {
+  prerequisites: entry.data.prerequisites
+    .map((slug) => articleBySlug.get(slug))
+    .filter(Boolean)
+    .map((candidate) => ({ slug: candidate!.slug, title: candidate!.data.title })),
+  nextArticles: entry.data.nextArticles
+    .map((slug) => articleBySlug.get(slug))
+    .filter(Boolean)
+    .map((candidate) => ({ slug: candidate!.slug, title: candidate!.data.title })),
+};
+
 const roleLabels: Record<string, string> = {
   theory: '理论基础',
   source: '源码解析',
@@ -113,11 +125,17 @@ if (primaryTopic && primaryTopicRef) {
   readTime={entry.data.readTime}
   tags={entry.data.tags}
   headings={headings}
-  backHref={`${baseURL}#knowledge`}
+  backHref={`${baseURL}knowledge/`}
   backLabel="返回知识库"
+  breadcrumbs={[
+    { label: '知识库', href: `${baseURL}knowledge/` },
+    { label: knowledgeCategoryZh(entry.data.category), href: `${baseURL}knowledge/domain/${entry.data.category.toLowerCase()}/` },
+    ...(entry.data.subtopic ? [{ label: knowledgeSubtopicZh(entry.data.category, entry.data.subtopic) }] : []),
+  ]}
   lang="zh"
   relatedArticles={relatedArticles}
   topicContext={topicContext}
+  learningLinks={learningLinks}
 >
   <Content />
 </ArticleLayout>

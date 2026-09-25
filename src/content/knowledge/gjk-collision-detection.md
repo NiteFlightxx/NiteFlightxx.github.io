@@ -11,6 +11,10 @@ topics:
     stage: "collision"
     role: "source"
     order: 10
+kind: "source"
+level: "advanced"
+prerequisites: ["collision-detection-gjk-epa-sat"]
+nextArticles: ["ue-chaos-physics-engine"]
 ---
 
 > GJK（Gilbert-Johnson-Keerthi, 1988）是实时物理引擎最常用的凸体碰撞检测算法。它不直接检查两个物体的几何相交，而是把"两个凸体是否相交"转化为"原点是否在一个新形状（Minkowski 差）里"，再用一个至多 4 点的 simplex 逐步逼近原点。整个算法只要求形状能回答一个问题——"沿给定方向，你最远的点在哪"——这一统一接口让它能处理所有凸体。

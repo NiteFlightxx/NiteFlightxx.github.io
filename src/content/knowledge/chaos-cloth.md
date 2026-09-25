@@ -11,6 +11,8 @@ topics:
     stage: "parallel"
     role: "source"
     order: 20
+kind: "source"
+level: "advanced"
 ---
 
 > Chaos Cloth 是虚幻引擎 5 的现代布料模拟系统，基于 Chaos 物理引擎的 PBD/XPBD 约束求解框架。它以 **ClothCollection** 数据模型为核心，通过 **Dataflow Graph** 组织从网格导入、拓扑编辑、选择绘制、蒙皮绑定到模拟配置的完整流水线，最终由终端节点生成可挂载到 SkeletalMeshComponent 的布料资产。运行时，布料模拟通过一组位置约束（拉伸、弯曲、面积、长程附着、最大距离、后挡板、动画驱动、自碰撞）在 PBD 或力基求解器中迭代求解。

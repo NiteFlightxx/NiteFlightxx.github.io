@@ -6,6 +6,8 @@ category: "Animation"
 subtopic: "AnimationNode"
 tags: ["UE5", "动画", "IK"]
 readTime: "阅读约40分钟"
+kind: "source"
+level: "advanced"
 ---
 
 > 本文档基于 `Engine\Source\Editor\AnimGraph\Public` 下的编辑器节点定义，并深入到运行时实现（`AnimGraphRuntime`、`Engine\Private\Animation`、`AnimationCore` 纯算法模块）梳理常用动画节点的数学原理、公式与核心代码。

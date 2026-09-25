@@ -11,6 +11,8 @@ topics:
     stage: "foundation"
     role: "theory"
     order: 20
+prerequisites: ["differential-equations"]
+nextArticles: ["pbd-xpbd-math"]
 ---
 
 > 物理模拟的核心循环只有一句话：**已知当前状态与受力，求下一刻的状态**。这句话的答案就是数值积分。本文从常微分方程的离散化出发，逐一拆解显式/隐式/半隐式欧拉、梯形法、龙格-库塔家族的迭代公式、稳定性与精度，并落到粒子、弹簧、刚体、流体与 PBD 的工程实现。

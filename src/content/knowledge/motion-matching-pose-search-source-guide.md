@@ -6,6 +6,8 @@ category: "Animation"
 subtopic: "MotionMatching"
 tags: ["Motion Matching", "Pose Search", "AnimGraph", "Blend Stack", "Trajectory", "UE源码"]
 readTime: "阅读约60分钟"
+kind: "source"
+level: "advanced"
 ---
 
 > 本文以 `E:\UnrealEngine\UnrealEngine_Source` 的当前 `ue5-main` 快照为事实边界。Graphify/GitNexus 只用于定位关系，最终结论以源码路径和行号为准。文中标签含义为：**源码事实**＝当前文件直接可见；**工程经验**＝可落地但需结合项目验证；**推测/需要验证**＝源码没有提供足够证据。

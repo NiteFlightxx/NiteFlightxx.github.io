@@ -11,6 +11,10 @@ topics:
     stage: "collision"
     role: "algorithm"
     order: 20
+kind: "algorithm"
+level: "intermediate"
+prerequisites: []
+nextArticles: ["gjk-collision-detection"]
 ---
 
 > 本文以虚幻引擎的 **Chaos 物理引擎**（`Engine/Source/Runtime/Experimental/Chaos`）为最佳实践参照，系统讲解凸体碰撞检测三大算法：**SAT（分离轴定理）**、**GJK（Gilbert-Johnson-Keerthi）**、**EPA（Expanding Polytope Algorithm，膨胀多面体算法）**。

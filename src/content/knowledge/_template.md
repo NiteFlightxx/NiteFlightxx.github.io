@@ -7,6 +7,10 @@ subtopic: "SourceArchitecture"
 tags: ["UE5", "C++", "待分类"]
 readTime: "阅读约5分钟"
 draft: true
+kind: "theory"
+level: "foundation"
+prerequisites: []
+nextArticles: []
 ---
 
 ## 概述

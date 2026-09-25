@@ -70,6 +70,9 @@ const ARTICLE_TOPIC_ROLES = [
   'experiment',
 ] as const;
 
+const ARTICLE_KINDS = ['theory', 'source', 'algorithm', 'comparison', 'practice', 'experiment'] as const;
+const ARTICLE_LEVELS = ['foundation', 'intermediate', 'advanced'] as const;
+
 const articleTopic = z.object({
   id: z.string().min(1),
   stage: z.string().min(1),
@@ -98,6 +101,10 @@ const knowledge = defineCollection({
       readTime: z.string().regex(/^阅读约\d+分钟$/, 'readTime must use 阅读约N分钟'),
       draft: z.boolean().optional().default(false),
       topics: z.array(articleTopic).default([]),
+      kind: z.enum(ARTICLE_KINDS).default('theory'),
+      level: z.enum(ARTICLE_LEVELS).default('intermediate'),
+      prerequisites: z.array(z.string().min(1)).default([]),
+      nextArticles: z.array(z.string().min(1)).default([]),
     })
     .superRefine((value, ctx) => {
       const allowed = KNOWLEDGE_SUBTOPICS[value.category] as readonly string[];
@@ -126,4 +133,22 @@ const topics = defineCollection({
   }),
 });
 
-export const collections = { knowledge, topics };
+const knowledgePath = z.object({
+  id: z.string().min(1),
+  title: z.string().min(1),
+  description: z.string().min(1),
+  articles: z.array(z.string().min(1)).min(1),
+});
+
+const knowledgeDomains = defineCollection({
+  type: 'content',
+  schema: z.object({
+    category: z.enum(KNOWLEDGE_CATEGORIES),
+    title: z.string().min(1),
+    excerpt: z.string().min(1),
+    featured: z.array(z.string().min(1)).default([]),
+    learningPaths: z.array(knowledgePath).default([]),
+  }),
+});
+
+export const collections = { knowledge, topics, knowledgeDomains };

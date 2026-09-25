@@ -6,6 +6,8 @@ category: "Animation"
 subtopic: "ControlRigIK"
 tags: ["UE5", "IK", "FullBodyIK", "雅可比", "XPBD"]
 readTime: "阅读约50分钟"
+kind: "source"
+level: "advanced"
 ---
 
 > 源码路径：`Engine/Plugins/Experimental/FullBodyIK`

@@ -11,6 +11,8 @@ topics:
     stage: "parallel"
     role: "source"
     order: 30
+kind: "source"
+level: "advanced"
 ---
 
 ## 第一节 插件总览与架构

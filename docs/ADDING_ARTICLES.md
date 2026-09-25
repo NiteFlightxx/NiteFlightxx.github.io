@@ -19,6 +19,8 @@
 
 分类的中文显示名由 `src/lib/taxonomy.ts` 的 `KNOWLEDGE_CATEGORIES` 单一映射，**不要**在前matter 里写中文，写英文枚举即可。`subtopic` 同理，中文显示名由 `KNOWLEDGE_SUBTOPICS` 映射。
 
+知识领域入口定义在 `src/content/knowledgeDomains/*.md`。领域文件负责领域介绍、精选文章和学习路线；文章仍然只维护自己的正文。新增领域入口时，必须使用已有 `category`，并通过 `npm run audit:knowledge-nav` 检查精选文章和路线引用的 slug。
+
 ## 专题归属
 
 项目页承担专题导航，知识文章承担可复用理论或源码证据。文章需要加入专题时，在 frontmatter 增加 `topics`：
@@ -96,6 +98,10 @@ topics:
 | `tags` | 是 | 字符串数组，3–6 个，混合中文标签可 |
 | `readTime` | 是 | 显示串如 `"阅读约40分钟"` |
 | `topics` | 否 | 专题引用数组；每个引用必须包含 `id`、`stage`、`role`、`order` |
+| `kind` | 否 | `theory` / `source` / `algorithm` / `comparison` / `practice` / `experiment`，默认 `theory` |
+| `level` | 否 | `foundation` / `intermediate` / `advanced`，默认 `intermediate` |
+| `prerequisites` | 否 | 前置文章 slug 数组 |
+| `nextArticles` | 否 | 推荐后续文章 slug 数组 |
 | `draft` | 否 | `true` 则不生成路由、不出现在卡片列表（默认 `false`） |
 
 ### 标题命名规范
@@ -214,20 +220,23 @@ npm run dev
 
 打开 `http://localhost:4324/`（端口被占用会自动顺延，看终端输出）：
 
-1. 进入知识库 tab，确认卡片出现
-2. 点击卡片 → **新标签页打开**文章页
+1. 打开 `/knowledge/`，确认四个入口（学习路线、领域、文章库、专题）可见
+2. 从文章库搜索或筛选文章，确认筛选条件写入 URL
+3. 点击文章卡片 → **新标签页打开**文章页
 3. 检查：
    - 左侧目录列出所有 `##` / `###`
    - 点击目录项 → 平滑滚动到对应章节
    - 滚动正文 → 目录高亮跟随（scroll-spy）
    - 公式**居中**显示，无红色错误
-   - 顶部「← 返回知识库」回到对应 tab
+   - 顶部「← 返回知识库」回到知识库首页
 
 类型 + 构建检查：
 
 ```bash
 npx astro check      # 0 errors 0 warnings
 npm run build        # 应生成对应路由 HTML
+npm run audit:topics
+npm run audit:knowledge-nav
 ```
 
 ## 5. 检查清单（发布前逐项确认）
@@ -243,6 +252,21 @@ npm run build        # 应生成对应路由 HTML
 - [ ] 卡片点击新标签页打开，URL 可独立分享
 - [ ] 左侧目录、scroll-spy、返回链接正常
 - [ ] 若加入专题，`npm run audit:topics` 通过，专题阶段和阅读顺序正确
+- [ ] 若加入领域路线，`npm run audit:knowledge-nav` 通过，文章 slug 均存在
+
+## 4.1 知识库入口约定
+
+知识库采用“知识中心 → 领域 / 路线 / 文章库 → 单篇文章”的结构：
+
+| 路由 | 用途 |
+|---|---|
+| `/knowledge/` | 主入口，提供搜索、主要入口和全部文章摘要 |
+| `/knowledge/domains/` | 领域目录；领域页再按子主题分组 |
+| `/knowledge/paths/` | 学习路线目录；路线页定义推荐阅读顺序 |
+| `/knowledge/library/` | 全文文章索引和筛选，支持 `q`、`domain`、`kind`、`level` 查询参数 |
+| `/projects/<slug>/` | 专题上下文、源码范围和研究阶段 |
+
+领域页、路线页和专题页只展示摘要与链接；完整推导和源码分析只保留在 `/knowledge/<slug>/`，避免重复内容。
 
 ---
 
@@ -252,8 +276,11 @@ npm run build        # 应生成对应路由 HTML
 |---|---|---|
 | `src/content/config.ts` | 集合 schema 定义 | 新增分类枚举时 |
 | `src/content/topics/*.md` | 专题定义、阶段和研究范围 | 新增专题时 |
+| `src/content/knowledgeDomains/*.md` | 领域入口、精选文章和学习路线 | 新增知识领域时 |
 | `src/lib/taxonomy.ts` | 分类中文映射（单一真相源） | 新增分类时同步 |
 | `src/pages/knowledge/[slug].astro` | 知识库文章路由 | 一般不动 |
+| `src/pages/knowledge/domain/[domain].astro` | 领域知识入口页 | 新增领域页面能力时 |
+| `scripts/audit-knowledge-nav.mjs` | 领域导航引用检查 | 新增或调整领域路线时 |
 | `src/pages/projects/[slug].astro` | 专题详情页路由 | 新增专题页面能力时 |
 | `src/layouts/ArticleLayout.astro` | 文章页布局（TOC + 正文） | 调整版式时 |
 | `src/components/ArticleToc.tsx` | 左侧目录（折叠 + scroll-spy） | 调整目录行为时 |

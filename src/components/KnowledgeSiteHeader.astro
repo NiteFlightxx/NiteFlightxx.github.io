@@ -1,0 +1,19 @@
+---
+const baseURL = import.meta.env.BASE_URL;
+const current = Astro.props.current ?? 'knowledge';
+const links = [
+  { id: 'home', label: '首页', href: baseURL },
+  { id: 'projects', label: '项目与专题', href: `${baseURL}#projects` },
+  { id: 'knowledge', label: '知识库', href: `${baseURL}knowledge/` },
+  { id: 'archive', label: '档案', href: `${baseURL}#archive` },
+];
+---
+<header class="sticky top-0 z-50 glass-panel border-b border-border-subtle px-6 md:px-12 py-3.5 select-none">
+  <div class="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-3">
+    <a href={baseURL} class="font-display font-black text-base tracking-widest text-text-primary hover:text-accent-primary transition-colors">NITE</a>
+    <nav aria-label="主导航" class="order-3 md:order-none w-full md:w-auto flex items-center justify-center gap-1 rounded-full bg-surface-base/70 border border-border-subtle px-1 py-1">
+      {links.map((link) => <a href={link.href} class={`px-3 md:px-4 py-1.5 rounded-full text-xs md:text-sm font-semibold transition-colors ${current === link.id ? 'bg-surface-raised text-accent-primary border border-accent-primary/30' : 'text-text-muted hover:text-text-primary'}`}>{link.label}</a>)}
+    </nav>
+    <a href={`${baseURL}knowledge/library/`} class="text-xs font-mono text-text-muted hover:text-accent-primary transition-colors">文章库 →</a>
+  </div>
+</header>
