@@ -169,6 +169,37 @@ export const PROJECTS_ZH = [
     ],
     visualPrompt: "把『倾斜才能移动』和『P 有稳态误差』这类只有动手才记得住的物理直觉，做成网页上转得动的 3D 沙盒。",
   },
+  {
+    id: "ue-chaos-physics",
+    title: "UE Chaos 物理引擎专题",
+    category: "Simulation" as const,
+    status: "experimental" as const,
+    year: "2026",
+    articleSlug: "ue-chaos-physics-engine",
+    topicSlug: "ue-chaos-physics",
+    overview:
+      "以 Unreal Engine Chaos 源码为主线，串联刚体动力学、PBD/XPBD、GJK/EPA、约束求解、Island 并行和工程稳定性问题，形成一条可验证的物理引擎源码阅读路线。",
+    architecture:
+      "专题页面按理论基础、Chaos 总体架构、碰撞检测、约束求解、并行化、引擎对比和工程实践分阶段组织文章；每篇文章保留自己的推导和源码证据，通过 topic 引用进入同一阅读图谱。",
+    challenges:
+      "物理引擎文章同时包含数学、通用算法和具体引擎实现，直接按标签串联会丢失阅读顺序，也容易在不同文章重复维护同一套推导。",
+    solution:
+      "让项目页承担专题导航和上下文，让知识库承担可复用理论，让源码文章承担版本化实现证据，再由专题阶段和文章角色建立阅读路径。",
+    outcomes:
+      "第一期覆盖 UE Chaos 核心架构、碰撞、约束和并行相关的现有文章，并为后续 PhysX、Bullet、Jolt、Box2D 和 Havok 对比文章预留统一入口。",
+    references: [
+      "专题入口：/projects/ue-chaos-physics/",
+      "核心源码详解：/knowledge/ue-chaos-physics-engine/",
+    ],
+    tech: ["Unreal Engine", "Chaos", "PBD/XPBD", "GJK/EPA", "C++ 源码"],
+    metrics: [
+      { label: "研究阶段", value: "7 个" },
+      { label: "关联文章", value: "12 篇" },
+      { label: "源码范围", value: "Chaos Runtime" },
+      { label: "当前状态", value: "持续研究" },
+    ],
+    visualPrompt: "把分散的数学、源码和工程问题组织成一条可以逐步走完的 Chaos 物理引擎研究路线。",
+  },
 ];
 
 // ---- Skill matrix: 档案技能矩阵（按 UE 技术领域划分） ----

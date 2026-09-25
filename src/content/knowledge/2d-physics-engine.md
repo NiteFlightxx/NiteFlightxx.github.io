@@ -6,6 +6,11 @@ category: "Physics"
 subtopic: "RigidBodyDynamics"
 tags: ["物理引擎", "刚体动力学", "碰撞检测", "冲量法", "JavaScript"]
 readTime: "阅读约45分钟"
+topics:
+  - id: "ue-chaos-physics"
+    stage: "comparison"
+    role: "comparison"
+    order: 10
 ---
 
 > 本文系统拆解一个基于 JavaScript + HTML5 Canvas 的 2D 刚体物理引擎——从向量数学到碰撞响应的完整链路。与基于位置的约束求解方法不同，本文的引擎采用**基于冲量的速度级求解**（sequential impulse），是 Box2D、PhysX 等工业级引擎的核心范式。

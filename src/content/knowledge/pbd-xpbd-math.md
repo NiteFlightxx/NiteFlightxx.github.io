@@ -6,6 +6,11 @@ category: "Physics"
 subtopic: "ConstraintSolver"
 tags: ["物理", "PBD", "XPBD", "约束求解", "柔度", "C++"]
 readTime: "阅读约45分钟"
+topics:
+  - id: "ue-chaos-physics"
+    stage: "foundation"
+    role: "theory"
+    order: 30
 ---
 
 > 物理模拟的刚性约束（不可拉伸布料、不可压缩流体、刚性关节）让基于力的弹簧方法陷入"刚度越大、时间步越小"的数值困境。**Position Based Dynamics (PBD)**（Müller et al., 2007）换了一条路：不计算力、不解微分方程，直接修正位置使约束满足——绕过了力层面的数值刚性。**XPBD**（Macklin et al., 2016）在此基础上引入柔度（compliance）参数，让材料刚度不再随时间步长和迭代次数漂移，实现了物理参数的直观可控。

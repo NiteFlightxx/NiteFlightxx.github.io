@@ -28,6 +28,7 @@ export async function loadKnowledge(): Promise<ContentArticle[]> {
       subtopic: subtopicKey ? knowledgeSubtopicZh(categoryKey, subtopicKey) : undefined,
       tags: entry.data.tags,
       readTime: entry.data.readTime,
+      topics: entry.data.topics,
     };
   });
 }

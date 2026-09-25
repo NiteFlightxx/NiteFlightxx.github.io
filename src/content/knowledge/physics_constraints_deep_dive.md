@@ -6,6 +6,11 @@ category: "Physics"
 subtopic: "ConstraintSolver"
 tags: ["物理", "约束求解", "Constraint Solver", "PBD", "XPBD", "Jacobian"]
 readTime: "阅读约50分钟"
+topics:
+  - id: "ue-chaos-physics"
+    stage: "foundation"
+    role: "theory"
+    order: 40
 ---
 
 > 面向已经具备 Unreal Engine / Chaos / PBD / XPBD / 刚体动力学基础，希望进一步理解工业级 Constraint Solver 的工程师。

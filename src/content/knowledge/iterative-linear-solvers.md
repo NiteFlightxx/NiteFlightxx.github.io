@@ -6,6 +6,11 @@ category: "Mathematics"
 subtopic: "LinearAlgebra"
 tags: ["数学", "线性代数", "数值计算", "迭代法", "约束求解"]
 readTime: "阅读约60分钟"
+topics:
+  - id: "ue-chaos-physics"
+    stage: "foundation"
+    role: "theory"
+    order: 50
 ---
 
 ## 一、积木式入门：从方程到迭代

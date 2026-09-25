@@ -13,6 +13,7 @@ export interface Project {
   status: ProjectStatus;
   year?: string; // release year shown on the card
   articleSlug: string; // slug of the knowledge article with the deep dive
+  topicSlug?: string; // optional curated topic page for multi-article projects
   overview: string; // 项目概述
   architecture: string; // 技术架构
   challenges: string; // 核心难点
@@ -24,6 +25,21 @@ export interface Project {
   codeSnippet?: string;
   visualPrompt?: string; // optional descriptive text for visuals
   mediaUrl?: string; // Bilibili demo video — full URL (https://www.bilibili.com/video/BVxxxx) or bare bvid (BVxxxx)
+}
+
+export type ArticleTopicRole =
+  | "theory"
+  | "source"
+  | "algorithm"
+  | "comparison"
+  | "practice"
+  | "experiment";
+
+export interface ArticleTopicRef {
+  id: string;
+  stage: string;
+  role: ArticleTopicRole;
+  order: number;
 }
 
 // ---- Shared runtime shape for Markdown-backed content (Knowledge) ----
@@ -40,6 +56,7 @@ export interface ContentArticle {
   subtopic?: string; // localized subtopic label (e.g. "飞控系统")
   tags: string[];
   readTime?: string; // estimated reading time
+  topics?: ArticleTopicRef[];
   searchText?: string; // lowercased body text, lazily loaded for full-text search
 }
 

@@ -6,6 +6,11 @@ category: "Physics"
 subtopic: "ChaosPhysics"
 tags: ["Chaos", "运动学", "Kinematic", "多线程同步", "UE5", "源码分析"]
 readTime: "阅读约30分钟"
+topics:
+  - id: "ue-chaos-physics"
+    stage: "solver"
+    role: "source"
+    order: 10
 ---
 
 > Chaos 物理引擎运行在独立于游戏线程的**物理线程**（internal thread）上。刚体分**动态**（Dynamic）与**运动学**（Kinematic）两种：动态体的位置由求解器积分得出，自然需要从物理结果回写到游戏线程；运动学体的位置则由游戏线程代码（如 `SetKinematicTarget`）驱动，求解器只负责将其移动到目标位置并计算衍生速度。

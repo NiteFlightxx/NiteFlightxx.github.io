@@ -59,6 +59,14 @@ export default function App({ knowledgeArticles = [] }: AppProps) {
 
   const selectedProject = selectedProjectId ? projects.find(p => p.id === selectedProjectId) || null : null;
 
+  const openProject = useCallback((project: Project) => {
+    if (project.topicSlug) {
+      window.location.assign(`${import.meta.env.BASE_URL}projects/${project.topicSlug}/`);
+      return;
+    }
+    setSelectedProjectId(project.id);
+  }, []);
+
   // Persist + sync to <html> on every toggle so global CSS (body bg,
   // scrollbar, article-body) applies everywhere.
   useEffect(() => {
@@ -93,7 +101,7 @@ export default function App({ knowledgeArticles = [] }: AppProps) {
           <HomeView
             projects={projects}
             knowledgeArticles={knowledge}
-            onSelectProject={(proj) => setSelectedProjectId(proj.id)}
+            onSelectProject={openProject}
             setActiveTab={navigateToTab}
             lang={lang}
           />
@@ -102,7 +110,7 @@ export default function App({ knowledgeArticles = [] }: AppProps) {
         return (
           <ProjectsView
             projects={projects}
-            onSelectProject={(proj) => setSelectedProjectId(proj.id)}
+            onSelectProject={openProject}
             lang={lang}
           />
         );

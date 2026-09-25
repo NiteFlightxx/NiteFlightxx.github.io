@@ -4,8 +4,10 @@ import type { ContentArticle } from "../types";
  * Score how related `candidate` is to `current`. Higher = more related.
  *
  * Scoring rubric (deliberately simple — no embeddings, all build-time):
- *   +3  same subtopic (e.g. both "FlightController") — strongest signal
- *   +2  same category (e.g. both "Physics")
+ *   +6  same curated topic
+ *   +3  same topic stage
+ *   +2  same subtopic (e.g. both "FlightController")
+ *   +1  same category (e.g. both "Physics")
  *   +1  per shared tag
  *   +0  otherwise
  *
@@ -14,11 +16,20 @@ import type { ContentArticle } from "../types";
  */
 function relatednessScore(current: ContentArticle, candidate: ContentArticle): number {
   let score = 0;
+  const currentTopics = current.topics ?? [];
+  const candidateTopics = candidate.topics ?? [];
+  for (const currentTopic of currentTopics) {
+    const candidateTopic = candidateTopics.find((topic) => topic.id === currentTopic.id);
+    if (!candidateTopic) continue;
+    score += 6;
+    if (candidateTopic.stage === currentTopic.stage) score += 3;
+    if (candidateTopic.role === currentTopic.role) score += 1;
+  }
   if (current.subtopic && candidate.subtopic && current.subtopic === candidate.subtopic) {
-    score += 3;
+    score += 2;
   }
   if (current.categoryKey && candidate.categoryKey && current.categoryKey === candidate.categoryKey) {
-    score += 2;
+    score += 1;
   }
   const sharedTags = current.tags.filter((t) => candidate.tags.includes(t));
   score += sharedTags.length;

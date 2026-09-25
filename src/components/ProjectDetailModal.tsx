@@ -88,6 +88,7 @@ function StandardProjectDetailModal({ project, onClose, lang }: ProjectDetailMod
   const catLabel = zh ? projectCategoryZh(project.category) : project.category;
   const statusLabel = zh ? projectStatusZh(project.status) : project.status;
   const articleUrl = `${BASE_URL}knowledge/${project.articleSlug}/`;
+  const topicUrl = project.topicSlug ? `${BASE_URL}projects/${project.topicSlug}/` : null;
 
   return (
     <motion.div
@@ -337,6 +338,26 @@ function StandardProjectDetailModal({ project, onClose, lang }: ProjectDetailMod
 
           {/* 9. Deep-dive exit — prominent link to the knowledge article */}
           <div className="pt-4 border-t border-border-subtle">
+            {topicUrl && (
+              <a
+                href={topicUrl}
+                className="group flex items-center justify-between gap-4 p-5 rounded-xl border border-accent-primary/30 bg-accent-primary/5 hover:bg-accent-primary/10 hover:border-accent-primary/50 transition-all mb-3"
+                id="project-open-topic"
+              >
+                <div className="flex items-center gap-3">
+                  <BookOpen className="w-5 h-5 text-accent-primary shrink-0" />
+                  <div className="flex flex-col">
+                    <span className="font-display font-bold text-base text-text-primary">
+                      {lang === "zh" ? "进入完整专题" : "Open the Full Topic"}
+                    </span>
+                    <span className="font-mono text-[10px] text-text-muted mt-0.5">
+                      {lang === "zh" ? "阅读路线 · 源码地图 · 关联文章" : "Roadmap · source map · linked articles"}
+                    </span>
+                  </div>
+                </div>
+                <ArrowRight className="w-5 h-5 text-accent-primary group-hover:translate-x-1 transition-transform shrink-0" />
+              </a>
+            )}
             <a
               href={articleUrl}
               className="group flex items-center justify-between gap-4 p-5 rounded-xl border border-accent-primary/30 bg-accent-primary/5 hover:bg-accent-primary/10 hover:border-accent-primary/50 transition-all"

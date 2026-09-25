@@ -6,6 +6,11 @@ category: "Physics"
 subtopic: "ConstraintSolver"
 tags: ["GPU Physics", "Compute Shader", "PBD", "GJK", "EPA", "Collision Detection"]
 readTime: "阅读约45分钟"
+topics:
+  - id: "ue-chaos-physics"
+    stage: "parallel"
+    role: "source"
+    order: 30
 ---
 
 ## 第一节 插件总览与架构

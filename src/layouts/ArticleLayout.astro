@@ -28,6 +28,14 @@ interface Props {
   backLabel: string; // e.g. "返回知识库"
   lang: 'zh' | 'en';
   relatedArticles?: ContentArticle[];
+  topicContext?: {
+    slug: string;
+    title: string;
+    stageTitle: string;
+    roleLabel: string;
+    previous?: { slug: string; title: string };
+    next?: { slug: string; title: string };
+  };
 }
 
 const {
@@ -42,6 +50,7 @@ const {
   backLabel,
   lang = 'zh',
   relatedArticles = [],
+  topicContext,
 } = Astro.props;
 ---
 
@@ -143,6 +152,16 @@ const {
           <div class="flex items-center gap-2 text-[10px] font-mono text-brand-accent-orange uppercase tracking-wider mb-3">
             <span>{category}</span>
           </div>
+          {topicContext && (
+            <div class="mb-5 flex flex-wrap items-center gap-2 text-[10px] font-mono">
+              <span class="text-gray-600 uppercase tracking-wider">专题路径</span>
+              <a href={`${import.meta.env.BASE_URL}projects/${topicContext.slug}/`} class="text-brand-accent-orange hover:text-white transition-colors">
+                {topicContext.title}
+              </a>
+              <span class="text-gray-600">/</span>
+              <span class="text-gray-500">{topicContext.stageTitle} · {topicContext.roleLabel}</span>
+            </div>
+          )}
           <h1 class="font-display font-medium text-2xl md:text-4xl text-white tracking-tight leading-tight mb-6">
             {title}
           </h1>
@@ -174,6 +193,23 @@ const {
             </span>
           ))}
         </div>
+
+        {topicContext && (topicContext.previous || topicContext.next) && (
+          <nav class="mt-8 grid grid-cols-1 md:grid-cols-2 gap-3" aria-label="专题文章导航">
+            {topicContext.previous ? (
+              <a href={`${import.meta.env.BASE_URL}knowledge/${topicContext.previous.slug}/`} class="p-4 rounded-xl border border-white/5 bg-brand-gray-900/40 hover:border-brand-accent-orange/40 transition-colors">
+                <span class="block text-[9px] font-mono text-gray-600 uppercase tracking-wider">专题上一篇</span>
+                <span class="mt-2 block text-sm text-gray-300 hover:text-white">{topicContext.previous.title}</span>
+              </a>
+            ) : <div />}
+            {topicContext.next && (
+              <a href={`${import.meta.env.BASE_URL}knowledge/${topicContext.next.slug}/`} class="p-4 rounded-xl border border-white/5 bg-brand-gray-900/40 hover:border-brand-accent-orange/40 transition-colors md:text-right">
+                <span class="block text-[9px] font-mono text-gray-600 uppercase tracking-wider">专题下一篇</span>
+                <span class="mt-2 block text-sm text-gray-300 hover:text-white">{topicContext.next.title}</span>
+              </a>
+            )}
+          </nav>
+        )}
 
         {/* Related articles — computed at build time, hydrated for hover states */}
         {relatedArticles.length > 0 && (

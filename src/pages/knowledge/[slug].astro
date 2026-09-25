@@ -43,14 +43,66 @@ function toArticleShape(slug: string, data: Record<string, any>): ContentArticle
     subtopic: subtopicKey ? knowledgeSubtopicZh(categoryKey, subtopicKey) : undefined,
     tags: Array.isArray(data.tags) ? (data.tags as string[]) : [],
     readTime: data.readTime ? String(data.readTime) : undefined,
+    topics: Array.isArray(data.topics) ? data.topics : [],
   };
 }
 
 // Load every published article to score relatedness against the current one.
-const allEntries = await getCollection('knowledge', (e) => !e.data.draft);
+const [allEntries, topicEntries] = await Promise.all([
+  getCollection('knowledge', (e) => !e.data.draft),
+  getCollection('topics'),
+]);
 const allArticles: ContentArticle[] = allEntries.map((e) => toArticleShape(e.slug, e.data as Record<string, any>));
 const currentArticle = toArticleShape(entry.slug, entry.data as Record<string, any>);
 const relatedArticles = getRelatedArticles(currentArticle, allArticles, 3);
+
+const roleLabels: Record<string, string> = {
+  theory: '理论基础',
+  source: '源码解析',
+  algorithm: '通用算法',
+  comparison: '引擎对比',
+  practice: '工程实践',
+  experiment: '实验验证',
+};
+
+const primaryTopicRef = currentArticle.topics?.[0];
+const primaryTopic = primaryTopicRef
+  ? topicEntries.find((topic) => topic.slug === primaryTopicRef.id)
+  : undefined;
+
+let topicContext: {
+  slug: string;
+  title: string;
+  stageTitle: string;
+  roleLabel: string;
+  previous?: { slug: string; title: string };
+  next?: { slug: string; title: string };
+} | undefined;
+
+if (primaryTopic && primaryTopicRef) {
+  const topicArticles = allEntries
+    .filter((candidate) => candidate.data.topics.some((ref) => ref.id === primaryTopic.slug))
+    .sort((a, b) => {
+      const refA = a.data.topics.find((ref) => ref.id === primaryTopic.slug);
+      const refB = b.data.topics.find((ref) => ref.id === primaryTopic.slug);
+      const stageA = primaryTopic.data.stages.find((stage) => stage.id === refA?.stage)?.order ?? 0;
+      const stageB = primaryTopic.data.stages.find((stage) => stage.id === refB?.stage)?.order ?? 0;
+      return stageA - stageB || (refA?.order ?? 0) - (refB?.order ?? 0);
+    });
+  const topicIndex = topicArticles.findIndex((candidate) => candidate.slug === entry.slug);
+  const previous = topicIndex > 0 ? topicArticles[topicIndex - 1] : undefined;
+  const next = topicIndex >= 0 && topicIndex < topicArticles.length - 1 ? topicArticles[topicIndex + 1] : undefined;
+  const stage = primaryTopic.data.stages.find((candidate) => candidate.id === primaryTopicRef.stage);
+
+  topicContext = {
+    slug: primaryTopic.slug,
+    title: primaryTopic.data.title,
+    stageTitle: stage?.title ?? primaryTopicRef.stage,
+    roleLabel: roleLabels[primaryTopicRef.role] ?? primaryTopicRef.role,
+    previous: previous ? { slug: previous.slug, title: previous.data.title } : undefined,
+    next: next ? { slug: next.slug, title: next.data.title } : undefined,
+  };
+}
 ---
 
 <ArticleLayout
@@ -65,6 +117,7 @@ const relatedArticles = getRelatedArticles(currentArticle, allArticles, 3);
   backLabel="返回知识库"
   lang="zh"
   relatedArticles={relatedArticles}
+  topicContext={topicContext}
 >
   <Content />
 </ArticleLayout>

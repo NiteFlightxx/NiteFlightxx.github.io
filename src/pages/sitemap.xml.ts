@@ -5,7 +5,10 @@ import { SITE } from '../consts';
 // Prerendered at build time (output: 'static'). Auto-updates as Markdown
 // content is added — no dependency, no manual maintenance.
 export const GET: APIRoute = async () => {
-  const knowledge = await getCollection('knowledge', (e) => !e.data.draft);
+  const [knowledge, topics] = await Promise.all([
+    getCollection('knowledge', (e) => !e.data.draft),
+    getCollection('topics'),
+  ]);
 
   const today = new Date().toISOString().split('T')[0];
 
@@ -14,6 +17,9 @@ export const GET: APIRoute = async () => {
   ];
   for (const e of knowledge) {
     urls.push({ loc: `${SITE.url}/knowledge/${e.slug}/`, lastmod: e.data.date });
+  }
+  for (const e of topics) {
+    urls.push({ loc: `${SITE.url}/projects/${e.slug}/`, lastmod: today });
   }
 
   const body =

@@ -61,6 +61,29 @@ const ALL_KNOWLEDGE_SUBTOPICS = [
   ...Object.values(KNOWLEDGE_SUBTOPICS).flat(),
 ] as [string, ...string[]];
 
+const ARTICLE_TOPIC_ROLES = [
+  'theory',
+  'source',
+  'algorithm',
+  'comparison',
+  'practice',
+  'experiment',
+] as const;
+
+const articleTopic = z.object({
+  id: z.string().min(1),
+  stage: z.string().min(1),
+  role: z.enum(ARTICLE_TOPIC_ROLES),
+  order: z.number().int().nonnegative(),
+});
+
+const topicStage = z.object({
+  id: z.string().min(1),
+  title: z.string().min(1),
+  description: z.string().min(1),
+  order: z.number().int().nonnegative(),
+});
+
 // 知识库 — 知识沉淀 / 技术分析 / 经验总结 / 教学内容
 const knowledge = defineCollection({
   type: 'content',
@@ -74,6 +97,7 @@ const knowledge = defineCollection({
       tags: z.array(z.string().min(1)).min(3).max(6),
       readTime: z.string().regex(/^阅读约\d+分钟$/, 'readTime must use 阅读约N分钟'),
       draft: z.boolean().optional().default(false),
+      topics: z.array(articleTopic).default([]),
     })
     .superRefine((value, ctx) => {
       const allowed = KNOWLEDGE_SUBTOPICS[value.category] as readonly string[];
@@ -87,4 +111,19 @@ const knowledge = defineCollection({
     }),
 });
 
-export const collections = { knowledge };
+const topics = defineCollection({
+  type: 'content',
+  schema: z.object({
+    title: z.string().min(1),
+    excerpt: z.string().min(1),
+    category: z.enum(KNOWLEDGE_CATEGORIES),
+    status: z.enum(['active', 'planned', 'archived']).default('active'),
+    engine: z.string().optional(),
+    engineVersion: z.string().optional(),
+    sourceRoot: z.string().optional(),
+    stages: z.array(topicStage).min(1),
+    tags: z.array(z.string().min(1)).min(1),
+  }),
+});
+
+export const collections = { knowledge, topics };

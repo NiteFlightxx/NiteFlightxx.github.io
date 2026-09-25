@@ -19,6 +19,22 @@
 
 分类的中文显示名由 `src/lib/taxonomy.ts` 的 `KNOWLEDGE_CATEGORIES` 单一映射，**不要**在前matter 里写中文，写英文枚举即可。`subtopic` 同理，中文显示名由 `KNOWLEDGE_SUBTOPICS` 映射。
 
+## 专题归属
+
+项目页承担专题导航，知识文章承担可复用理论或源码证据。文章需要加入专题时，在 frontmatter 增加 `topics`：
+
+```yaml
+topics:
+  - id: "ue-chaos-physics"
+    stage: "solver"
+    role: "source"
+    order: 10
+```
+
+`id` 必须对应 `src/content/topics/<id>.md`。`stage` 必须是该专题定义的阶段 ID；`order` 只在同一专题阶段内排序。`role` 可用：`theory`（理论）、`source`（源码）、`algorithm`（通用算法）、`comparison`（引擎对比）、`practice`（工程实践）、`experiment`（实验验证）。
+
+专题正文放在 `src/content/topics/`，专题页面负责说明范围、源码版本和阅读路线。不要把完整数学推导复制到专题页，专题页只保留上下文和链接。
+
 ### 知识库子主题词表（受控枚举）
 
 `subtopic` 必须从下表对应分类中选取，写英文枚举值。新增子主题需同步登记到 `src/content/config.ts` 的 `KNOWLEDGE_SUBTOPICS` 与 `src/lib/taxonomy.ts` 的 `KNOWLEDGE_SUBTOPICS`。
@@ -60,6 +76,11 @@ category: "Animation"
 subtopic: "ControlRigIK"
 tags: ["UE5", "IK", "FullBodyIK", "数学", "C++"]
 readTime: "阅读约35分钟"
+topics:
+  - id: "ue-chaos-physics"
+    stage: "architecture"
+    role: "source"
+    order: 10
 ---
 ```
 
@@ -74,6 +95,7 @@ readTime: "阅读约35分钟"
 | `subtopic` | 是 | 必须是对应 category 下的子主题枚举（见上表，区分大小写） |
 | `tags` | 是 | 字符串数组，3–6 个，混合中文标签可 |
 | `readTime` | 是 | 显示串如 `"阅读约40分钟"` |
+| `topics` | 否 | 专题引用数组；每个引用必须包含 `id`、`stage`、`role`、`order` |
 | `draft` | 否 | `true` 则不生成路由、不出现在卡片列表（默认 `false`） |
 
 ### 标题命名规范
@@ -177,6 +199,13 @@ $$\vec P_{joint}^{new} = \vec P_{root} + \text{proj}\cdot\vec d_{des}$$
 - **分割线**：`---`，细绿色分隔线。
 - **图片 / GIF / 视频**：见 [`MEDIA_EMBEDDING.md`](MEDIA_EMBEDDING.md)。静态图片和 GIF 用标准 `![alt](/images/x.png)` 语法（文件放 `public/`，非 `src/assets/`）；MP4 需先开管线，详见该文档 §4。
 
+### 3.6 专题文章的边界
+
+- 专题页写阅读顺序、源码范围、模块关系和阶段说明。
+- 知识文章写完整理论、算法推导或源码分析。
+- 同一套推导只保留一个权威文章，其他文章用链接引用。
+- 源码结论需要标出 Unreal Engine 版本或源码路径；推断内容要明确标注。
+
 ## 4. 本地验证（必做）
 
 ```bash
@@ -213,6 +242,7 @@ npm run build        # 应生成对应路由 HTML
 - [ ] `npm run build` 成功，`dist/<collection>/<slug>/index.html` 存在
 - [ ] 卡片点击新标签页打开，URL 可独立分享
 - [ ] 左侧目录、scroll-spy、返回链接正常
+- [ ] 若加入专题，`npm run audit:topics` 通过，专题阶段和阅读顺序正确
 
 ---
 
@@ -221,8 +251,10 @@ npm run build        # 应生成对应路由 HTML
 | 文件 | 作用 | 何时要改 |
 |---|---|---|
 | `src/content/config.ts` | 集合 schema 定义 | 新增分类枚举时 |
+| `src/content/topics/*.md` | 专题定义、阶段和研究范围 | 新增专题时 |
 | `src/lib/taxonomy.ts` | 分类中文映射（单一真相源） | 新增分类时同步 |
 | `src/pages/knowledge/[slug].astro` | 知识库文章路由 | 一般不动 |
+| `src/pages/projects/[slug].astro` | 专题详情页路由 | 新增专题页面能力时 |
 | `src/layouts/ArticleLayout.astro` | 文章页布局（TOC + 正文） | 调整版式时 |
 | `src/components/ArticleToc.tsx` | 左侧目录（折叠 + scroll-spy） | 调整目录行为时 |
 | `src/index.css` `.article-body` 段 | 正文排版样式 | 调整正文样式时 |
