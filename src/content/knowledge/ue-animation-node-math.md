@@ -9,7 +9,7 @@ readTime: "阅读约40分钟"
 kind: "source"
 level: "intermediate"
 prerequisites: ["jacobian-matrix", "ue-linear-algebra-guide"]
-nextArticles: ["ue-fullbody-ik-math", "ik-retargeter-ops-math"]
+nextArticles: ["predictive-foot-ik", "ue-fullbody-ik-math", "ik-retargeter-ops-math"]
 ---
 
 ## 学习位置
@@ -17,7 +17,7 @@ nextArticles: ["ue-fullbody-ik-math", "ik-retargeter-ops-math"]
 - **难度**：进阶积木（`intermediate`）
 - **本文职责**：把前置理论映射到 Unreal Engine 或项目源码，重点保留源码证据和边界。
 - **前置积木**：[雅可比矩阵详解 — 从导数到机器人、飞控与游戏物理的统一框架](/knowledge/jacobian-matrix/)、[UE 线性代数详解 — 坐标系、向量、矩阵、FTransform 与四元数](/knowledge/ue-linear-algebra-guide/)
-- **后续积木**：[UE FullBodyIK 插件详解 — 雅可比矩阵与 XPBD 位置动力学的双范式拆解](/knowledge/ue-fullbody-ik-math/)、[UE IK Retargeter Op 堆栈详解 — 堆栈架构与逐 Op 公式拆解](/knowledge/ik-retargeter-ops-math/)
+- **后续积木**：[预测式 Foot IK 详解 — 从接触时间估计到落脚规划与骨盆补偿](/knowledge/predictive-foot-ik/)、[UE FullBodyIK 插件详解 — 雅可比矩阵与 XPBD 位置动力学的双范式拆解](/knowledge/ue-fullbody-ik-math/)、[UE IK Retargeter Op 堆栈详解 — 堆栈架构与逐 Op 公式拆解](/knowledge/ik-retargeter-ops-math/)
 
 > 阅读时先完成前置积木，再阅读本文的概念、算法、源码和工程章节；同一理论只在它的主文章中展开，其他文章只引用结论。
 
