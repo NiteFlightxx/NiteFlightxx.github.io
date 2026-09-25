@@ -6,14 +6,35 @@ category: "Physics"
 subtopic: "RigidBodyDynamics"
 tags: ["物理", "数值积分", "ODE", "辛积分器", "PBD", "C++"]
 readTime: "阅读约55分钟"
+kind: "algorithm"
+level: "intermediate"
+prerequisites: ["classical-mechanics", "differential-equations"]
+nextArticles: ["2d-physics-engine", "pbd-xpbd-math"]
 topics:
   - id: "ue-chaos-physics"
     stage: "foundation"
     role: "theory"
-    order: 20
-prerequisites: ["differential-equations"]
-nextArticles: ["pbd-xpbd-math"]
+    order: 50
 ---
+
+## 学习位置
+
+- **难度**：进阶积木（`intermediate`）
+- **本文职责**：把理论收敛为可实现的算法，重点说明输入、步骤、稳定性和代价。
+- **前置积木**：[经典力学三大体系详解 — 牛顿、拉格朗日与哈密顿的等价框架与工程映射](/knowledge/classical-mechanics/)、[常微分方程与数值方法详解 — 从牛顿运动方程到欧拉、Verlet 与龙格-库塔](/knowledge/differential-equations/)
+- **后续积木**：[2D 物理引擎详解 — 向量、刚体、SAT 碰撞与冲量法约束求解](/knowledge/2d-physics-engine/)、[PBD 与 XPBD 详解 — 从位置投影到柔度可控的约束求解](/knowledge/pbd-xpbd-math/)
+
+> 阅读时先完成前置积木，再阅读本文的概念、算法、源码和工程章节；同一理论只在它的主文章中展开，其他文章只引用结论。
+
+## 本文模块
+
+1. **状态方程与离散误差**
+2. **Euler、Verlet 与 RK 方法**
+3. **刚体和约束中的时间步**
+4. **稳定性、性能与工程选择**
+
+> 模块按从概念到实现再到验证排列；遇到不熟悉的术语时，先回到本文的前置积木，不在当前文章重复展开基础理论。
+
 
 > 物理模拟的核心循环只有一句话：**已知当前状态与受力，求下一刻的状态**。这句话的答案就是数值积分。本文从常微分方程的离散化出发，逐一拆解显式/隐式/半隐式欧拉、梯形法、龙格-库塔家族的迭代公式、稳定性与精度，并落到粒子、弹簧、刚体、流体与 PBD 的工程实现。
 >

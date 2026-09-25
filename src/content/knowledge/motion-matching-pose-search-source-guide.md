@@ -8,7 +8,19 @@ tags: ["Motion Matching", "Pose Search", "AnimGraph", "Blend Stack", "Trajectory
 readTime: "阅读约60分钟"
 kind: "source"
 level: "advanced"
+prerequisites: ["ue-animation-node-math"]
+nextArticles: []
 ---
+
+## 学习位置
+
+- **难度**：高级积木（`advanced`）
+- **本文职责**：把前置理论映射到 Unreal Engine 或项目源码，重点保留源码证据和边界。
+- **前置积木**：[UE 动画节点详解 — IK、混合、骨骼控制与惯性化](/knowledge/ue-animation-node-math/)
+- **后续积木**：读完后可按专题或领域路线选择分支。
+
+> 阅读时先完成前置积木，再阅读本文的概念、算法、源码和工程章节；同一理论只在它的主文章中展开，其他文章只引用结论。
+
 
 > 本文以 `E:\UnrealEngine\UnrealEngine_Source` 的当前 `ue5-main` 快照为事实边界。Graphify/GitNexus 只用于定位关系，最终结论以源码路径和行号为准。文中标签含义为：**源码事实**＝当前文件直接可见；**工程经验**＝可落地但需结合项目验证；**推测/需要验证**＝源码没有提供足够证据。
 

@@ -6,7 +6,26 @@ category: "Mathematics"
 subtopic: "Calculus"
 tags: ["数学", "符号", "LaTeX", "速查", "参考"]
 readTime: "阅读约15分钟"
+topics:
+  - id: "ue-chaos-physics"
+    stage: "foundation"
+    role: "theory"
+    order: 5
+kind: "theory"
+level: "foundation"
+prerequisites: []
+nextArticles: ["calculus-foundations", "ue-linear-algebra-guide"]
 ---
+
+## 学习位置
+
+- **难度**：基础积木（`foundation`）
+- **本文职责**：建立概念、符号和推导，作为后续算法的共同语言。
+- **前置积木**：无（这是本路线的起点）
+- **后续积木**：[微积分详解 — 从极限到微分、积分与向量微积分](/knowledge/calculus-foundations/)、[UE 线性代数详解 — 坐标系、向量、矩阵、FTransform 与四元数](/knowledge/ue-linear-algebra-guide/)
+
+> 阅读时先完成前置积木，再阅读本文的概念、算法、源码和工程章节；同一理论只在它的主文章中展开，其他文章只引用结论。
+
 
 > 数学符号是技术写作的"字母表"。本文按领域归类高等数学中最常用的符号及其 LaTeX 代码，统一使用 `$...$` 与 `$$...$$` 语法（本站 KaTeX 渲染管线同样依赖这两种分隔符）。阅读本站&#12298;[微积分详解](/knowledge/calculus-foundations/)&#12299;、&#12298;[UE 线性代数详解](/knowledge/ue-linear-algebra-guide/)&#12299;、&#12298;[常微分方程与数值方法详解](/knowledge/differential-equations/)&#12299; 等文章时遇到不熟悉的记号，可随时回到本篇对照。
 

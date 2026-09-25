@@ -6,14 +6,26 @@ category: "Physics"
 subtopic: "ChaosPhysics"
 tags: ["Chaos", "运动学", "Kinematic", "多线程同步", "UE5", "源码分析"]
 readTime: "阅读约30分钟"
-topics:
-  - id: "ue-chaos-physics"
-    stage: "solver"
-    role: "source"
-    order: 10
 kind: "source"
 level: "advanced"
+prerequisites: ["ue-chaos-physics-engine"]
+nextArticles: []
+topics:
+  - id: "ue-chaos-physics"
+    stage: "runtime"
+    role: "source"
+    order: 10
 ---
+
+## 学习位置
+
+- **难度**：高级积木（`advanced`）
+- **本文职责**：把前置理论映射到 Unreal Engine 或项目源码，重点保留源码证据和边界。
+- **前置积木**：[UE Chaos Physics 引擎详解 — 源码架构、约束求解器与并行流水线](/knowledge/ue-chaos-physics-engine/)
+- **后续积木**：读完后可按专题或领域路线选择分支。
+
+> 阅读时先完成前置积木，再阅读本文的概念、算法、源码和工程章节；同一理论只在它的主文章中展开，其他文章只引用结论。
+
 
 > Chaos 物理引擎运行在独立于游戏线程的**物理线程**（internal thread）上。刚体分**动态**（Dynamic）与**运动学**（Kinematic）两种：动态体的位置由求解器积分得出，自然需要从物理结果回写到游戏线程；运动学体的位置则由游戏线程代码（如 `SetKinematicTarget`）驱动，求解器只负责将其移动到目标位置并计算衍生速度。
 >

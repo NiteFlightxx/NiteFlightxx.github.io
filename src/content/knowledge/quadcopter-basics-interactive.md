@@ -6,7 +6,21 @@ category: "Physics"
 subtopic: "FlightController"
 tags: ["无人机", "飞控", "PID", "物理", "交互式", "WebGL"]
 readTime: "阅读约18分钟"
+kind: "practice"
+level: "foundation"
+prerequisites: ["classical-mechanics"]
+nextArticles: ["quadcopter-flight-control-math"]
 ---
+
+## 学习位置
+
+- **难度**：基础积木（`foundation`）
+- **本文职责**：通过可运行案例验证前置知识，把公式连接到工程结果。
+- **前置积木**：[经典力学三大体系详解 — 牛顿、拉格朗日与哈密顿的等价框架与工程映射](/knowledge/classical-mechanics/)
+- **后续积木**：[AircraftLab 无人机插件技术详解 — 物理、飞控、自动驾驶、Simulation LOD 与网络同步](/knowledge/quadcopter-flight-control-math/)
+
+> 阅读时先完成前置积木，再阅读本文的概念、算法、源码和工程章节；同一理论只在它的主文章中展开，其他文章只引用结论。
+
 
 > 这是本站无人机系列的**科普入口**：不预设任何控制理论背景，公式只保留最必要的几个。全文只有一个交互沙盒，但它有五个页签，对应下面五章——每一章读到"该动手了"的时候，回到上面的沙盒切换页签操作即可。
 >

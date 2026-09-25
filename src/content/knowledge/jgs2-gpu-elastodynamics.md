@@ -6,7 +6,21 @@ category: "Physics"
 subtopic: "ConstraintSolver"
 tags: ["JGS2", "GPU", "弹性体", "数值优化", "迭代求解", "SIGGRAPH"]
 readTime: "阅读约45分钟"
+kind: "source"
+level: "advanced"
+prerequisites: ["vbd-avbd-math", "gpu-physics-plugin"]
+nextArticles: []
 ---
+
+## 学习位置
+
+- **难度**：高级积木（`advanced`）
+- **本文职责**：把前置理论映射到 Unreal Engine 或项目源码，重点保留源码证据和边界。
+- **前置积木**：[VBD 与 AVBD 详解 — 从变分隐式积分到块坐标下降与增广拉格朗日的统一框架](/knowledge/vbd-avbd-math/)、[GPU Physics 插件详解 — 基于 Compute Shader 的 PBD 刚体物理系统](/knowledge/gpu-physics-plugin/)
+- **后续积木**：读完后可按专题或领域路线选择分支。
+
+> 阅读时先完成前置积木，再阅读本文的概念、算法、源码和工程章节；同一理论只在它的主文章中展开，其他文章只引用结论。
+
 
 > 本文基于论文 **JGS2: Near Second-order Converging Jacobi/Gauss-Seidel for GPU Elastodynamics**（Lei Lan, Zixuan Lu, Chun Yuan, Weiwei Xu, Hao Su, Huamin Wang, Chenfanfu Jiang, Yin Yang；ACM Transactions on Graphics, 2025；arXiv:2506.06494）整理。该工作是 SIGGRAPH 2025 的 GPU 弹性体求解器，核心贡献是让"像 Jacobi 一样并行"和"像 Newton 一样快收敛"这两个长期矛盾的目标首次同时成立。
 >

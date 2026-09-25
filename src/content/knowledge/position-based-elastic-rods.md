@@ -6,7 +6,26 @@ category: "Physics"
 subtopic: "ConstraintSolver"
 tags: ["弹性杆", "PBD", "Kirchhoff", "Darboux", "C++"]
 readTime: "阅读约40分钟"
+topics:
+  - id: "ue-chaos-physics"
+    stage: "constraint"
+    role: "algorithm"
+    order: 50
+kind: "algorithm"
+level: "advanced"
+prerequisites: ["pbd-xpbd-math", "vbd-avbd-math"]
+nextArticles: []
 ---
+
+## 学习位置
+
+- **难度**：高级积木（`advanced`）
+- **本文职责**：把理论收敛为可实现的算法，重点说明输入、步骤、稳定性和代价。
+- **前置积木**：[PBD 与 XPBD 详解 — 从位置投影到柔度可控的约束求解](/knowledge/pbd-xpbd-math/)、[VBD 与 AVBD 详解 — 从变分隐式积分到块坐标下降与增广拉格朗日的统一框架](/knowledge/vbd-avbd-math/)
+- **后续积木**：读完后可按专题或领域路线选择分支。
+
+> 阅读时先完成前置积木，再阅读本文的概念、算法、源码和工程章节；同一理论只在它的主文章中展开，其他文章只引用结论。
+
 
 > **Position-Based Elastic Rods (PBER)** 由 Umetani、Schmidt 与 Stam (2014) 提出，是 Position-Based Dynamics 框架在细长弹性物体（头发、绳索、电缆、植物茎干）模拟中的应用。它通过幽灵点隐式定义材料坐标系，用离散 Darboux 向量捕捉弯曲与扭转，以 PBD 约束投影求解——无条件稳定、适合实时应用。
 >

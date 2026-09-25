@@ -6,14 +6,35 @@ category: "Physics"
 subtopic: "ConstraintSolver"
 tags: ["GPU Physics", "Compute Shader", "PBD", "GJK", "EPA", "Collision Detection"]
 readTime: "阅读约45分钟"
+kind: "source"
+level: "advanced"
+prerequisites: ["ue-chaos-physics-engine", "pbd-xpbd-math", "gjk-collision-detection"]
+nextArticles: []
 topics:
   - id: "ue-chaos-physics"
     stage: "parallel"
     role: "source"
     order: 30
-kind: "source"
-level: "advanced"
 ---
+
+## 学习位置
+
+- **难度**：高级积木（`advanced`）
+- **本文职责**：把前置理论映射到 Unreal Engine 或项目源码，重点保留源码证据和边界。
+- **前置积木**：[UE Chaos Physics 引擎详解 — 源码架构、约束求解器与并行流水线](/knowledge/ue-chaos-physics-engine/)、[PBD 与 XPBD 详解 — 从位置投影到柔度可控的约束求解](/knowledge/pbd-xpbd-math/)、[GJK 碰撞检测算法详解 — 从 support function 到 Chaos 引擎实现](/knowledge/gjk-collision-detection/)
+- **后续积木**：读完后可按专题或领域路线选择分支。
+
+> 阅读时先完成前置积木，再阅读本文的概念、算法、源码和工程章节；同一理论只在它的主文章中展开，其他文章只引用结论。
+
+## 本文模块
+
+1. **GPU 数据布局与 Buffer**
+2. **Compute Shader 碰撞阶段**
+3. **PBD Solver 与迭代**
+4. **跨平台、同步和性能诊断**
+
+> 模块按从概念到实现再到验证排列；遇到不熟悉的术语时，先回到本文的前置积木，不在当前文章重复展开基础理论。
+
 
 ## 第一节 插件总览与架构
 

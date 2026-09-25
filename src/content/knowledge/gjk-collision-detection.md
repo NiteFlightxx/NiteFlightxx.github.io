@@ -6,16 +6,26 @@ category: "Physics"
 subtopic: "Collision"
 tags: ["UE5", "GJK", "EPA", "碰撞检测", "Minkowski", "C++"]
 readTime: "阅读约55分钟"
+kind: "source"
+level: "advanced"
+prerequisites: ["collision-detection-gjk-epa-sat"]
+nextArticles: ["ue-chaos-physics-engine"]
 topics:
   - id: "ue-chaos-physics"
     stage: "collision"
     role: "source"
     order: 10
-kind: "source"
-level: "advanced"
-prerequisites: ["collision-detection-gjk-epa-sat"]
-nextArticles: ["ue-chaos-physics-engine"]
 ---
+
+## 学习位置
+
+- **难度**：高级积木（`advanced`）
+- **本文职责**：把前置理论映射到 Unreal Engine 或项目源码，重点保留源码证据和边界。
+- **前置积木**：[凸体碰撞检测详解 — 从 SAT 到 GJK 再到 EPA 的积木式推导](/knowledge/collision-detection-gjk-epa-sat/)
+- **后续积木**：[UE Chaos Physics 引擎详解 — 源码架构、约束求解器与并行流水线](/knowledge/ue-chaos-physics-engine/)
+
+> 阅读时先完成前置积木，再阅读本文的概念、算法、源码和工程章节；同一理论只在它的主文章中展开，其他文章只引用结论。
+
 
 > GJK（Gilbert-Johnson-Keerthi, 1988）是实时物理引擎最常用的凸体碰撞检测算法。它不直接检查两个物体的几何相交，而是把"两个凸体是否相交"转化为"原点是否在一个新形状（Minkowski 差）里"，再用一个至多 4 点的 simplex 逐步逼近原点。整个算法只要求形状能回答一个问题——"沿给定方向，你最远的点在哪"——这一统一接口让它能处理所有凸体。
 >

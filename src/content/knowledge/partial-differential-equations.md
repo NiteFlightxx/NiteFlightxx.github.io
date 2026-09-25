@@ -6,7 +6,21 @@ category: "Mathematics"
 subtopic: "DifferentialEquations"
 tags: ["PDE", "有限差分", "Navier-Stokes", "热传导", "C++"]
 readTime: "阅读约25分钟"
+kind: "theory"
+level: "intermediate"
+prerequisites: ["calculus-foundations", "differential-equations"]
+nextArticles: ["sph-fluid-simulation", "pbf-fluid-simulation"]
 ---
+
+## 学习位置
+
+- **难度**：进阶积木（`intermediate`）
+- **本文职责**：建立概念、符号和推导，作为后续算法的共同语言。
+- **前置积木**：[微积分详解 — 从极限到微分、积分与向量微积分](/knowledge/calculus-foundations/)、[常微分方程与数值方法详解 — 从牛顿运动方程到欧拉、Verlet 与龙格-库塔](/knowledge/differential-equations/)
+- **后续积木**：[SPH 流体模拟详解 — 从核函数插值到 Navier-Stokes 离散与不可压缩变体](/knowledge/sph-fluid-simulation/)、[PBF 流体模拟详解 — 位置基不可压缩约束、XSPH 粘度与涡度增强](/knowledge/pbf-fluid-simulation/)
+
+> 阅读时先完成前置积木，再阅读本文的概念、算法、源码和工程章节；同一理论只在它的主文章中展开，其他文章只引用结论。
+
 
 > 偏微分方程（PDE）描述涉及多个自变量的物理过程：热扩散、波传播、流体运动。从烟雾扩散到水面波纹，从气流模拟到稳态场，PDE 是连续物理模拟的数学语言。
 >

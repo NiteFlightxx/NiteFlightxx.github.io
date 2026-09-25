@@ -6,7 +6,26 @@ category: "Mathematics"
 subtopic: "DifferentialEquations"
 tags: ["ODE", "数值积分", "欧拉法", "Verlet", "RK4", "C++"]
 readTime: "阅读约30分钟"
+topics:
+  - id: "ue-chaos-physics"
+    stage: "foundation"
+    role: "theory"
+    order: 40
+kind: "theory"
+level: "foundation"
+prerequisites: ["calculus-foundations"]
+nextArticles: ["numerical-integration-methods", "partial-differential-equations"]
 ---
+
+## 学习位置
+
+- **难度**：基础积木（`foundation`）
+- **本文职责**：建立概念、符号和推导，作为后续算法的共同语言。
+- **前置积木**：[微积分详解 — 从极限到微分、积分与向量微积分](/knowledge/calculus-foundations/)
+- **后续积木**：[物理模拟数值积分方法详解 — 从欧拉到 RK4 与 XPBD](/knowledge/numerical-integration-methods/)、[偏微分方程与数值离散详解 — 热传导、波动、Navier-Stokes 与有限差分](/knowledge/partial-differential-equations/)
+
+> 阅读时先完成前置积木，再阅读本文的概念、算法、源码和工程章节；同一理论只在它的主文章中展开，其他文章只引用结论。
+
 
 > 常微分方程（ODE）是游戏物理模拟的核心数学工具：所有运动、力学、动画系统都基于 ODE。从自由落体到弹簧系统，从粒子模拟到刚体动力学，ODE 无处不在。
 >

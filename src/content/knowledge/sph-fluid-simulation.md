@@ -6,7 +6,30 @@ category: "Physics"
 subtopic: "Fluid"
 tags: ["SPH", "流体模拟", "Navier-Stokes", "核函数", "C++"]
 readTime: "阅读约50分钟"
+kind: "algorithm"
+level: "advanced"
+prerequisites: ["partial-differential-equations"]
+nextArticles: ["pbf-fluid-simulation"]
 ---
+
+## 学习位置
+
+- **难度**：高级积木（`advanced`）
+- **本文职责**：把理论收敛为可实现的算法，重点说明输入、步骤、稳定性和代价。
+- **前置积木**：[偏微分方程与数值离散详解 — 热传导、波动、Navier-Stokes 与有限差分](/knowledge/partial-differential-equations/)
+- **后续积木**：[PBF 流体模拟详解 — 位置基不可压缩约束、XSPH 粘度与涡度增强](/knowledge/pbf-fluid-simulation/)
+
+> 阅读时先完成前置积木，再阅读本文的概念、算法、源码和工程章节；同一理论只在它的主文章中展开，其他文章只引用结论。
+
+## 本文模块
+
+1. **连续介质和 SPH 离散**
+2. **核函数、邻域搜索和密度**
+3. **压力、粘性与边界处理**
+4. **稳定性、性能和参数调试**
+
+> 模块按从概念到实现再到验证排列；遇到不熟悉的术语时，先回到本文的前置积木，不在当前文章重复展开基础理论。
+
 
 > **光滑粒子流体动力学（Smoothed Particle Hydrodynamics, SPH）** 是一种无网格拉格朗日粒子方法，由 Lucy (1977) 与 Gingold & Monaghan (1977) 为天体物理模拟独立提出，后经 Müller 等人 (2003) 引入计算机图形学。它将连续流体场离散为携带物理属性的粒子，通过核函数插值近似连续场，再把 Navier-Stokes 方程中的微分算子转化为粒子求和。
 >

@@ -6,7 +6,21 @@ category: "Mathematics"
 subtopic: "LinearAlgebra"
 tags: ["线性代数", "FVector", "FMatrix", "FTransform", "FQuat", "UE源码"]
 readTime: "阅读约55分钟"
+kind: "theory"
+level: "foundation"
+prerequisites: ["mathematical-notation-reference"]
+nextArticles: ["jacobian-matrix", "iterative-linear-solvers"]
 ---
+
+## 学习位置
+
+- **难度**：基础积木（`foundation`）
+- **本文职责**：建立概念、符号和推导，作为后续算法的共同语言。
+- **前置积木**：[高等数学符号速查详解 — 集合、逻辑、微积分、线代与 LaTeX 书写](/knowledge/mathematical-notation-reference/)
+- **后续积木**：[雅可比矩阵详解 — 从导数到机器人、飞控与游戏物理的统一框架](/knowledge/jacobian-matrix/)、[线性方程组迭代求解详解 — 从雅可比、高斯-赛德尔到共轭梯度与约束求解](/knowledge/iterative-linear-solvers/)
+
+> 阅读时先完成前置积木，再阅读本文的概念、算法、源码和工程章节；同一理论只在它的主文章中展开，其他文章只引用结论。
+
 
 > 本文以当前 `E:\UnrealEngine\UnrealEngine_Source` 源码快照为 UE 行为依据。数学公式会明确采用列向量还是 UE 的行向量语义；代码示例区分可直接使用的 UE API 与算法伪代码，避免把教材约定直接套进 Unreal Engine。
 >

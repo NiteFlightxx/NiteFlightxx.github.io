@@ -6,16 +6,26 @@ category: "Physics"
 subtopic: "Collision"
 tags: ["碰撞检测", "GJK", "EPA", "SAT", "Minkowski差", "Chaos"]
 readTime: "阅读约40分钟"
+kind: "algorithm"
+level: "intermediate"
+prerequisites: ["classical-mechanics", "numerical-integration-methods"]
+nextArticles: ["gjk-collision-detection"]
 topics:
   - id: "ue-chaos-physics"
     stage: "collision"
     role: "algorithm"
     order: 20
-kind: "algorithm"
-level: "intermediate"
-prerequisites: []
-nextArticles: ["gjk-collision-detection"]
 ---
+
+## 学习位置
+
+- **难度**：进阶积木（`intermediate`）
+- **本文职责**：把理论收敛为可实现的算法，重点说明输入、步骤、稳定性和代价。
+- **前置积木**：[经典力学三大体系详解 — 牛顿、拉格朗日与哈密顿的等价框架与工程映射](/knowledge/classical-mechanics/)、[物理模拟数值积分方法详解 — 从欧拉到 RK4 与 XPBD](/knowledge/numerical-integration-methods/)
+- **后续积木**：[GJK 碰撞检测算法详解 — 从 support function 到 Chaos 引擎实现](/knowledge/gjk-collision-detection/)
+
+> 阅读时先完成前置积木，再阅读本文的概念、算法、源码和工程章节；同一理论只在它的主文章中展开，其他文章只引用结论。
+
 
 > 本文以虚幻引擎的 **Chaos 物理引擎**（`Engine/Source/Runtime/Experimental/Chaos`）为最佳实践参照，系统讲解凸体碰撞检测三大算法：**SAT（分离轴定理）**、**GJK（Gilbert-Johnson-Keerthi）**、**EPA（Expanding Polytope Algorithm，膨胀多面体算法）**。
 >

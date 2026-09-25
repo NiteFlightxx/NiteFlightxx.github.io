@@ -6,7 +6,30 @@ category: "Physics"
 subtopic: "FlightController"
 tags: ["飞控", "Chaos", "Autopilot", "MPCC", "ORCA", "网络同步"]
 readTime: "阅读约70分钟"
+kind: "algorithm"
+level: "advanced"
+prerequisites: ["quadcopter-basics-interactive", "classical-mechanics", "differential-equations"]
+nextArticles: []
 ---
+
+## 学习位置
+
+- **难度**：高级积木（`advanced`）
+- **本文职责**：把理论收敛为可实现的算法，重点说明输入、步骤、稳定性和代价。
+- **前置积木**：[四旋翼无人机基础详解 — 升力、姿态、6DOF 动力学与 PID 控制的交互式 3D 图解](/knowledge/quadcopter-basics-interactive/)、[经典力学三大体系详解 — 牛顿、拉格朗日与哈密顿的等价框架与工程映射](/knowledge/classical-mechanics/)、[常微分方程与数值方法详解 — 从牛顿运动方程到欧拉、Verlet 与龙格-库塔](/knowledge/differential-equations/)
+- **后续积木**：读完后可按专题或领域路线选择分支。
+
+> 阅读时先完成前置积木，再阅读本文的概念、算法、源码和工程章节；同一理论只在它的主文章中展开，其他文章只引用结论。
+
+## 本文模块
+
+1. **坐标系、姿态和动力学**
+2. **PID、混控与控制分配**
+3. **轨迹跟踪和扰动恢复**
+4. **Simulation LOD 与工程验证**
+
+> 模块按从概念到实现再到验证排列；遇到不熟悉的术语时，先回到本文的前置积木，不在当前文章重复展开基础理论。
+
 
 > 本文以当前 `AircraftLab` 插件技术文档和工作区源码为事实来源，面向需要维护、扩展和调试该系统的程序同事。文中的“当前实现”特指 2026-09-21 的代码快照；理论背景、外部算法和待验收项会明确标注，不把理想模型写成已落地能力。
 >

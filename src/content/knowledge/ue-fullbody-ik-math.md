@@ -8,7 +8,19 @@ tags: ["UE5", "IK", "FullBodyIK", "雅可比", "XPBD"]
 readTime: "阅读约50分钟"
 kind: "source"
 level: "advanced"
+prerequisites: ["ue-animation-node-math", "jacobian-matrix", "pbd-xpbd-math"]
+nextArticles: ["ik-retargeter-ops-math"]
 ---
+
+## 学习位置
+
+- **难度**：高级积木（`advanced`）
+- **本文职责**：把前置理论映射到 Unreal Engine 或项目源码，重点保留源码证据和边界。
+- **前置积木**：[UE 动画节点详解 — IK、混合、骨骼控制与惯性化](/knowledge/ue-animation-node-math/)、[雅可比矩阵详解 — 从导数到机器人、飞控与游戏物理的统一框架](/knowledge/jacobian-matrix/)、[PBD 与 XPBD 详解 — 从位置投影到柔度可控的约束求解](/knowledge/pbd-xpbd-math/)
+- **后续积木**：[UE IK Retargeter Op 堆栈详解 — 堆栈架构与逐 Op 公式拆解](/knowledge/ik-retargeter-ops-math/)
+
+> 阅读时先完成前置积木，再阅读本文的概念、算法、源码和工程章节；同一理论只在它的主文章中展开，其他文章只引用结论。
+
 
 > 源码路径：`Engine/Plugins/Experimental/FullBodyIK`
 >

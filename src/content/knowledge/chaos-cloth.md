@@ -6,14 +6,35 @@ category: "Physics"
 subtopic: "ChaosPhysics"
 tags: ["Chaos", "布料", "Cloth", "XPBD", "PBD", "约束"]
 readTime: "阅读约60分钟"
+kind: "source"
+level: "advanced"
+prerequisites: ["ue-chaos-physics-engine", "pbd-xpbd-math", "physics_constraints_deep_dive"]
+nextArticles: []
 topics:
   - id: "ue-chaos-physics"
     stage: "parallel"
     role: "source"
     order: 20
-kind: "source"
-level: "advanced"
 ---
+
+## 学习位置
+
+- **难度**：高级积木（`advanced`）
+- **本文职责**：把前置理论映射到 Unreal Engine 或项目源码，重点保留源码证据和边界。
+- **前置积木**：[UE Chaos Physics 引擎详解 — 源码架构、约束求解器与并行流水线](/knowledge/ue-chaos-physics-engine/)、[PBD 与 XPBD 详解 — 从位置投影到柔度可控的约束求解](/knowledge/pbd-xpbd-math/)、[物理约束详解 — 从约束函数到实时物理求解器](/knowledge/physics_constraints_deep_dive/)
+- **后续积木**：读完后可按专题或领域路线选择分支。
+
+> 阅读时先完成前置积木，再阅读本文的概念、算法、源码和工程章节；同一理论只在它的主文章中展开，其他文章只引用结论。
+
+## 本文模块
+
+1. **Cloth 资产与 Dataflow 数据流**
+2. **布料约束的物理模型**
+3. **PBD/XPBD 求解与碰撞**
+4. **Chaos 源码映射、参数和调试**
+
+> 模块按从概念到实现再到验证排列；遇到不熟悉的术语时，先回到本文的前置积木，不在当前文章重复展开基础理论。
+
 
 > Chaos Cloth 是虚幻引擎 5 的现代布料模拟系统，基于 Chaos 物理引擎的 PBD/XPBD 约束求解框架。它以 **ClothCollection** 数据模型为核心，通过 **Dataflow Graph** 组织从网格导入、拓扑编辑、选择绘制、蒙皮绑定到模拟配置的完整流水线，最终由终端节点生成可挂载到 SkeletalMeshComponent 的布料资产。运行时，布料模拟通过一组位置约束（拉伸、弯曲、面积、长程附着、最大距离、后挡板、动画驱动、自碰撞）在 PBD 或力基求解器中迭代求解。
 >

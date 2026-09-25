@@ -6,16 +6,35 @@ category: "Physics"
 subtopic: "ChaosPhysics"
 tags: ["UE5", "Chaos", "物理引擎", "PBD", "约束求解", "C++"]
 readTime: "阅读约70分钟"
+kind: "source"
+level: "advanced"
+prerequisites: ["classical-mechanics", "numerical-integration-methods", "iterative-linear-solvers"]
+nextArticles: ["collision-detection-gjk-epa-sat", "pbd-xpbd-math", "chaos-kinematic-sync"]
 topics:
   - id: "ue-chaos-physics"
     stage: "architecture"
     role: "source"
     order: 10
-kind: "source"
-level: "advanced"
-prerequisites: ["numerical-integration-methods", "pbd-xpbd-math", "iterative-linear-solvers"]
-nextArticles: ["gjk-collision-detection", "chaos-kinematic-sync", "gpu-physics-plugin"]
 ---
+
+## 学习位置
+
+- **难度**：高级积木（`advanced`）
+- **本文职责**：把前置理论映射到 Unreal Engine 或项目源码，重点保留源码证据和边界。
+- **前置积木**：[经典力学三大体系详解 — 牛顿、拉格朗日与哈密顿的等价框架与工程映射](/knowledge/classical-mechanics/)、[物理模拟数值积分方法详解 — 从欧拉到 RK4 与 XPBD](/knowledge/numerical-integration-methods/)、[线性方程组迭代求解详解 — 从雅可比、高斯-赛德尔到共轭梯度与约束求解](/knowledge/iterative-linear-solvers/)
+- **后续积木**：[凸体碰撞检测详解 — 从 SAT 到 GJK 再到 EPA 的积木式推导](/knowledge/collision-detection-gjk-epa-sat/)、[PBD 与 XPBD 详解 — 从位置投影到柔度可控的约束求解](/knowledge/pbd-xpbd-math/)、[UE Chaos 运动学同步详解 — P.Chaos.SyncKinematicOnGameThread 的三态控制与双路径镜像](/knowledge/chaos-kinematic-sync/)
+
+> 阅读时先完成前置积木，再阅读本文的概念、算法、源码和工程章节；同一理论只在它的主文章中展开，其他文章只引用结论。
+
+## 本文模块
+
+1. **Chaos 状态和 Simulation Tick**
+2. **碰撞、约束与求解器流水线**
+3. **Position/Velocity/Projection 三阶段**
+4. **Island 并行、确定性与工程诊断**
+
+> 模块按从概念到实现再到验证排列；遇到不熟悉的术语时，先回到本文的前置积木，不在当前文章重复展开基础理论。
+
 
 > Chaos 是 Unreal Engine 5 的默认刚体物理引擎，取代了 UE4 时代的 PhysX。它不是一个"换了名字的 PhysX"，而是一次从求解器内核开始的重新设计：以 **PBD（Position-Based Dynamics）** 作为刚体约束的核心范式，用"预测位置 → 投影约束 → 反推速度"的循环取代了传统基于力/冲量的 Sequential Impulse 主循环。
 >

@@ -6,7 +6,21 @@ category: "Physics"
 subtopic: "Fluid"
 tags: ["PBF", "PBD", "流体模拟", "约束求解", "C++"]
 readTime: "阅读约40分钟"
+kind: "algorithm"
+level: "advanced"
+prerequisites: ["partial-differential-equations", "sph-fluid-simulation"]
+nextArticles: []
 ---
+
+## 学习位置
+
+- **难度**：高级积木（`advanced`）
+- **本文职责**：把理论收敛为可实现的算法，重点说明输入、步骤、稳定性和代价。
+- **前置积木**：[偏微分方程与数值离散详解 — 热传导、波动、Navier-Stokes 与有限差分](/knowledge/partial-differential-equations/)、[SPH 流体模拟详解 — 从核函数插值到 Navier-Stokes 离散与不可压缩变体](/knowledge/sph-fluid-simulation/)
+- **后续积木**：读完后可按专题或领域路线选择分支。
+
+> 阅读时先完成前置积木，再阅读本文的概念、算法、源码和工程章节；同一理论只在它的主文章中展开，其他文章只引用结论。
+
 
 > **Position Based Fluids（PBF）** 由 Macklin 与 Müller 在 SIGGRAPH 2013 提出，是 Position Based Dynamics（PBD）框架在不可压缩流体模拟中的应用。与基于力的 SPH 不同，PBF 将不可压缩性表达为密度约束 $C_i = \rho_i/\rho_0 - 1 = 0$，通过拉格朗日乘子迭代投影位置，而非通过压力力显式积分。
 >

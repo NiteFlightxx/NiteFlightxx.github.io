@@ -6,7 +6,26 @@ category: "Mathematics"
 subtopic: "Calculus"
 tags: ["微积分", "导数", "积分", "向量微积分", "C++"]
 readTime: "阅读约50分钟"
+topics:
+  - id: "ue-chaos-physics"
+    stage: "foundation"
+    role: "theory"
+    order: 10
+kind: "theory"
+level: "foundation"
+prerequisites: ["mathematical-notation-reference"]
+nextArticles: ["differential-equations", "jacobian-matrix"]
 ---
+
+## 学习位置
+
+- **难度**：基础积木（`foundation`）
+- **本文职责**：建立概念、符号和推导，作为后续算法的共同语言。
+- **前置积木**：[高等数学符号速查详解 — 集合、逻辑、微积分、线代与 LaTeX 书写](/knowledge/mathematical-notation-reference/)
+- **后续积木**：[常微分方程与数值方法详解 — 从牛顿运动方程到欧拉、Verlet 与龙格-库塔](/knowledge/differential-equations/)、[雅可比矩阵详解 — 从导数到机器人、飞控与游戏物理的统一框架](/knowledge/jacobian-matrix/)
+
+> 阅读时先完成前置积木，再阅读本文的概念、算法、源码和工程章节；同一理论只在它的主文章中展开，其他文章只引用结论。
+
 
 > 微积分是游戏物理与动画编程的数学基础：位置是速度的积分，速度是位置的导数；力场是势函数的梯度；流体行为由偏微分方程描述。本文系统梳理从极限到向量微积分的完整理论链，并配合 UE C++ 实践示例。
 >

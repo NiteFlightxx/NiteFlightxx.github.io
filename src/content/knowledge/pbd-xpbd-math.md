@@ -6,14 +6,26 @@ category: "Physics"
 subtopic: "ConstraintSolver"
 tags: ["物理", "PBD", "XPBD", "约束求解", "柔度", "C++"]
 readTime: "阅读约45分钟"
+kind: "algorithm"
+level: "intermediate"
+prerequisites: ["classical-mechanics", "numerical-integration-methods"]
+nextArticles: ["physics_constraints_deep_dive", "vbd-avbd-math"]
 topics:
   - id: "ue-chaos-physics"
-    stage: "foundation"
+    stage: "constraint"
     role: "theory"
-    order: 30
-prerequisites: ["numerical-integration-methods"]
-nextArticles: ["physics_constraints_deep_dive", "ue-chaos-physics-engine"]
+    order: 10
 ---
+
+## 学习位置
+
+- **难度**：进阶积木（`intermediate`）
+- **本文职责**：把理论收敛为可实现的算法，重点说明输入、步骤、稳定性和代价。
+- **前置积木**：[经典力学三大体系详解 — 牛顿、拉格朗日与哈密顿的等价框架与工程映射](/knowledge/classical-mechanics/)、[物理模拟数值积分方法详解 — 从欧拉到 RK4 与 XPBD](/knowledge/numerical-integration-methods/)
+- **后续积木**：[物理约束详解 — 从约束函数到实时物理求解器](/knowledge/physics_constraints_deep_dive/)、[VBD 与 AVBD 详解 — 从变分隐式积分到块坐标下降与增广拉格朗日的统一框架](/knowledge/vbd-avbd-math/)
+
+> 阅读时先完成前置积木，再阅读本文的概念、算法、源码和工程章节；同一理论只在它的主文章中展开，其他文章只引用结论。
+
 
 > 物理模拟的刚性约束（不可拉伸布料、不可压缩流体、刚性关节）让基于力的弹簧方法陷入"刚度越大、时间步越小"的数值困境。**Position Based Dynamics (PBD)**（Müller et al., 2007）换了一条路：不计算力、不解微分方程，直接修正位置使约束满足——绕过了力层面的数值刚性。**XPBD**（Macklin et al., 2016）在此基础上引入柔度（compliance）参数，让材料刚度不再随时间步长和迭代次数漂移，实现了物理参数的直观可控。
 >

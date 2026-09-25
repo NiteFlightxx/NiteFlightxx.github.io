@@ -6,12 +6,26 @@ category: "Physics"
 subtopic: "RigidBodyDynamics"
 tags: ["经典力学", "牛顿力学", "拉格朗日力学", "哈密顿力学", "变分原理", "分析力学"]
 readTime: "阅读约45分钟"
+kind: "theory"
+level: "foundation"
+prerequisites: ["calculus-foundations"]
+nextArticles: ["differential-equations", "numerical-integration-methods"]
 topics:
   - id: "ue-chaos-physics"
     stage: "foundation"
     role: "theory"
-    order: 10
+    order: 30
 ---
+
+## 学习位置
+
+- **难度**：基础积木（`foundation`）
+- **本文职责**：建立概念、符号和推导，作为后续算法的共同语言。
+- **前置积木**：[微积分详解 — 从极限到微分、积分与向量微积分](/knowledge/calculus-foundations/)
+- **后续积木**：[常微分方程与数值方法详解 — 从牛顿运动方程到欧拉、Verlet 与龙格-库塔](/knowledge/differential-equations/)、[物理模拟数值积分方法详解 — 从欧拉到 RK4 与 XPBD](/knowledge/numerical-integration-methods/)
+
+> 阅读时先完成前置积木，再阅读本文的概念、算法、源码和工程章节；同一理论只在它的主文章中展开，其他文章只引用结论。
+
 
 > 经典力学是描述宏观物体运动规律的物理学基础。历史上形成了三种等价但视角不同的力学体系：**牛顿力学**（1687，力与加速度的矢量力学）、**拉格朗日力学**（1788，能量与变分的分析力学）、**哈密顿力学**（1833，相空间与辛几何）。三者描述的是同一个物理世界，可以互相推导，但各自的数学结构和适用场景截然不同。
 >

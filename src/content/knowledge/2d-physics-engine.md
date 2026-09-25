@@ -6,12 +6,26 @@ category: "Physics"
 subtopic: "RigidBodyDynamics"
 tags: ["物理引擎", "刚体动力学", "碰撞检测", "冲量法", "JavaScript"]
 readTime: "阅读约45分钟"
+kind: "practice"
+level: "intermediate"
+prerequisites: ["classical-mechanics", "numerical-integration-methods", "collision-detection-gjk-epa-sat"]
+nextArticles: ["physics_constraints_deep_dive"]
 topics:
   - id: "ue-chaos-physics"
     stage: "comparison"
     role: "comparison"
     order: 10
 ---
+
+## 学习位置
+
+- **难度**：进阶积木（`intermediate`）
+- **本文职责**：通过可运行案例验证前置知识，把公式连接到工程结果。
+- **前置积木**：[经典力学三大体系详解 — 牛顿、拉格朗日与哈密顿的等价框架与工程映射](/knowledge/classical-mechanics/)、[物理模拟数值积分方法详解 — 从欧拉到 RK4 与 XPBD](/knowledge/numerical-integration-methods/)、[凸体碰撞检测详解 — 从 SAT 到 GJK 再到 EPA 的积木式推导](/knowledge/collision-detection-gjk-epa-sat/)
+- **后续积木**：[物理约束详解 — 从约束函数到实时物理求解器](/knowledge/physics_constraints_deep_dive/)
+
+> 阅读时先完成前置积木，再阅读本文的概念、算法、源码和工程章节；同一理论只在它的主文章中展开，其他文章只引用结论。
+
 
 > 本文系统拆解一个基于 JavaScript + HTML5 Canvas 的 2D 刚体物理引擎——从向量数学到碰撞响应的完整链路。与基于位置的约束求解方法不同，本文的引擎采用**基于冲量的速度级求解**（sequential impulse），是 Box2D、PhysX 等工业级引擎的核心范式。
 >

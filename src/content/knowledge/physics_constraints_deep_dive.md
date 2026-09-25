@@ -6,12 +6,35 @@ category: "Physics"
 subtopic: "ConstraintSolver"
 tags: ["物理", "约束求解", "Constraint Solver", "PBD", "XPBD", "Jacobian"]
 readTime: "阅读约50分钟"
+kind: "theory"
+level: "intermediate"
+prerequisites: ["pbd-xpbd-math", "iterative-linear-solvers"]
+nextArticles: ["vbd-avbd-math", "position-based-elastic-rods"]
 topics:
   - id: "ue-chaos-physics"
-    stage: "foundation"
+    stage: "constraint"
     role: "theory"
-    order: 40
+    order: 20
 ---
+
+## 学习位置
+
+- **难度**：进阶积木（`intermediate`）
+- **本文职责**：建立概念、符号和推导，作为后续算法的共同语言。
+- **前置积木**：[PBD 与 XPBD 详解 — 从位置投影到柔度可控的约束求解](/knowledge/pbd-xpbd-math/)、[线性方程组迭代求解详解 — 从雅可比、高斯-赛德尔到共轭梯度与约束求解](/knowledge/iterative-linear-solvers/)
+- **后续积木**：[VBD 与 AVBD 详解 — 从变分隐式积分到块坐标下降与增广拉格朗日的统一框架](/knowledge/vbd-avbd-math/)、[基于位置的弹性杆详解 — Kirchhoff 杆、Darboux 向量与 PBD 约束求解](/knowledge/position-based-elastic-rods/)
+
+> 阅读时先完成前置积木，再阅读本文的概念、算法、源码和工程章节；同一理论只在它的主文章中展开，其他文章只引用结论。
+
+## 本文模块
+
+1. **约束问题与统一符号**
+2. **Jacobian、有效质量和拉格朗日乘子**
+3. **接触、Joint 与投影求解**
+4. **稳定性、并行化和工程诊断**
+
+> 模块按从概念到实现再到验证排列；遇到不熟悉的术语时，先回到本文的前置积木，不在当前文章重复展开基础理论。
+
 
 > 面向已经具备 Unreal Engine / Chaos / PBD / XPBD / 刚体动力学基础，希望进一步理解工业级 Constraint Solver 的工程师。
 

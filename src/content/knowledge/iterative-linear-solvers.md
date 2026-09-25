@@ -6,12 +6,35 @@ category: "Mathematics"
 subtopic: "LinearAlgebra"
 tags: ["数学", "线性代数", "数值计算", "迭代法", "约束求解"]
 readTime: "阅读约60分钟"
+kind: "algorithm"
+level: "intermediate"
+prerequisites: ["ue-linear-algebra-guide", "jacobian-matrix"]
+nextArticles: ["pbd-xpbd-math", "ue-chaos-physics-engine"]
 topics:
   - id: "ue-chaos-physics"
     stage: "foundation"
     role: "theory"
-    order: 50
+    order: 60
 ---
+
+## 学习位置
+
+- **难度**：进阶积木（`intermediate`）
+- **本文职责**：把理论收敛为可实现的算法，重点说明输入、步骤、稳定性和代价。
+- **前置积木**：[UE 线性代数详解 — 坐标系、向量、矩阵、FTransform 与四元数](/knowledge/ue-linear-algebra-guide/)、[雅可比矩阵详解 — 从导数到机器人、飞控与游戏物理的统一框架](/knowledge/jacobian-matrix/)
+- **后续积木**：[PBD 与 XPBD 详解 — 从位置投影到柔度可控的约束求解](/knowledge/pbd-xpbd-math/)、[UE Chaos Physics 引擎详解 — 源码架构、约束求解器与并行流水线](/knowledge/ue-chaos-physics-engine/)
+
+> 阅读时先完成前置积木，再阅读本文的概念、算法、源码和工程章节；同一理论只在它的主文章中展开，其他文章只引用结论。
+
+## 本文模块
+
+1. **线性系统与误差度量**
+2. **Jacobi、Gauss-Seidel 与阻尼**
+3. **共轭梯度和约束系统**
+4. **稀疏结构、并行化和选型**
+
+> 模块按从概念到实现再到验证排列；遇到不熟悉的术语时，先回到本文的前置积木，不在当前文章重复展开基础理论。
+
 
 ## 一、积木式入门：从方程到迭代
 

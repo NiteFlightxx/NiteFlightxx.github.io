@@ -6,7 +6,21 @@ category: "Animation"
 subtopic: "Retargeting"
 tags: ["UE5", "IK", "重定向", "动画"]
 readTime: "阅读约45分钟"
+kind: "source"
+level: "advanced"
+prerequisites: ["ue-animation-node-math", "ue-fullbody-ik-math"]
+nextArticles: []
 ---
+
+## 学习位置
+
+- **难度**：高级积木（`advanced`）
+- **本文职责**：把前置理论映射到 Unreal Engine 或项目源码，重点保留源码证据和边界。
+- **前置积木**：[UE 动画节点详解 — IK、混合、骨骼控制与惯性化](/knowledge/ue-animation-node-math/)、[UE FullBodyIK 插件详解 — 雅可比矩阵与 XPBD 位置动力学的双范式拆解](/knowledge/ue-fullbody-ik-math/)
+- **后续积木**：读完后可按专题或领域路线选择分支。
+
+> 阅读时先完成前置积木，再阅读本文的概念、算法、源码和工程章节；同一理论只在它的主文章中展开，其他文章只引用结论。
+
 
 > 本文基于 Unreal Engine 5.9 的 `IKRig` 插件源码整理，源码位于 `Engine/Plugins/Animation/IKRig/Source/IKRig`。目录 `Public/Retargeter/RetargetOps` 下共有 22 个 Op 头文件，其中 `IKChainsOp` 已在整个 `USTRUCT` 上标注 `Deprecated`（被 `FKChainsOp` 取代），本文**不收录**该废弃 Op，仅覆盖其余 20 个活跃 Op 及曲线 Op 的抽象基类。
 >

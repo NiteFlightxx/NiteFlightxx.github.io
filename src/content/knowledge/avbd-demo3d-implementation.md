@@ -6,7 +6,26 @@ category: "Physics"
 subtopic: "ConstraintSolver"
 tags: ["AVBD", "刚体动力学", "增广拉格朗日", "约束求解", "碰撞检测", "源码精读"]
 readTime: "阅读约55分钟"
+topics:
+  - id: "ue-chaos-physics"
+    stage: "constraint"
+    role: "practice"
+    order: 40
+kind: "practice"
+level: "advanced"
+prerequisites: ["vbd-avbd-math"]
+nextArticles: []
 ---
+
+## 学习位置
+
+- **难度**：高级积木（`advanced`）
+- **本文职责**：通过可运行案例验证前置知识，把公式连接到工程结果。
+- **前置积木**：[VBD 与 AVBD 详解 — 从变分隐式积分到块坐标下降与增广拉格朗日的统一框架](/knowledge/vbd-avbd-math/)
+- **后续积木**：读完后可按专题或领域路线选择分支。
+
+> 阅读时先完成前置积木，再阅读本文的概念、算法、源码和工程章节；同一理论只在它的主文章中展开，其他文章只引用结论。
+
 
 > 本站已有&#12298;[VBD 与 AVBD 详解](/knowledge/vbd-avbd-math/)&#12299;一文，从变分隐式积分出发推导了 VBD 的能量泛函、块坐标下降（BCD）、约束梯度/海森，以及 AVBD 用增广拉格朗日（ALM）化解硬约束刚性的原理。那篇是**理论骨架**——以布料/软体的**逐顶点 3×3 牛顿步**为主视角。
 >

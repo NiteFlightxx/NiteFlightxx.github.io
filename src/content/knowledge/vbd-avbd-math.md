@@ -6,7 +6,26 @@ category: "Physics"
 subtopic: "ConstraintSolver"
 tags: ["物理", "VBD", "AVBD", "约束求解", "变分积分", "增广拉格朗日"]
 readTime: "阅读约50分钟"
+topics:
+  - id: "ue-chaos-physics"
+    stage: "constraint"
+    role: "algorithm"
+    order: 30
+kind: "algorithm"
+level: "advanced"
+prerequisites: ["pbd-xpbd-math", "physics_constraints_deep_dive", "iterative-linear-solvers"]
+nextArticles: ["avbd-demo3d-implementation", "position-based-elastic-rods"]
 ---
+
+## 学习位置
+
+- **难度**：高级积木（`advanced`）
+- **本文职责**：把理论收敛为可实现的算法，重点说明输入、步骤、稳定性和代价。
+- **前置积木**：[PBD 与 XPBD 详解 — 从位置投影到柔度可控的约束求解](/knowledge/pbd-xpbd-math/)、[物理约束详解 — 从约束函数到实时物理求解器](/knowledge/physics_constraints_deep_dive/)、[线性方程组迭代求解详解 — 从雅可比、高斯-赛德尔到共轭梯度与约束求解](/knowledge/iterative-linear-solvers/)
+- **后续积木**：[AVBD 工程实现详解 — 从变分原理到刚体增广拉格朗日求解器（avbd-demo3d 源码精读）](/knowledge/avbd-demo3d-implementation/)、[基于位置的弹性杆详解 — Kirchhoff 杆、Darboux 向量与 PBD 约束求解](/knowledge/position-based-elastic-rods/)
+
+> 阅读时先完成前置积木，再阅读本文的概念、算法、源码和工程章节；同一理论只在它的主文章中展开，其他文章只引用结论。
+
 
 > 物理模拟的核心难点不在"积分"本身，而在**约束求解**：布料不可拉伸、刚体关节不可分离、软体体积不可压缩。传统隐式积分需要求解全局线性方程组 $\mathbf{A}\mathbf{x}=\mathbf{b}$，维度随粒子数爆炸且难以并行。**Vertex Block Descent (VBD)** 把隐式欧拉重构为一个**能量最小化**问题，再用**块坐标下降（BCD）**把全局求解切成无数个局部小问题迭代逼近，天然可并行、有收敛保证。
 >
