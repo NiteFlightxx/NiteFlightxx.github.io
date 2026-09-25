@@ -261,9 +261,8 @@ npm run audit:knowledge-nav
 | 路由 | 用途 |
 |---|---|
 | `/knowledge/` | 主入口，提供搜索、主要入口和全部文章摘要 |
-| `/knowledge/domains/` | 领域目录；领域页再按子主题分组 |
-| `/knowledge/paths/` | 学习路线目录；路线页定义推荐阅读顺序 |
-| `/knowledge/library/` | 全文文章索引和筛选，支持 `q`、`domain`、`kind`、`level` 查询参数 |
+| `/#knowledge` | 主知识库 Tab，提供搜索、领域、子主题、文章类型筛选和文章列表 |
+| `/knowledge/domain/<slug>/` | 可选的领域说明页，不作为主文章入口 |
 | `/projects/<slug>/` | 专题上下文、源码范围和研究阶段 |
 
 领域页、路线页和专题页只展示摘要与链接；完整推导和源码分析只保留在 `/knowledge/<slug>/`，避免重复内容。

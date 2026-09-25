@@ -1,13 +1,11 @@
 ---
 import Layout from '../layouts/Layout.astro';
 import App from '../App.tsx';
-import { loadKnowledge, loadKnowledgeDomains, loadTopicSummaries } from '../lib/content';
+import { loadKnowledge } from '../lib/content';
 
 const knowledgeArticles = await loadKnowledge();
-const knowledgeDomains = await loadKnowledgeDomains();
-const knowledgeTopics = await loadTopicSummaries();
 ---
 
 <Layout>
-  <App client:load knowledgeArticles={knowledgeArticles} knowledgeDomains={knowledgeDomains} knowledgeTopics={knowledgeTopics} />
+  <App client:load knowledgeArticles={knowledgeArticles} />
 </Layout>

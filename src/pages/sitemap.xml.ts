@@ -23,9 +23,6 @@ export const GET: APIRoute = async () => {
     urls.push({ loc: `${SITE.url}/projects/${e.slug}/`, lastmod: today });
   }
   urls.push({ loc: `${SITE.url}/knowledge/`, lastmod: today });
-  urls.push({ loc: `${SITE.url}/knowledge/domains/`, lastmod: today });
-  urls.push({ loc: `${SITE.url}/knowledge/paths/`, lastmod: today });
-  urls.push({ loc: `${SITE.url}/knowledge/library/`, lastmod: today });
   for (const e of domains) {
     urls.push({ loc: `${SITE.url}/knowledge/domain/${e.slug}/`, lastmod: today });
   }

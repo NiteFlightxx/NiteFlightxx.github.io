@@ -1,7 +1,6 @@
 ---
 import { getCollection, render, type CollectionEntry } from 'astro:content';
 import BaseHead from '../../../components/BaseHead.astro';
-import KnowledgeSiteHeader from '../../../components/KnowledgeSiteHeader.astro';
 import { SITE } from '../../../consts';
 import { knowledgeCategoryZh, knowledgeSubtopicZh } from '../../../lib/taxonomy';
 import '../../../index.css';
@@ -55,7 +54,10 @@ const articlesBySubtopic = subtopics.map((subtopic) => ({
   <body class="bg-surface-base text-text-secondary">
     <div class="fixed inset-0 -z-20 bg-surface-base"></div>
     <div class="grain-overlay" aria-hidden="true"></div>
-    <KnowledgeSiteHeader current="knowledge" />
+    <header class="sticky top-0 z-50 glass-panel border-b border-border-subtle px-6 md:px-12 py-3.5 flex items-center justify-between select-none">
+      <a href={`${baseURL}#knowledge`} class="font-display font-black text-base tracking-widest text-text-primary hover:text-accent-primary transition-colors">NITE / 知识库</a>
+      <a href={`${baseURL}#knowledge`} class="text-xs font-mono text-text-muted hover:text-accent-primary transition-colors">返回知识库</a>
+    </header>
 
     <main class="w-full max-w-5xl mx-auto px-6 md:px-8 py-12 md:py-20 space-y-14">
       <section class="space-y-5">
@@ -75,7 +77,7 @@ const articlesBySubtopic = subtopics.map((subtopic) => ({
           <div class="flex flex-wrap gap-2">
             {subtopics.map((subtopic) => <span class="px-2 py-1 rounded bg-surface-base text-[10px] font-mono text-text-muted">{knowledgeSubtopicZh(domain.data.category, subtopic)}</span>)}
           </div>
-          <a href={`${baseURL}knowledge/library/?domain=${domain.data.category}`} class="block pt-3 border-t border-border-subtle text-xs font-mono text-text-muted hover:text-accent-primary transition-colors">在文章库中筛选 →</a>
+          <a href={`${baseURL}#knowledge`} class="block pt-3 border-t border-border-subtle text-xs font-mono text-text-muted hover:text-accent-primary transition-colors">返回知识库筛选 →</a>
         </aside>
       </section>
 
@@ -119,7 +121,7 @@ const articlesBySubtopic = subtopics.map((subtopic) => ({
       )}
 
       <section class="space-y-8">
-        <div class="flex items-end justify-between gap-4"><div><div class="text-[10px] font-mono text-accent-primary uppercase tracking-widest">By Subtopic</div><h2 class="mt-2 font-display font-bold text-2xl text-text-primary">按子主题浏览</h2></div><a href={`${baseURL}knowledge/library/?domain=${domain.data.category}`} class="text-xs text-accent-primary hover:text-text-primary">打开文章库 →</a></div>
+        <div class="flex items-end justify-between gap-4"><div><div class="text-[10px] font-mono text-accent-primary uppercase tracking-widest">By Subtopic</div><h2 class="mt-2 font-display font-bold text-2xl text-text-primary">按子主题浏览</h2></div><a href={`${baseURL}#knowledge`} class="text-xs text-accent-primary hover:text-text-primary">返回知识库 →</a></div>
         {articlesBySubtopic.map((group) => <section class="space-y-3"><div class="flex items-center gap-3"><h3 class="font-display font-semibold text-lg text-text-primary">{group.title}</h3><span class="text-[10px] font-mono text-text-faint">{group.articles.length} 篇</span></div><div class="space-y-2">{group.articles.map((article) => <a href={`${baseURL}knowledge/${article.slug}/`} class="group flex flex-col md:flex-row md:items-center gap-2 md:gap-5 p-4 rounded-lg border border-border-subtle bg-surface-card hover:border-accent-primary/30 transition-colors"><span class="flex-1 font-display font-semibold text-sm text-text-primary group-hover:text-accent-primary transition-colors">{article.data.title}</span><span class="text-[10px] font-mono text-text-faint">{article.data.kind} · {article.data.readTime}</span></a>)}</div></section>)}
       </section>
     </main>

@@ -1,8 +1,8 @@
 import React, { useState, useMemo, useEffect } from "react";
 import Fuse from "fuse.js";
 import { motion } from "motion/react";
-import { Search, Calendar, Clock, ArrowRight, Tag, BookOpen, Layers, Route } from "lucide-react";
-import type { ArticleKind, ContentArticle, ContentTopicSummary, KnowledgeDomain } from "../types";
+import { Search, Calendar, Clock, ArrowRight, Tag } from "lucide-react";
+import type { ContentArticle } from "../types";
 import BorderGlow from "./BorderGlow";
 import { UI_TRANSLATIONS } from "../translations";
 import { KNOWLEDGE_CATEGORIES, knowledgeSubtopicsFor } from "../lib/taxonomy";
@@ -12,17 +12,14 @@ const BASE_URL = import.meta.env.BASE_URL;
 
 interface KnowledgeViewProps {
   articles: ContentArticle[];
-  domains: KnowledgeDomain[];
-  topics: ContentTopicSummary[];
   lang: "zh" | "en";
 }
 
-export default function KnowledgeView({ articles, domains, topics, lang }: KnowledgeViewProps) {
+export default function KnowledgeView({ articles, lang }: KnowledgeViewProps) {
   const t = UI_TRANSLATIONS[lang];
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategoryKey, setSelectedCategoryKey] = useState<string | null>(null);
   const [selectedSubtopic, setSelectedSubtopic] = useState<string | null>(null);
-  const [selectedKind, setSelectedKind] = useState<ArticleKind | null>(null);
   const [bodyIndex, setBodyIndex] = useState<Record<string, string> | null>(null);
 
   useEffect(() => {
@@ -47,6 +44,13 @@ export default function KnowledgeView({ articles, domains, topics, lang }: Knowl
   const availableCategories = useMemo(() => {
     const present = new Set(articles.map((a) => a.categoryKey).filter(Boolean) as string[]);
     return Object.entries(KNOWLEDGE_CATEGORIES).filter(([key]) => present.has(key));
+  }, [articles]);
+  const categoryCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const article of articles) {
+      if (article.categoryKey) counts.set(article.categoryKey, (counts.get(article.categoryKey) ?? 0) + 1);
+    }
+    return counts;
   }, [articles]);
 
   // Cascading subtopics for the currently selected category.
@@ -103,45 +107,21 @@ export default function KnowledgeView({ articles, domains, topics, lang }: Knowl
       : true;
 
     const matchesSubtopic = selectedSubtopic ? art.subtopic === selectedSubtopic : true;
-    const matchesKind = selectedKind ? art.kind === selectedKind : true;
 
-    return matchesCategory && matchesSubtopic && matchesKind;
+    return matchesCategory && matchesSubtopic;
   });
 
-  const hasFilters = searchQuery || selectedCategoryKey || selectedSubtopic || selectedKind;
-  // Keep the original knowledge tab article-first: the list is visible as
-  // soon as the user switches tabs. Domain/topic cards remain available from
-  // the dedicated routes, while filters stay in the same page as the articles.
-  const portalMode = false;
-  const articleBySlug = useMemo(() => new Map(articles.map((article) => [article.slug, article])), [articles]);
-  const kindLabels: Record<ArticleKind, string> = {
-    theory: "理论",
-    source: "源码",
-    algorithm: "算法",
-    comparison: "对比",
-    practice: "实践",
-    experiment: "实验",
-  };
-  const kindCounts = useMemo(() => {
-    const counts = new Map<ArticleKind, number>();
-    for (const article of articles) counts.set(article.kind ?? "theory", (counts.get(article.kind ?? "theory") ?? 0) + 1);
-    return counts;
-  }, [articles]);
+  const hasFilters = searchQuery || selectedCategoryKey || selectedSubtopic;
 
   const resetFilters = () => {
     setSearchQuery("");
     setSelectedCategoryKey(null);
     setSelectedSubtopic(null);
-    setSelectedKind(null);
   };
 
   const selectCategory = (key: string | null) => {
     setSelectedCategoryKey(key);
     setSelectedSubtopic(null); // cascading reset
-  };
-
-  const selectKind = (kind: ArticleKind | null) => {
-    setSelectedKind(kind);
   };
 
   // Chip renderer shared by both filter rows.
@@ -186,8 +166,15 @@ export default function KnowledgeView({ articles, domains, topics, lang }: Knowl
         </p>
       </div>
 
-      {/* Search entry */}
+      {/* Search & Filter Bar */}
       <div className="max-w-4xl mx-auto px-6 space-y-4">
+        <div className="flex items-end justify-between gap-4 pt-2">
+          <div>
+            <div className="text-[10px] font-mono text-accent-primary uppercase tracking-widest">Article Index</div>
+            <h2 className="mt-2 font-display font-bold text-2xl text-text-primary">全部文章</h2>
+          </div>
+          <span className="text-[10px] font-mono text-text-faint">{filteredArticles.length} / {articles.length} 篇</span>
+        </div>
         <div className="flex flex-col md:flex-row gap-4 items-stretch md:items-center justify-between">
           {/* Search Box */}
           <div className="relative flex-1">
@@ -196,9 +183,7 @@ export default function KnowledgeView({ articles, domains, topics, lang }: Knowl
               type="text"
               placeholder={t.searchPlaceholder}
               value={searchQuery}
-              onChange={(e) => {
-                setSearchQuery(e.target.value);
-              }}
+              onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full bg-surface-card text-text-primary pl-10 pr-4 py-2.5 rounded-lg border border-border-subtle focus:border-accent-primary/40 focus:outline-none text-xs font-mono transition-all duration-300 shadow-inner"
               id="search-input"
               aria-label={t.searchPlaceholder}
@@ -216,144 +201,7 @@ export default function KnowledgeView({ articles, domains, topics, lang }: Knowl
               {t.resetFilters}
             </button>
           )}
-          {portalMode && (
-            <button
-              type="button"
-              onClick={() => undefined}
-              className="text-[10px] font-mono text-accent-primary hover:text-text-primary transition-colors self-center border border-accent-primary/20 bg-accent-primary/5 px-3 py-2 rounded-lg"
-            >
-              浏览全部文章
-            </button>
-          )}
         </div>
-      </div>
-
-      {portalMode ? (
-        <div className="max-w-5xl mx-auto px-6 space-y-14">
-          <section className="space-y-5">
-            <div className="flex items-end justify-between gap-4">
-              <div>
-                <div className="flex items-center gap-2 text-[10px] font-mono text-accent-primary uppercase tracking-widest">
-                  <Layers className="w-3 h-3" /> 按领域浏览
-                </div>
-                <h2 className="mt-2 font-display font-bold text-2xl text-text-primary">知识领域</h2>
-              </div>
-              <span className="text-[10px] font-mono text-text-faint">{domains.length} 个入口</span>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {domains.map((domain) => (
-                <a key={domain.id} href={`${BASE_URL}knowledge/domain/${domain.id}/`} className="group p-5 rounded-xl border border-border-subtle bg-surface-card hover:border-accent-primary/40 transition-colors">
-                  <div className="flex items-center justify-between text-[10px] font-mono text-text-faint">
-                    <span className="text-accent-primary">{domain.title}</span>
-                    <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
-                  </div>
-                  <p className="mt-3 text-xs text-text-muted leading-relaxed line-clamp-2">{domain.excerpt}</p>
-                  <div className="mt-4 flex gap-3 text-[9px] font-mono text-text-faint">
-                    <span>{domain.articleCount} 篇文章</span>
-                    <span>{domain.subtopicCount} 个子主题</span>
-                  </div>
-                </a>
-              ))}
-            </div>
-          </section>
-
-          {topics.length > 0 && (
-            <section className="space-y-5">
-              <div className="flex items-end justify-between gap-4">
-                <div>
-                  <div className="flex items-center gap-2 text-[10px] font-mono text-accent-primary uppercase tracking-widest">
-                    <BookOpen className="w-3 h-3" /> 按专题浏览
-                  </div>
-                  <h2 className="mt-2 font-display font-bold text-2xl text-text-primary">专题研究</h2>
-                </div>
-                <span className="text-[10px] font-mono text-text-faint">项目上下文</span>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {topics.map((topic) => (
-                  <a key={topic.id} href={`${BASE_URL}projects/${topic.id}/`} className="group p-6 rounded-xl border border-accent-primary/20 bg-accent-primary/5 hover:border-accent-primary/50 transition-colors">
-                    <div className="flex items-center justify-between gap-3">
-                      <h3 className="font-display font-semibold text-lg text-text-primary group-hover:text-accent-primary transition-colors">{topic.title}</h3>
-                      <ArrowRight className="w-4 h-4 text-accent-primary group-hover:translate-x-1 transition-transform" />
-                    </div>
-                    <p className="mt-3 text-sm text-text-muted leading-relaxed line-clamp-2">{topic.excerpt}</p>
-                    <div className="mt-4 flex gap-3 text-[9px] font-mono text-text-faint">
-                      <span>{topic.stageCount} 个阶段</span>
-                      <span>{topic.articleCount} 篇关联文章</span>
-                    </div>
-                  </a>
-                ))}
-              </div>
-            </section>
-          )}
-
-          {domains.some((domain) => domain.learningPaths.length > 0) && (
-            <section className="space-y-5">
-              <div>
-                <div className="flex items-center gap-2 text-[10px] font-mono text-accent-primary uppercase tracking-widest">
-                  <Route className="w-3 h-3" /> 按路线学习
-                </div>
-                <h2 className="mt-2 font-display font-bold text-2xl text-text-primary">学习路线</h2>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {domains.flatMap((domain) => domain.learningPaths.map((path) => (
-                  <div key={`${domain.id}-${path.id}`} className="p-5 rounded-xl border border-border-subtle bg-surface-card">
-                    <div className="text-[9px] font-mono text-accent-primary uppercase tracking-widest">{domain.title}</div>
-                    <h3 className="mt-2 font-display font-semibold text-base text-text-primary">{path.title}</h3>
-                    <p className="mt-2 text-xs text-text-muted leading-relaxed">{path.description}</p>
-                    <div className="mt-4 flex flex-wrap gap-1.5">
-                      {path.articles.slice(0, 5).map((slug, index) => {
-                        const article = articleBySlug.get(slug);
-                        if (!article) return null;
-                        return (
-                          <a key={slug} href={`${BASE_URL}knowledge/${slug}/`} className="text-[9px] font-mono text-text-faint hover:text-accent-primary transition-colors">
-                            {index > 0 && <span className="mr-1.5 text-border-strong">→</span>}{article.title.replace(/详解\s+—\s+.*/, '详解')}
-                          </a>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )))}
-              </div>
-            </section>
-          )}
-
-          <section className="space-y-5">
-            <div>
-              <div className="text-[10px] font-mono text-accent-primary uppercase tracking-widest">Article Types</div>
-              <h2 className="mt-2 font-display font-bold text-2xl text-text-primary">按文章类型浏览</h2>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {(Object.keys(kindLabels) as ArticleKind[]).map((kind) => (
-                <button type="button" key={kind} onClick={() => selectKind(kind)} className="px-3 py-2 rounded-lg border border-border-subtle bg-surface-card hover:border-accent-primary/40 transition-colors text-left">
-                  <span className="block text-xs font-display font-semibold text-text-primary">{kindLabels[kind]}</span>
-                  <span className="block mt-1 text-[9px] font-mono text-text-faint">{kindCounts.get(kind) ?? 0} 篇</span>
-                </button>
-              ))}
-            </div>
-          </section>
-
-          <section className="space-y-5">
-            <div className="flex items-end justify-between gap-4">
-              <div>
-                <div className="text-[10px] font-mono text-accent-primary uppercase tracking-widest">Recent Notes</div>
-                <h2 className="mt-2 font-display font-bold text-2xl text-text-primary">最近更新</h2>
-              </div>
-              <button type="button" className="text-[10px] font-mono text-text-muted hover:text-accent-primary transition-colors">浏览全部 →</button>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              {articles.slice(0, 6).map((article) => (
-                <a key={article.id} href={`${BASE_URL}knowledge/${article.slug}/`} className="group p-4 rounded-xl border border-border-subtle bg-surface-card hover:border-accent-primary/30 transition-colors">
-                  <div className="flex items-center justify-between text-[9px] font-mono text-text-faint"><span className="text-accent-primary">{article.category}</span><span>{article.date}</span></div>
-                  <h3 className="mt-2 text-sm font-display font-semibold text-text-primary group-hover:text-accent-primary transition-colors">{article.title}</h3>
-                </a>
-              ))}
-            </div>
-          </section>
-        </div>
-      ) : (
-        <>
-        {/* Search & Filter Bar */}
-        <div className="max-w-4xl mx-auto px-6 space-y-4">
 
         {/* Row 1: Category (primary axis) */}
         <div className="flex flex-wrap items-center gap-1.5 border-t border-b border-border-subtle py-4">
@@ -365,7 +213,7 @@ export default function KnowledgeView({ articles, domains, topics, lang }: Knowl
             <Chip
               key={key}
               active={selectedCategoryKey === key}
-              label={label}
+              label={`${label} ${categoryCounts.get(key) ?? 0}`}
               onClick={() => selectCategory(key)}
               pulse
             />
@@ -389,14 +237,7 @@ export default function KnowledgeView({ articles, domains, topics, lang }: Knowl
             ))}
           </div>
         )}
-        <div className="flex flex-wrap items-center gap-1.5 pb-4 -mt-1">
-          <span className="text-[10px] font-mono text-text-faint uppercase tracking-widest mr-2">文章类型</span>
-          <Chip active={selectedKind === null} label="全部类型" onClick={() => selectKind(null)} />
-          {(Object.keys(kindLabels) as ArticleKind[]).map((kind) => (
-            <Chip key={kind} active={selectedKind === kind} label={`${kindLabels[kind]} ${kindCounts.get(kind) ?? 0}`} onClick={() => selectKind(kind)} />
-          ))}
-        </div>
-        </div>
+      </div>
 
       {/* Article list */}
       <div className="max-w-4xl mx-auto px-6 space-y-4">
@@ -479,8 +320,6 @@ export default function KnowledgeView({ articles, domains, topics, lang }: Knowl
           </div>
         )}
       </div>
-        </>
-      )}
     </div>
   );
 }

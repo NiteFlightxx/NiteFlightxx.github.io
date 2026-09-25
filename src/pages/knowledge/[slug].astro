@@ -125,10 +125,10 @@ if (primaryTopic && primaryTopicRef) {
   readTime={entry.data.readTime}
   tags={entry.data.tags}
   headings={headings}
-  backHref={`${baseURL}knowledge/`}
+  backHref={`${baseURL}#knowledge`}
   backLabel="返回知识库"
   breadcrumbs={[
-    { label: '知识库', href: `${baseURL}knowledge/` },
+    { label: '知识库', href: `${baseURL}#knowledge` },
     { label: knowledgeCategoryZh(entry.data.category), href: `${baseURL}knowledge/domain/${entry.data.category.toLowerCase()}/` },
     ...(entry.data.subtopic ? [{ label: knowledgeSubtopicZh(entry.data.category, entry.data.subtopic) }] : []),
   ]}
