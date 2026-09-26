@@ -33,6 +33,11 @@ export async function loadKnowledge(): Promise<ContentArticle[]> {
       level: entry.data.level,
       prerequisites: entry.data.prerequisites,
       nextArticles: entry.data.nextArticles,
+      aliases: entry.data.aliases,
+      pageType: entry.data.pageType,
+      sources: entry.data.sources,
+      related: entry.data.related,
+      featured: entry.data.featured,
     };
   });
 }

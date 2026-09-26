@@ -10,6 +10,9 @@ kind: "practice"
 level: "foundation"
 prerequisites: ["classical-mechanics"]
 nextArticles: ["quadcopter-flight-control-math"]
+pageType: "interactive"
+aliases: ["无人机 3D 沙盒", "四旋翼入门", "Drone Sandbox"]
+featured: true
 ---
 
 ## 学习位置

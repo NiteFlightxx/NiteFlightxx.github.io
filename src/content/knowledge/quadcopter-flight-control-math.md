@@ -10,6 +10,9 @@ kind: "algorithm"
 level: "advanced"
 prerequisites: ["quadcopter-basics-interactive", "classical-mechanics", "differential-equations"]
 nextArticles: []
+pageType: "source-analysis"
+aliases: ["AircraftLab", "无人机飞控", "Flight Controller"]
+featured: true
 ---
 
 ## 学习位置

@@ -10,6 +10,9 @@ kind: "source"
 level: "advanced"
 prerequisites: ["ue-animation-node-math"]
 nextArticles: []
+pageType: "source-analysis"
+aliases: ["Pose Search", "FAnimNode_MotionMatching", "运动匹配"]
+featured: true
 ---
 
 ## 学习位置

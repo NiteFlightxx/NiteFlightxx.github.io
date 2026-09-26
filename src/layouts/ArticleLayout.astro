@@ -7,9 +7,11 @@ import '../index.css';
 import ArticleToc from '../components/ArticleToc';
 import RelatedArticles from '../components/RelatedArticles';
 import ArticleEnhancements from '../components/ArticleEnhancements';
+import KnowledgeTree from '../components/KnowledgeTree';
+import ReaderActions from '../components/ReaderActions';
 import DemoMount from '../components/demos/DemoMount';
 import { Calendar, Clock, ArrowLeft } from 'lucide-react';
-import type { ContentArticle } from '../types';
+import type { ContentArticle, KnowledgeSource } from '../types';
 
 interface TocHeading {
   depth: number;
@@ -21,6 +23,9 @@ interface Props {
   title: string;
   excerpt?: string;
   category: string; // localized label (e.g. "动画")
+  subtopic?: string;
+  difficulty?: string;
+  pageType?: string;
   date: string; // localized display string
   readTime?: string;
   tags: string[];
@@ -42,12 +47,22 @@ interface Props {
     prerequisites: { slug: string; title: string }[];
     nextArticles: { slug: string; title: string }[];
   };
+  currentSlug: string;
+  allArticles: ContentArticle[];
+  backlinks?: { slug: string; title: string }[];
+  outgoingLinks?: { slug: string; title: string }[];
+  sources?: KnowledgeSource[];
+  historyUrl?: string;
+  rawUrl?: string;
 }
 
 const {
   title,
   excerpt,
   category,
+  subtopic,
+  difficulty,
+  pageType,
   date,
   readTime,
   tags = [],
@@ -59,6 +74,13 @@ const {
   relatedArticles = [],
   topicContext,
   learningLinks,
+  currentSlug,
+  allArticles,
+  backlinks = [],
+  outgoingLinks = [],
+  sources = [],
+  historyUrl,
+  rawUrl,
 } = Astro.props;
 ---
 
@@ -75,6 +97,11 @@ const {
       type="article"
       canonicalPath={Astro.url.pathname}
     />
+    <meta data-pagefind-meta="title" content={title} />
+    <meta data-pagefind-meta="category" content={category} />
+    {subtopic && <meta data-pagefind-meta="subtopic" content={subtopic} />}
+    {difficulty && <meta data-pagefind-meta="difficulty" content={difficulty} />}
+    {pageType && <meta data-pagefind-meta="pageType" content={pageType} />}
   </head>
   <body class="bg-surface-base text-text-secondary">
     {/* Progressive enhancements: reading progress bar + code copy buttons.
@@ -92,18 +119,18 @@ const {
 
     <StaticSiteHeader activeTab="knowledge" />
 
-    {/* Main: the TOC rail is pinned to the viewport's left edge as a fixed
-        sidebar; the article is a centered, fixed-width reading column that
-        ignores the rail — so it stays visually centered regardless of TOC. */}
-    <div class="relative w-full py-10">
-      {/* Left TOC — fixed to the left edge, sticky-feeling via position:fixed.
-          Hidden on small screens (no room). */}
-      <aside class="hidden lg:block fixed left-0 top-24 w-[300px] px-8 max-h-[calc(100vh-8rem)] overflow-y-auto z-30">
-        <ArticleToc client:load headings={headings} lang={lang} />
+    <div class="knowledge-reader-shell mx-auto grid w-full max-w-[1500px] grid-cols-1 gap-7 px-4 py-8 md:px-6 xl:grid-cols-[280px_minmax(0,780px)_260px] 2xl:gap-9">
+      <aside class="hidden xl:block">
+        <div class="sticky top-24"><KnowledgeTree client:only="react" articles={allArticles} currentSlug={currentSlug} /></div>
       </aside>
 
-      {/* Article body — centered reading column */}
-      <article class="article-body w-full max-w-3xl mx-auto px-6 md:px-8">
+      <main class="min-w-0">
+        <details class="mb-5 xl:hidden glass-panel rounded-xl border border-border-subtle">
+          <summary class="cursor-pointer px-4 py-3 font-mono text-xs text-text-muted">浏览知识目录</summary>
+          <KnowledgeTree client:only="react" articles={allArticles} currentSlug={currentSlug} />
+        </details>
+        <div class="mb-5 xl:hidden"><ReaderActions client:media="(max-width: 1279px)" slug={currentSlug} title={title} category={category} url={Astro.url.pathname} /></div>
+      <article class="article-body w-full px-2 md:px-4" data-pagefind-body>
         <a href={backHref} class="inline-flex items-center gap-2 mb-6 text-xs font-mono text-text-muted hover:text-accent-primary transition-colors group"><ArrowLeft className="w-4 h-4 transition-transform group-hover:-translate-x-1" />{backLabel}</a>
         {/* Header metadata */}
         <div class="border-b border-white/5 pb-8 mb-10">
@@ -113,7 +140,10 @@ const {
             </nav>
           )}
           <div class="flex items-center gap-2 text-[10px] font-mono text-brand-accent-orange uppercase tracking-wider mb-3">
-            <span>{category}</span>
+            <span data-pagefind-filter={`category:${category}`}>{category}</span>
+            {subtopic && <span data-pagefind-filter={`subtopic:${subtopic}`} class="sr-only">{subtopic}</span>}
+            {difficulty && <span data-pagefind-filter={`difficulty:${difficulty}`} class="sr-only">{difficulty}</span>}
+            {pageType && <span data-pagefind-filter={`pageType:${pageType}`} class="sr-only">{pageType}</span>}
           </div>
           {topicContext && (
             <div class="mb-5 flex flex-wrap items-center gap-2 text-[10px] font-mono">
@@ -169,6 +199,29 @@ const {
           </section>
         )}
 
+        {(backlinks.length > 0 || outgoingLinks.length > 0 || sources.length > 0) && (
+          <section class="mt-12 grid grid-cols-1 gap-5 border-t border-border-subtle pt-8 md:grid-cols-2" aria-label="知识关系与来源">
+            {outgoingLinks.length > 0 && (
+              <div class="rounded-xl border border-border-subtle bg-surface-card/40 p-5">
+                <h2 class="!mt-0 !border-0 !p-0 font-mono !text-xs uppercase tracking-widest text-text-muted">本文引用</h2>
+                <div class="mt-3 space-y-2">{outgoingLinks.slice(0, 10).map((link) => <a href={`${import.meta.env.BASE_URL}knowledge/${link.slug}/`} class="block text-sm text-text-secondary hover:text-accent-primary">{link.title}</a>)}</div>
+              </div>
+            )}
+            {backlinks.length > 0 && (
+              <div class="rounded-xl border border-border-subtle bg-surface-card/40 p-5">
+                <h2 class="!mt-0 !border-0 !p-0 font-mono !text-xs uppercase tracking-widest text-text-muted">被这些页面引用</h2>
+                <div class="mt-3 space-y-2">{backlinks.slice(0, 10).map((link) => <a href={`${import.meta.env.BASE_URL}knowledge/${link.slug}/`} class="block text-sm text-text-secondary hover:text-accent-primary">{link.title}</a>)}</div>
+              </div>
+            )}
+            {sources.length > 0 && (
+              <div class="rounded-xl border border-border-subtle bg-surface-card/40 p-5 md:col-span-2">
+                <h2 class="!mt-0 !border-0 !p-0 font-mono !text-xs uppercase tracking-widest text-text-muted">资料来源</h2>
+                <div class="mt-3 flex flex-wrap gap-2">{sources.map((source) => <a href={source.url} target="_blank" rel="noreferrer" class="rounded-lg border border-border-subtle px-3 py-2 text-xs text-text-secondary hover:border-accent-primary/40 hover:text-accent-primary">{source.title}</a>)}</div>
+              </div>
+            )}
+          </section>
+        )}
+
         {/* Tag cloud */}
         <div class="mt-12 pt-8 border-t border-white/5 flex flex-wrap gap-2">
           {tags.map((tag) => (
@@ -199,7 +252,22 @@ const {
         {relatedArticles.length > 0 && (
           <RelatedArticles client:load articles={relatedArticles} lang={lang} />
         )}
+        {(historyUrl || rawUrl) && (
+          <footer class="mt-10 flex flex-wrap gap-4 border-t border-border-subtle pt-6 font-mono text-[10px] text-text-faint">
+            {historyUrl && <a href={historyUrl} target="_blank" rel="noreferrer" class="hover:text-accent-primary">查看 Git 修改历史</a>}
+            {rawUrl && <a href={rawUrl} target="_blank" rel="noreferrer" class="hover:text-accent-primary">查看原始 Markdown</a>}
+          </footer>
+        )}
       </article>
+      </main>
+
+      <aside class="hidden xl:block">
+        <div class="sticky top-24 space-y-4">
+          <ReaderActions client:media="(min-width: 1280px)" slug={currentSlug} title={title} category={category} url={Astro.url.pathname} />
+          <ArticleToc client:load headings={headings} lang={lang} />
+          <a href={`${import.meta.env.BASE_URL}knowledge/graph/?center=${currentSlug}`} class="block rounded-xl border border-border-subtle bg-surface-card/40 px-4 py-3 text-center font-mono text-[10px] uppercase tracking-wider text-text-muted hover:border-accent-primary/30 hover:text-accent-primary">在知识图谱中查看</a>
+        </div>
+      </aside>
     </div>
   </body>
 </html>

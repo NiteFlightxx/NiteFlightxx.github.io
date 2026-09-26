@@ -197,7 +197,7 @@ article {
   padding: 0.5rem 0 0.5rem 1rem;
   border-left: 2px solid color-mix(in srgb, var(--color-accent-primary) 40%, transparent);
   color: var(--color-text-muted);
-  font-size: 0.85rem;
+  font-size: var(--reader-small-font-size, 0.85rem);
   line-height: 1.75;
   font-weight: 400;
 }
@@ -264,7 +264,7 @@ article {
 }
 
 .article-body p {
-  font-size: 0.9rem;
+  font-size: var(--reader-font-size, 0.9rem);
   line-height: 1.85;
   color: var(--color-text-secondary);
   margin: 1.25rem 0;
@@ -274,7 +274,7 @@ article {
 
 @media (min-width: 768px) {
   .article-body p {
-    font-size: 1.025rem;
+    font-size: var(--reader-font-size-desktop, 1.025rem);
   }
 }
 
@@ -286,7 +286,7 @@ article {
 }
 
 .article-body li {
-  font-size: 0.9rem;
+  font-size: var(--reader-font-size, 0.9rem);
   line-height: 1.85;
   color: var(--color-text-secondary);
   margin: 0.5rem 0;

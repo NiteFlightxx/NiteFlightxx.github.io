@@ -1,0 +1,12 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import StaticSiteHeader from '../../components/StaticSiteHeader.astro';
+import KnowledgeGraph from '../../components/KnowledgeGraph';
+---
+
+<Layout title="知识图谱 · NITE">
+  <div class="min-h-screen bg-surface-base text-text-primary">
+    <StaticSiteHeader activeTab="knowledge" />
+    <KnowledgeGraph client:only="react" />
+  </div>
+</Layout>

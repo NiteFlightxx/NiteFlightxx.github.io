@@ -72,6 +72,12 @@ const ARTICLE_TOPIC_ROLES = [
 
 const ARTICLE_KINDS = ['theory', 'source', 'algorithm', 'comparison', 'practice', 'experiment'] as const;
 const ARTICLE_LEVELS = ['foundation', 'intermediate', 'advanced'] as const;
+const ARTICLE_PAGE_TYPES = ['guide', 'concept', 'source-analysis', 'project', 'interactive'] as const;
+
+const knowledgeSource = z.object({
+  title: z.string().min(1),
+  url: z.string().url(),
+});
 
 const articleTopic = z.object({
   id: z.string().min(1),
@@ -105,6 +111,11 @@ const knowledge = defineCollection({
       level: z.enum(ARTICLE_LEVELS).default('intermediate'),
       prerequisites: z.array(z.string().min(1)).default([]),
       nextArticles: z.array(z.string().min(1)).default([]),
+      aliases: z.array(z.string().min(1)).default([]),
+      pageType: z.enum(ARTICLE_PAGE_TYPES).default('guide'),
+      sources: z.array(knowledgeSource).default([]),
+      related: z.array(z.string().min(1)).default([]),
+      featured: z.boolean().default(false),
     })
     .superRefine((value, ctx) => {
       const allowed = KNOWLEDGE_SUBTOPICS[value.category] as readonly string[];

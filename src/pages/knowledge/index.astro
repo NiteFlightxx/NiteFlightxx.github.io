@@ -1,0 +1,15 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import StaticSiteHeader from '../../components/StaticSiteHeader.astro';
+import KnowledgeView from '../../components/KnowledgeView';
+import { loadKnowledge } from '../../lib/content';
+
+const articles = await loadKnowledge();
+---
+
+<Layout title="知识库 · NITE">
+  <div class="min-h-screen bg-surface-base text-text-primary">
+    <StaticSiteHeader activeTab="knowledge" />
+    <KnowledgeView client:only="react" articles={articles} lang="zh" />
+  </div>
+</Layout>

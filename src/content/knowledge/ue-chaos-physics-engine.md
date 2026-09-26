@@ -10,6 +10,9 @@ kind: "source"
 level: "advanced"
 prerequisites: ["classical-mechanics", "numerical-integration-methods", "iterative-linear-solvers"]
 nextArticles: ["collision-detection-gjk-epa-sat", "pbd-xpbd-math", "chaos-kinematic-sync"]
+pageType: "source-analysis"
+aliases: ["Chaos Physics", "UE 物理引擎", "Chaos Solver"]
+featured: true
 topics:
   - id: "ue-chaos-physics"
     stage: "architecture"

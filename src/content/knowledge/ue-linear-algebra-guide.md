@@ -10,6 +10,9 @@ kind: "theory"
 level: "foundation"
 prerequisites: ["mathematical-notation-reference"]
 nextArticles: ["jacobian-matrix", "iterative-linear-solvers"]
+pageType: "source-analysis"
+aliases: ["Unreal Engine 线性代数", "FVector FMatrix FTransform", "UE Math"]
+featured: true
 ---
 
 ## 学习位置

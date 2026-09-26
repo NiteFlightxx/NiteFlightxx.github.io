@@ -16,23 +16,25 @@ import ArchiveView from "./components/ArchiveView";
 import ProjectDetailModal from "./components/ProjectDetailModal";
 import DynamicLinesBg from "./components/DynamicLinesBg";
 import SideRays from "./components/SideRays";
+import GlobalCommandPalette from "./components/GlobalCommandPalette";
 
 // Data records (Chinese-only after migration; English datasets removed)
 import {
   PROJECTS_ZH,
   SKILLS_ZH,
 } from "./translations";
-import type { Project, ContentArticle } from "./types";
+import type { Project, ContentArticle, KnowledgeDomain } from "./types";
 import { MAIN_NAV_ITEMS } from "./lib/siteNavigation";
 
 interface AppProps {
   // Lightweight Markdown metadata; full bodies stay on their article routes.
   knowledgeArticles?: ContentArticle[];
+  knowledgeDomains?: KnowledgeDomain[];
 }
 
 const VALID_TABS: readonly string[] = MAIN_NAV_ITEMS.map((item) => item.id);
 
-export default function App({ knowledgeArticles = [] }: AppProps) {
+export default function App({ knowledgeArticles = [], knowledgeDomains = [] }: AppProps) {
   const [activeTab, setActiveTab] = useState("home");
   // Lazy initial theme: read the persisted value (or system preference) once
   // at first render so the rays layer never flashes dark→light on load.
@@ -102,6 +104,7 @@ export default function App({ knowledgeArticles = [] }: AppProps) {
           <HomeView
             projects={projects}
             knowledgeArticles={knowledge}
+            knowledgeDomains={knowledgeDomains}
             onSelectProject={openProject}
             setActiveTab={navigateToTab}
             lang={lang}
@@ -189,6 +192,8 @@ export default function App({ knowledgeArticles = [] }: AppProps) {
 
       {/* Standard Footer */}
       <Footer lang={lang} />
+
+      <GlobalCommandPalette />
 
       {/* Immersive Modal: Project Specifications */}
       <AnimatePresence>

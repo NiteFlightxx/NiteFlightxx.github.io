@@ -44,6 +44,12 @@ export interface ArticleTopicRef {
 
 export type ArticleKind = ArticleTopicRole;
 export type ArticleLevel = "foundation" | "intermediate" | "advanced";
+export type ArticlePageType = "guide" | "concept" | "source-analysis" | "project" | "interactive";
+
+export interface KnowledgeSource {
+  title: string;
+  url: string;
+}
 
 export interface KnowledgePath {
   id: string;
@@ -92,7 +98,71 @@ export interface ContentArticle {
   level?: ArticleLevel;
   prerequisites?: string[];
   nextArticles?: string[];
+  aliases?: string[];
+  pageType?: ArticlePageType;
+  sources?: KnowledgeSource[];
+  related?: string[];
+  featured?: boolean;
   searchText?: string; // lowercased body text, lazily loaded for full-text search
+}
+
+export interface KnowledgeManifestEntry {
+  slug: string;
+  title: string;
+  summary: string;
+  category: string;
+  categoryLabel: string;
+  subtopic?: string;
+  subtopicLabel?: string;
+  tags: string[];
+  aliases: string[];
+  pageType: ArticlePageType;
+  difficulty: ArticleLevel;
+  updatedAt: string;
+  readTime?: string;
+  sources: KnowledgeSource[];
+  related: string[];
+  featured: boolean;
+  url: string;
+}
+
+export interface KnowledgeGraphNode {
+  id: string;
+  slug: string;
+  title: string;
+  summary: string;
+  category: string;
+  categoryLabel: string;
+  pageType: ArticlePageType | "topic";
+  url: string;
+  degree: number;
+}
+
+export interface KnowledgeGraphEdge {
+  source: string;
+  target: string;
+  type: "link" | "prerequisite" | "next" | "related" | "topic";
+}
+
+export interface KnowledgeGraph {
+  nodes: KnowledgeGraphNode[];
+  edges: KnowledgeGraphEdge[];
+  generatedAt: string;
+}
+
+export interface KnowledgeStats {
+  articleCount: number;
+  categoryCount: number;
+  subtopicCount: number;
+  learningPathCount: number;
+  orphanCount: number;
+  noBacklinkCount: number;
+  formulaCount: number;
+  mermaidCount: number;
+  interactiveCount: number;
+  categories: Record<string, number>;
+  subtopics: Record<string, number>;
+  recentlyUpdated: string[];
 }
 
 // ---- Skill matrix (Archive) ----

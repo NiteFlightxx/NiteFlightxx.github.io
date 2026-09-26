@@ -1,11 +1,11 @@
 ---
 import Layout from '../layouts/Layout.astro';
 import App from '../App.tsx';
-import { loadKnowledge } from '../lib/content';
+import { loadKnowledge, loadKnowledgeDomains } from '../lib/content';
 
-const knowledgeArticles = await loadKnowledge();
+const [knowledgeArticles, knowledgeDomains] = await Promise.all([loadKnowledge(), loadKnowledgeDomains()]);
 ---
 
 <Layout>
-  <App client:load knowledgeArticles={knowledgeArticles} />
+  <App client:load knowledgeArticles={knowledgeArticles} knowledgeDomains={knowledgeDomains} />
 </Layout>

@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { Menu, X, Sun, Moon } from "lucide-react";
+import { Menu, X, Sun, Moon, Search } from "lucide-react";
 import Logo from "./Logo";
 import BilibiliIcon from "./BilibiliIcon";
 import GithubIcon from "./GithubIcon";
@@ -75,6 +75,16 @@ export default function Header({
 
         {/* Right: Actions / Socials */}
         <div className="hidden md:flex items-center gap-3">
+          <button
+            type="button"
+            onClick={() => window.dispatchEvent(new Event('nite:open-command-palette'))}
+            className="flex items-center gap-2 rounded-lg border border-border-subtle bg-surface-base/40 px-3 py-2 text-xs text-text-muted transition-colors hover:border-accent-primary/30 hover:text-text-primary"
+            aria-label="打开全局搜索"
+          >
+            <Search className="h-4 w-4" />
+            <span className="hidden lg:inline">搜索</span>
+            <kbd className="hidden rounded border border-border-subtle px-1.5 py-0.5 font-mono text-[8px] text-text-faint xl:inline">Ctrl K</kbd>
+          </button>
           <a
             href="https://github.com/NiteFlightxx"
             target="_blank"
@@ -146,6 +156,16 @@ export default function Header({
             className="md:hidden absolute top-[73px] left-0 right-0 glass-panel border-b border-border-subtle px-6 py-6 shadow-2xl flex flex-col gap-4"
           >
             <div className="flex flex-col gap-1">
+              <button
+                type="button"
+                onClick={() => {
+                  setMobileMenuOpen(false);
+                  window.dispatchEvent(new Event('nite:open-command-palette'));
+                }}
+                className="mb-2 flex w-full items-center gap-2 rounded-lg border border-border-subtle px-4 py-2.5 text-left text-sm text-text-secondary"
+              >
+                <Search className="h-4 w-4 text-accent-primary" />搜索知识库
+              </button>
               {MAIN_NAV_ITEMS.map((item) => {
                 const isActive = activeTab === item.id;
                 return (

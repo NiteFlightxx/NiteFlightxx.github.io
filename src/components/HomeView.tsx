@@ -1,18 +1,20 @@
 import React from "react";
 import { motion } from "motion/react";
 import type { Variants } from "motion/react";
-import { ArrowRight, ChevronDown } from "lucide-react";
-import type { Project, ContentArticle } from "../types";
+import { ArrowRight } from "lucide-react";
+import type { Project, ContentArticle, KnowledgeDomain } from "../types";
 import { projectCategoryZh, projectStatusZh } from "../lib/taxonomy";
 import { UI_TRANSLATIONS } from "../translations";
 import BorderGlow from "./BorderGlow";
 import { STATUS_BADGE } from "./ProjectsView";
+import AvbdViewport from "./AvbdViewport";
 
 const BASE_URL = import.meta.env.BASE_URL;
 
 interface HomeViewProps {
   projects: Project[];
   knowledgeArticles: ContentArticle[];
+  knowledgeDomains: KnowledgeDomain[];
   onSelectProject: (project: Project) => void;
   setActiveTab: (tab: string) => void;
   lang: "zh" | "en";
@@ -21,6 +23,7 @@ interface HomeViewProps {
 export default function HomeView({
   projects,
   knowledgeArticles,
+  knowledgeDomains,
   onSelectProject,
   setActiveTab,
   lang,
@@ -29,7 +32,7 @@ export default function HomeView({
   const zh = lang === "zh";
 
   const featured = projects.slice(0, 2);
-  const recentKnowledge = knowledgeArticles.slice(0, 2);
+  const recentKnowledge = knowledgeArticles.slice(0, 4);
 
   const containerVariants: Variants = {
     hidden: { opacity: 0 },
@@ -49,112 +52,27 @@ export default function HomeView({
       variants={containerVariants}
       initial="hidden"
       animate="show"
-      className="space-y-28 pb-24"
+      className="space-y-20 pb-24"
       id="home-view-container"
     >
-      {/* ===== Hero — centered with breathing space ===== */}
-      <section className="relative min-h-[85svh] md:min-h-[90vh] flex items-center justify-center select-none overflow-hidden">
-        {/* Geometric art from Nite_BG, drawn as native SVG */}
-        <div className="absolute inset-0 -z-10">
-          {/* Keep the full signature N inside the hero at every viewport size. */}
-          <svg
-            className="absolute left-[4%] top-[40%] h-auto -translate-y-1/2"
-            style={{ width: "min(60vw, 63vh, 600px)" }}
-            viewBox="0 0 317 357"
-            aria-hidden="true"
-          >
-            <g fill="#f3f4f6" opacity="0.035">
-              <path d="M15,102 L23,113 L36,128 L49,143 L49,293 L42,308 L27,323 L15,336 Z" />
-              <path d="M0,0 L8,35 L22,63 L38,84 L59,105 L80,126 L101,147 L122,168 L143,189 L164,210 L185,231 L205,252 L226,273 L247,294 L269,315 L290,336 L311,357 L317,357 L300,308 L280,280 L253,252 L232,231 L211,210 L190,189 L169,168 L148,147 L127,126 L106,105 L85,84 L64,63 L43,42 L22,21 L1,0 Z" />
-              <path d="M303,43 L303,253 L304,267 L289,248 L276,233 L269,218 L269,83 L278,68 L293,53 L303,43 Z" />
-            </g>
-            <g fill="none" stroke="#bcfd49" strokeWidth="0.6" opacity="0.1">
-              <path d="M15,102 L23,113 L36,128 L49,143 L49,293 L42,308 L27,323 L15,336 Z" />
-              <path d="M0,0 L8,35 L22,63 L38,84 L59,105 L80,126 L101,147 L122,168 L143,189 L164,210 L185,231 L205,252 L226,273 L247,294 L269,315 L290,336 L311,357 L317,357 L300,308 L280,280 L253,252 L232,231 L211,210 L190,189 L169,168 L148,147 L127,126 L106,105 L85,84 L64,63 L43,42 L22,21 L1,0 Z" />
-              <path d="M303,43 L303,253 L304,267 L289,248 L276,233 L269,218 L269,83 L278,68 L293,53 L303,43 Z" />
-            </g>
-          </svg>
-          <svg
-            className="absolute inset-0 w-full h-full"
-            viewBox="0 0 1440 900"
-            preserveAspectRatio="xMidYMid slice"
-            aria-hidden="true"
-          >
-            {/* Right: vertical accent line */}
-            <line x1="1330" y1="60" x2="1330" y2="840" stroke="#bcfd49" strokeWidth="1.5" opacity="0.15" />
+      {/* ===== AVBD interactive physics viewport ===== */}
+      <AvbdViewport />
 
-            {/* Right: three rectangular bands */}
-            <rect x="1360" y="160" width="70" height="22" fill="#f3f4f6" opacity="0.05" rx="1" />
-            <rect x="1360" y="430" width="70" height="22" fill="#bcfd49" opacity="0.08" rx="1" />
-            <rect x="1360" y="700" width="70" height="22" fill="#f3f4f6" opacity="0.05" rx="1" />
-          </svg>
-
-          {/* Ambient glow */}
-          <div className="absolute w-[500px] h-[500px] bg-accent-primary/5 glow-ambient -top-20" />
-          <div className="absolute w-[600px] h-[400px] bg-surface-raised/20 glow-ambient bottom-10" />
-          {/* Grid overlay */}
-          <div className="absolute inset-0 opacity-10 bg-[linear-gradient(rgba(255,255,255,0.02)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.02)_1px,transparent_1px)] bg-[size:32px_32px]" />
-        </div>
-
-        {/* Hero content — centered with generous breathing space */}
-        <div className="w-full max-w-3xl mx-auto px-6 text-center relative z-10">
-          <motion.div
-            variants={itemVariants}
-            className="inline-flex items-center gap-2.5 px-4 py-1.5 rounded-full border border-accent-primary/30 bg-surface-card/90 text-xs font-mono tracking-widest text-accent-primary uppercase shadow-[0_4px_20px_rgba(188,253,73,0.1)]"
-          >
-            <span className="w-2 h-2 rounded-full bg-accent-primary animate-pulse" />
-            {t.role}
-          </motion.div>
-
-          <div className="mt-10 space-y-5">
-            <motion.h1
-              variants={itemVariants}
-              className="font-display font-black text-6xl md:text-9xl tracking-tighter leading-none bg-gradient-to-r from-text-primary via-accent-primary-hover to-accent-primary bg-clip-text text-transparent drop-shadow-[0_4px_15px_rgba(188,253,73,0.15)]"
-            >
-              NITE
-            </motion.h1>
-            <motion.p
-              variants={itemVariants}
-              className="font-sans font-bold text-lg md:text-2xl text-accent-primary-hover tracking-widest uppercase"
-            >
-              {t.title}
-            </motion.p>
-          </div>
-
-          <motion.p
-            variants={itemVariants}
-            className="mt-8 font-sans text-xl md:text-3xl text-text-primary max-w-2xl mx-auto font-medium leading-relaxed tracking-wide"
-          >
-            {t.statement}
-          </motion.p>
-
-          <motion.div variants={itemVariants} className="flex flex-col sm:flex-row items-center justify-center gap-4 mt-10">
-            <button
-              type="button"
-              onClick={() => setActiveTab("projects")}
-              className="w-full sm:w-auto px-8 py-4 rounded-full bg-accent-primary hover:bg-surface-card text-black font-extrabold text-sm tracking-widest uppercase transition-all duration-300 shadow-[0_4px_25px_rgba(188,253,73,0.25)] flex items-center justify-center gap-2 cursor-pointer"
-              id="hero-explore-projects"
-            >
-              {t.exploreWork} <ArrowRight className="w-4.5 h-4.5 stroke-[2.5]" />
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveTab("archive")}
-              className="w-full sm:w-auto px-8 py-4 rounded-full border border-accent-primary/40 bg-surface-card hover:bg-surface-raised/80 hover:border-accent-primary transition-all duration-300 text-sm text-accent-primary font-bold tracking-widest uppercase flex items-center justify-center gap-2 cursor-pointer shadow-lg"
-              id="hero-view-profile"
-            >
-              {t.viewProfile}
-            </button>
-          </motion.div>
-
-          {/* Scroll hint */}
-          <motion.div
-            variants={itemVariants}
-            className="absolute bottom-8 left-1/2 -translate-x-1/2 flex flex-col items-center gap-1.5 text-text-faint"
-          >
-            <span className="text-[10px] font-mono tracking-widest uppercase">{t.scrollHint}</span>
-            <ChevronDown className="w-4 h-4 animate-bounce" />
-          </motion.div>
+      {/* ===== Knowledge domains and learning paths ===== */}
+      <section className="px-6 md:px-12 max-w-7xl mx-auto space-y-10">
+        <motion.div variants={itemVariants} className="flex items-end justify-between border-b border-border-subtle pb-5">
+          <div><span className="font-mono text-[10px] uppercase tracking-widest text-accent-primary">Learning routes</span><h2 className="mt-2 font-display font-black text-3xl md:text-5xl text-text-primary tracking-tight">知识领域与学习路径</h2></div>
+          <a href={`${BASE_URL}knowledge/`} className="group flex items-center gap-1.5 text-xs font-mono text-text-muted hover:text-text-primary">全部知识 <ArrowRight className="h-3.5 w-3.5 group-hover:translate-x-0.5" /></a>
+        </motion.div>
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          {knowledgeDomains.filter((domain) => domain.articleCount > 0).map((domain) => (
+            <motion.a variants={itemVariants} key={domain.id} href={`${BASE_URL}knowledge/domain/${domain.id}/`} className="group flex min-h-56 flex-col rounded-2xl border border-border-subtle bg-surface-card/70 p-5 transition-all hover:-translate-y-1 hover:border-accent-primary/30">
+              <div className="flex items-center justify-between font-mono text-[9px] uppercase tracking-wider text-text-faint"><span>{domain.articleCount} articles</span><span>{domain.subtopicCount} topics</span></div>
+              <h3 className="mt-6 font-display text-xl font-bold text-text-primary group-hover:text-accent-primary">{domain.title}</h3>
+              <p className="mt-3 line-clamp-3 text-xs leading-6 text-text-muted">{domain.excerpt}</p>
+              <div className="mt-auto border-t border-border-subtle pt-4 text-[10px] text-text-faint">{domain.learningPaths.length > 0 ? `${domain.learningPaths.length} 条推荐学习路径` : '按子主题浏览'}<ArrowRight className="ml-2 inline h-3 w-3" /></div>
+            </motion.a>
+          ))}
         </div>
       </section>
 

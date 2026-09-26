@@ -8,5 +8,7 @@ export const MAIN_NAV_ITEMS = [
 export type MainNavTab = (typeof MAIN_NAV_ITEMS)[number]['id'];
 
 export function mainNavHref(tab: MainNavTab, baseURL: string): string {
-  return tab === 'home' ? baseURL : `${baseURL}#${tab}`;
+  if (tab === 'home') return baseURL;
+  if (tab === 'knowledge') return `${baseURL}knowledge/`;
+  return `${baseURL}#${tab}`;
 }

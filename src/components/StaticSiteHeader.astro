@@ -1,9 +1,10 @@
 ---
-import { Menu, Moon, Sun } from 'lucide-react';
+import { Menu, Moon, Sun, Search } from 'lucide-react';
 import GithubIcon from './GithubIcon';
 import BilibiliIcon from './BilibiliIcon';
 import Logo from './Logo';
 import { MAIN_NAV_ITEMS, mainNavHref } from '../lib/siteNavigation';
+import GlobalCommandPalette from './GlobalCommandPalette';
 
 interface Props {
   activeTab: 'projects' | 'knowledge';
@@ -43,6 +44,7 @@ const navigation = MAIN_NAV_ITEMS.map((item) => ({
     </nav>
 
     <div class="hidden md:flex items-center gap-3">
+      <button type="button" data-command-palette-trigger class="flex items-center gap-2 rounded-lg border border-border-subtle bg-surface-base/40 px-3 py-2 text-xs text-text-muted transition-colors hover:border-accent-primary/30 hover:text-text-primary" aria-label="打开全局搜索"><Search className="h-4 w-4" /><span class="hidden lg:inline">搜索</span><kbd class="hidden xl:inline rounded border border-border-subtle px-1.5 py-0.5 font-mono text-[8px] text-text-faint">Ctrl K</kbd></button>
       <a href="https://github.com/NiteFlightxx" target="_blank" rel="noopener noreferrer" class="hidden xl:inline-flex p-2 text-text-muted hover:text-text-primary transition-colors duration-200 rounded-lg hover:bg-surface-raised/20" aria-label="GitHub Profile"><GithubIcon className="w-4 h-4" /></a>
       <a href="https://space.bilibili.com/101356800" target="_blank" rel="noopener noreferrer" class="hidden xl:inline-flex p-2 text-text-muted hover:text-text-primary transition-colors duration-200 rounded-lg hover:bg-surface-raised/20" aria-label="Bilibili 主页"><BilibiliIcon className="w-4 h-4" /></a>
       <button type="button" data-static-theme-toggle class="p-2 text-text-muted hover:text-text-primary transition-colors duration-200 rounded-lg hover:bg-surface-raised/20 cursor-pointer" aria-label="切换主题"><Sun className="w-4 h-4" /></button>
@@ -53,6 +55,7 @@ const navigation = MAIN_NAV_ITEMS.map((item) => ({
     <details class="relative md:hidden group">
       <summary class="list-none cursor-pointer p-2 text-text-muted hover:text-text-primary rounded-lg hover:bg-surface-raised/20" aria-label="打开导航菜单"><Menu className="w-5 h-5" /></summary>
       <div class="absolute right-0 top-full mt-4 w-56 glass-panel border border-border-subtle rounded-xl p-3 shadow-2xl flex flex-col gap-1">
+        <button type="button" data-command-palette-trigger class="mb-2 flex items-center gap-2 rounded-lg border border-border-subtle px-4 py-2.5 text-left text-sm text-text-secondary"><Search className="h-4 w-4 text-accent-primary" />搜索知识库</button>
         {navigation.map((item) => (
           <a href={item.href} aria-current={activeTab === item.id ? 'page' : undefined} class:list={['block py-2.5 px-4 rounded-lg text-base font-bold tracking-wide', activeTab === item.id ? 'bg-surface-raised text-accent-primary border border-accent-primary/30' : 'text-text-muted hover:text-text-primary hover:bg-surface-raised/20']}>{item.labelZh}</a>
         ))}
@@ -62,6 +65,8 @@ const navigation = MAIN_NAV_ITEMS.map((item) => ({
     </details>
   </div>
 </header>
+
+<GlobalCommandPalette client:load />
 
 <script>
   const sunSVG = '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M17.66 6.34l1.41-1.41M4.93 19.07l1.41-1.41"/></svg>';
@@ -80,4 +85,7 @@ const navigation = MAIN_NAV_ITEMS.map((item) => ({
     try { localStorage.setItem('theme', isLight ? 'light' : 'dark'); } catch {}
     renderThemeButtons();
   }));
+  document.querySelectorAll<HTMLButtonElement>('[data-command-palette-trigger]').forEach((button) => {
+    button.addEventListener('click', () => window.dispatchEvent(new Event('nite:open-command-palette')));
+  });
 </script>

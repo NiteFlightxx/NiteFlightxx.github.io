@@ -24,7 +24,15 @@ jobs:
         with:
           node-version: 20
           cache: npm
+      - uses: mymindstorm/setup-emsdk@v14
+        with:
+          version: 3.1.64
       - run: npm ci
+      - run: npm run build:avbd
+      - run: npm run check
+      - run: npm run audit:topics
+      - run: npm run audit:knowledge-nav
+      - run: npm run audit:knowledge-learning
       - run: npm run build
       - uses: actions/upload-pages-artifact@v4
         with:

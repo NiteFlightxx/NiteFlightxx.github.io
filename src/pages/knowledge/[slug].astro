@@ -3,6 +3,7 @@ import { getCollection, render } from 'astro:content';
 import ArticleLayout from '../../layouts/ArticleLayout.astro';
 import { knowledgeCategoryZh, knowledgeSubtopicZh } from '../../lib/taxonomy';
 import { getRelatedArticles } from '../../lib/relatedArticles';
+import { buildKnowledgeArtifacts } from '../../lib/knowledgeArtifacts';
 import type { ContentArticle } from '../../types';
 
 export async function getStaticPaths() {
@@ -44,6 +45,15 @@ function toArticleShape(slug: string, data: Record<string, any>): ContentArticle
     tags: Array.isArray(data.tags) ? (data.tags as string[]) : [],
     readTime: data.readTime ? String(data.readTime) : undefined,
     topics: Array.isArray(data.topics) ? data.topics : [],
+    kind: data.kind,
+    level: data.level,
+    prerequisites: Array.isArray(data.prerequisites) ? data.prerequisites : [],
+    nextArticles: Array.isArray(data.nextArticles) ? data.nextArticles : [],
+    aliases: Array.isArray(data.aliases) ? data.aliases : [],
+    pageType: data.pageType,
+    sources: Array.isArray(data.sources) ? data.sources : [],
+    related: Array.isArray(data.related) ? data.related : [],
+    featured: data.featured === true,
   };
 }
 
@@ -55,6 +65,7 @@ const [allEntries, topicEntries] = await Promise.all([
 const allArticles: ContentArticle[] = allEntries.map((e) => toArticleShape(e.slug, e.data as Record<string, any>));
 const currentArticle = toArticleShape(entry.slug, entry.data as Record<string, any>);
 const relatedArticles = getRelatedArticles(currentArticle, allArticles, 3);
+const artifacts = buildKnowledgeArtifacts(allEntries, topicEntries);
 
 const articleBySlug = new Map(allEntries.map((candidate) => [candidate.slug, candidate]));
 const learningLinks = {
@@ -67,6 +78,15 @@ const learningLinks = {
     .filter(Boolean)
     .map((candidate) => ({ slug: candidate!.slug, title: candidate!.data.title })),
 };
+
+const backlinks = (artifacts.backlinks[entry.slug] ?? [])
+  .map((slug) => articleBySlug.get(slug))
+  .filter(Boolean)
+  .map((candidate) => ({ slug: candidate!.slug, title: candidate!.data.title }));
+const outgoingLinks = (artifacts.outgoing[entry.slug] ?? [])
+  .map((slug) => articleBySlug.get(slug))
+  .filter(Boolean)
+  .map((candidate) => ({ slug: candidate!.slug, title: candidate!.data.title }));
 
 const roleLabels: Record<string, string> = {
   theory: '理论基础',
@@ -121,14 +141,17 @@ if (primaryTopic && primaryTopicRef) {
   title={entry.data.title}
   excerpt={entry.data.excerpt}
   category={knowledgeCategoryZh(entry.data.category)}
+  subtopic={entry.data.subtopic ? knowledgeSubtopicZh(entry.data.category, entry.data.subtopic) : undefined}
+  difficulty={entry.data.level}
+  pageType={entry.data.pageType}
   date={formatZhDate(entry.data.date)}
   readTime={entry.data.readTime}
   tags={entry.data.tags}
   headings={headings}
-  backHref={`${baseURL}#knowledge`}
+  backHref={`${baseURL}knowledge/`}
   backLabel="返回知识库"
   breadcrumbs={[
-    { label: '知识库', href: `${baseURL}#knowledge` },
+    { label: '知识库', href: `${baseURL}knowledge/` },
     { label: knowledgeCategoryZh(entry.data.category), href: `${baseURL}knowledge/domain/${entry.data.category.toLowerCase()}/` },
     ...(entry.data.subtopic ? [{ label: knowledgeSubtopicZh(entry.data.category, entry.data.subtopic) }] : []),
   ]}
@@ -136,6 +159,13 @@ if (primaryTopic && primaryTopicRef) {
   relatedArticles={relatedArticles}
   topicContext={topicContext}
   learningLinks={learningLinks}
+  currentSlug={entry.slug}
+  allArticles={allArticles}
+  backlinks={backlinks}
+  outgoingLinks={outgoingLinks}
+  sources={entry.data.sources}
+  historyUrl={`https://github.com/NiteFlightxx/NiteFlightxx.github.io/commits/master/src/content/knowledge/${entry.slug}.md`}
+  rawUrl={`https://github.com/NiteFlightxx/NiteFlightxx.github.io/blob/master/src/content/knowledge/${entry.slug}.md`}
 >
   <Content />
 </ArticleLayout>

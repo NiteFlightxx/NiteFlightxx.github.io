@@ -1,324 +1,132 @@
-import React, { useState, useMemo, useEffect } from "react";
-import Fuse from "fuse.js";
-import { motion } from "motion/react";
-import { Search, Calendar, Clock, ArrowRight, Tag } from "lucide-react";
-import type { ContentArticle } from "../types";
-import BorderGlow from "./BorderGlow";
-import { UI_TRANSLATIONS } from "../translations";
-import { KNOWLEDGE_CATEGORIES, knowledgeSubtopicsFor } from "../lib/taxonomy";
-import { highlight } from "../lib/highlight";
+import React, { useEffect, useMemo, useState } from 'react';
+import Fuse from 'fuse.js';
+import { ArrowRight, BookOpen, Clock3, Grid2X2, List, Network, Search, SlidersHorizontal, Star } from 'lucide-react';
+import type { ContentArticle } from '../types';
+import { KNOWLEDGE_CATEGORIES } from '../lib/taxonomy';
+import { highlight } from '../lib/highlight';
+import { readReaderState, READER_STATE_EVENT } from '../lib/readerState';
+import KnowledgeTree from './KnowledgeTree';
 
 const BASE_URL = import.meta.env.BASE_URL;
+type Scope = 'all' | 'favorites' | 'recents';
+type ViewMode = 'cards' | 'list';
+type SortMode = 'updated' | 'title' | 'recommended';
 
-interface KnowledgeViewProps {
-  articles: ContentArticle[];
-  lang: "zh" | "en";
-}
+interface KnowledgeViewProps { articles: ContentArticle[]; lang: 'zh' | 'en'; }
 
-export default function KnowledgeView({ articles, lang }: KnowledgeViewProps) {
-  const t = UI_TRANSLATIONS[lang];
-  const [searchQuery, setSearchQuery] = useState("");
-  const [selectedCategoryKey, setSelectedCategoryKey] = useState<string | null>(null);
-  const [selectedSubtopic, setSelectedSubtopic] = useState<string | null>(null);
-  const [bodyIndex, setBodyIndex] = useState<Record<string, string> | null>(null);
+export default function KnowledgeView({ articles }: KnowledgeViewProps) {
+  const [query, setQuery] = useState('');
+  const [category, setCategory] = useState('all');
+  const [subtopic, setSubtopic] = useState('all');
+  const [scope, setScope] = useState<Scope>('all');
+  const [view, setView] = useState<ViewMode>('cards');
+  const [sort, setSort] = useState<SortMode>('updated');
+  const [difficulty, setDifficulty] = useState('all');
+  const [contentType, setContentType] = useState('all');
+  const [readerVersion, setReaderVersion] = useState(0);
+  const [bodyIndex, setBodyIndex] = useState<Record<string, string>>({});
 
   useEffect(() => {
-    if (!searchQuery.trim() || bodyIndex) return;
+    const selected = new URLSearchParams(window.location.search).get('scope');
+    if (selected === 'favorites' || selected === 'recents') setScope(selected);
+    const sync = () => setReaderVersion((value) => value + 1);
+    window.addEventListener(READER_STATE_EVENT, sync);
+    window.addEventListener('storage', sync);
+    return () => { window.removeEventListener(READER_STATE_EVENT, sync); window.removeEventListener('storage', sync); };
+  }, []);
 
-    const controller = new AbortController();
-    fetch(`${BASE_URL}knowledge-index.json`, { signal: controller.signal })
-      .then((response) => {
-        if (!response.ok) throw new Error(`Search index request failed: ${response.status}`);
-        return response.json() as Promise<Record<string, string>>;
-      })
+  useEffect(() => {
+    if (!query.trim() || Object.keys(bodyIndex).length > 0) return;
+    fetch(`${BASE_URL}knowledge-index.json`)
+      .then((response) => response.ok ? response.json() as Promise<Record<string, string>> : {})
       .then(setBodyIndex)
-      .catch((error: unknown) => {
-        if (error instanceof DOMException && error.name === "AbortError") return;
-        console.error(error);
-      });
+      .catch(() => setBodyIndex({}));
+  }, [query, bodyIndex]);
 
-    return () => controller.abort();
-  }, [searchQuery, bodyIndex]);
-
-  // Categories present in the data, in the canonical KNOWLEDGE_CATEGORIES order.
-  const availableCategories = useMemo(() => {
-    const present = new Set(articles.map((a) => a.categoryKey).filter(Boolean) as string[]);
-    return Object.entries(KNOWLEDGE_CATEGORIES).filter(([key]) => present.has(key));
-  }, [articles]);
-  const categoryCounts = useMemo(() => {
+  const categories = useMemo(() => {
     const counts = new Map<string, number>();
-    for (const article of articles) {
-      if (article.categoryKey) counts.set(article.categoryKey, (counts.get(article.categoryKey) ?? 0) + 1);
-    }
-    return counts;
+    articles.forEach((article) => counts.set(article.category, (counts.get(article.category) ?? 0) + 1));
+    const canonical: string[] = Object.values(KNOWLEDGE_CATEGORIES);
+    return [...counts.entries()].sort((a, b) => canonical.indexOf(a[0]) - canonical.indexOf(b[0]));
   }, [articles]);
 
-  // Cascading subtopics for the currently selected category.
-  const availableSubtopics = useMemo(() => {
-    if (!selectedCategoryKey) return [];
-    return Object.entries(knowledgeSubtopicsFor(selectedCategoryKey));
-  }, [selectedCategoryKey]);
+  const subtopics = useMemo(() => {
+    const counts = new Map<string, number>();
+    articles.filter((article) => category === 'all' || article.category === category).forEach((article) => {
+      const name = article.subtopic ?? '其他';
+      counts.set(name, (counts.get(name) ?? 0) + 1);
+    });
+    return [...counts.entries()];
+  }, [articles, category]);
 
-  // Once the lazily-fetched body index arrives, merge searchText into the
-  // articles so Fuse can match against full body text. Until then (or when no
-  // query has been typed yet) articles carry no searchText and search falls
-  // back to title/tags/excerpt only.
-  const searchableArticles = useMemo(() => {
-    if (!bodyIndex) return articles;
-    return articles.map((a) =>
-      bodyIndex[a.slug] ? { ...a, searchText: bodyIndex[a.slug] } : a,
-    );
-  }, [articles, bodyIndex]);
+  const searchable = useMemo(() => articles.map((article) => ({ ...article, searchText: bodyIndex[article.slug] ?? '' })), [articles, bodyIndex]);
+  const fuse = useMemo(() => new Fuse(searchable, {
+    keys: [{ name: 'title', weight: 0.45 }, { name: 'aliases', weight: 0.25 }, { name: 'tags', weight: 0.15 }, { name: 'excerpt', weight: 0.1 }, { name: 'searchText', weight: 0.05 }],
+    threshold: 0.38,
+    ignoreLocation: true,
+  }), [searchable]);
 
-  // Fuse instance is rebuilt when the searchable article set changes (i.e. when
-  // the body index loads). Weighted keys: title is the strongest signal, then
-  // tags, excerpt, and finally the full text body. ignoreLocation + low
-  // threshold make Fuse work for long Chinese text where the match may be far
-  // from the start.
-  const fuse = useMemo(
-    () =>
-      new Fuse(searchableArticles, {
-        keys: [
-          { name: "title", weight: 0.5 },
-          { name: "tags", weight: 0.3 },
-          { name: "excerpt", weight: 0.2 },
-          { name: "searchText", weight: 0.1 },
-        ],
-        threshold: 0.4,
-        ignoreLocation: true,
-        includeScore: true,
-        minMatchCharLength: 1,
-      }),
-    [searchableArticles],
-  );
+  const reader = useMemo(() => readReaderState(), [readerVersion]);
+  const recentOrder = useMemo(() => new Map(reader.recents.map((item, index) => [item.slug, index])), [reader]);
+  const filtered = useMemo(() => {
+    let result = query.trim() ? fuse.search(query.trim()).map((item) => item.item) : [...articles];
+    if (scope === 'favorites') result = result.filter((article) => reader.favorites.includes(article.slug));
+    if (scope === 'recents') result = result.filter((article) => recentOrder.has(article.slug));
+    if (category !== 'all') result = result.filter((article) => article.category === category);
+    if (subtopic !== 'all') result = result.filter((article) => article.subtopic === subtopic);
+    if (difficulty !== 'all') result = result.filter((article) => article.level === difficulty);
+    if (contentType !== 'all') result = result.filter((article) => article.pageType === contentType);
+    return result.sort((a, b) => {
+      if (scope === 'recents') return (recentOrder.get(a.slug) ?? 999) - (recentOrder.get(b.slug) ?? 999);
+      if (sort === 'title') return a.title.localeCompare(b.title, 'zh-CN');
+      if (sort === 'recommended') return Number(Boolean(b.featured)) - Number(Boolean(a.featured));
+      return b.date.localeCompare(a.date);
+    });
+  }, [articles, category, contentType, difficulty, fuse, query, reader, recentOrder, scope, sort, subtopic]);
 
-  // Search runs through Fuse when there is a query; otherwise the full list
-  // is used (category/subtopic filters still apply). Results are then narrowed
-  // by the active category/subtopic chips.
-  const searchResults = useMemo(() => {
-    const q = searchQuery.trim();
-    if (!q) return articles;
-    return fuse.search(q).map((r) => r.item);
-  }, [searchQuery, fuse, articles]);
-
-  const filteredArticles = searchResults.filter((art) => {
-    const matchesCategory = selectedCategoryKey
-      ? art.categoryKey === selectedCategoryKey
-      : true;
-
-    const matchesSubtopic = selectedSubtopic ? art.subtopic === selectedSubtopic : true;
-
-    return matchesCategory && matchesSubtopic;
-  });
-
-  const hasFilters = searchQuery || selectedCategoryKey || selectedSubtopic;
-
-  const resetFilters = () => {
-    setSearchQuery("");
-    setSelectedCategoryKey(null);
-    setSelectedSubtopic(null);
-  };
-
-  const selectCategory = (key: string | null) => {
-    setSelectedCategoryKey(key);
-    setSelectedSubtopic(null); // cascading reset
-  };
-
-  // Chip renderer shared by both filter rows.
-  const Chip = ({
-    active,
-    label,
-    onClick,
-    pulse,
-  }: {
-    active: boolean;
-    label: string;
-    onClick: () => void;
-    pulse?: boolean;
-  }) => (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`px-2.5 py-1 rounded text-[9px] font-mono uppercase transition-colors cursor-pointer ${
-        active
-          ? `bg-surface-raised text-text-primary border border-border-subtle ${pulse ? "animate-pulse-slow" : ""}`
-          : "text-text-faint hover:text-text-secondary hover:bg-surface-raised/20"
-      }`}
-    >
-      {label}
-    </button>
-  );
+  const chooseCategory = (value: string) => { setCategory(value); setSubtopic('all'); };
 
   return (
-    <div className="space-y-12 pb-20 select-none" id="knowledge-view-container">
-      {/* Intro Header */}
-      <div className="max-w-4xl mx-auto text-center space-y-4 px-6">
-        <span className="font-mono text-[10px] text-accent-primary uppercase tracking-widest">
-          {lang === "zh" ? "知识沉淀 · 技术分析 · 教学内容" : "KNOWLEDGE · ANALYSIS · TEACHING"}
-        </span>
-        <h1 className="font-display font-black text-4xl md:text-6xl text-text-primary tracking-tighter">
-          {lang === "zh" ? "知识库" : "Knowledge"}
-        </h1>
-        <p className="font-sans text-sm md:text-base text-text-muted max-w-xl mx-auto font-light leading-relaxed">
-          {lang === "zh"
-            ? "理解与解释技术。涵盖引擎、物理、动画与数学领域的技术沉淀。"
-            : "Explain and understand technology across engine, physics, animation and math."}
-        </p>
-      </div>
-
-      {/* Search & Filter Bar */}
-      <div className="max-w-4xl mx-auto px-6 space-y-4">
-        <div className="flex items-end justify-between gap-4 pt-2">
-          <div>
-            <div className="text-[10px] font-mono text-accent-primary uppercase tracking-widest">Article Index</div>
-            <h2 className="mt-2 font-display font-bold text-2xl text-text-primary">全部文章</h2>
+    <div className="mx-auto w-full max-w-[1500px] px-4 pb-20 pt-8 md:px-6">
+      <section className="mb-8 overflow-hidden rounded-2xl border border-border-subtle bg-surface-card/70 p-6 md:p-9">
+        <div className="grid gap-8 lg:grid-cols-[1fr_auto] lg:items-end">
+          <div className="max-w-3xl">
+            <span className="font-mono text-[10px] uppercase tracking-[.25em] text-accent-primary">Knowledge workspace</span>
+            <p className="mt-3 max-w-2xl text-sm leading-7 text-text-muted">收录 Unreal Engine 源码解析、实时物理、动画系统与工程数学专题，重点呈现实现链路、数学依据与可复现的实验结论。</p>
           </div>
-          <span className="text-[10px] font-mono text-text-faint">{filteredArticles.length} / {articles.length} 篇</span>
+          <a href={`${BASE_URL}knowledge/graph/`} className="inline-flex items-center justify-center gap-2 rounded-xl border border-accent-primary/30 bg-accent-primary/10 px-5 py-3 text-sm font-bold text-accent-primary hover:bg-accent-primary/15"><Network className="h-4 w-4" />打开知识图谱</a>
         </div>
-        <div className="flex flex-col md:flex-row gap-4 items-stretch md:items-center justify-between">
-          {/* Search Box */}
-          <div className="relative flex-1">
-            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-text-faint" />
-            <input
-              type="text"
-              placeholder={t.searchPlaceholder}
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full bg-surface-card text-text-primary pl-10 pr-4 py-2.5 rounded-lg border border-border-subtle focus:border-accent-primary/40 focus:outline-none text-xs font-mono transition-all duration-300 shadow-inner"
-              id="search-input"
-              aria-label={t.searchPlaceholder}
-            />
+        <label className="mt-7 flex max-w-3xl items-center gap-3 rounded-xl border border-border-strong bg-surface-base/70 px-4 py-3 focus-within:border-accent-primary/50">
+          <Search className="h-4 w-4 text-accent-primary" /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索标题、正文、UE 类型、标签或别名…" className="min-w-0 flex-1 bg-transparent text-sm text-text-primary outline-none placeholder:text-text-faint" /><kbd className="hidden rounded border border-border-subtle px-2 py-1 font-mono text-[9px] text-text-faint sm:block">Ctrl K</kbd>
+        </label>
+      </section>
+
+      <div className="grid gap-7 xl:grid-cols-[280px_minmax(0,1fr)]">
+        <aside className="space-y-4">
+          <KnowledgeTree articles={articles} />
+          <section className="rounded-xl border border-border-subtle bg-surface-card/60 p-4">
+            <div className="mb-3 flex items-center gap-2 font-mono text-[10px] uppercase tracking-widest text-text-faint"><SlidersHorizontal className="h-3.5 w-3.5" />阅读视图</div>
+            <div className="grid grid-cols-3 gap-2">
+              {([['all', BookOpen, '全部', articles.length], ['favorites', Star, '收藏', reader.favorites.length], ['recents', Clock3, '最近', reader.recents.length]] as const).map(([key, Icon, label, count]) => (
+                <button key={key} onClick={() => setScope(key)} className={`rounded-lg border px-2 py-2 text-center ${scope === key ? 'border-accent-primary/40 bg-accent-primary/10 text-accent-primary' : 'border-border-subtle text-text-muted hover:text-text-primary'}`}><Icon className="mx-auto h-3.5 w-3.5" /><span className="mt-1 block text-[9px]">{label} {count}</span></button>
+              ))}
+            </div>
+          </section>
+        </aside>
+
+        <main className="min-w-0">
+          <div className="mb-5 flex flex-col gap-4 rounded-xl border border-border-subtle bg-surface-card/50 p-4">
+            <div className="flex flex-wrap gap-2">
+              <button onClick={() => chooseCategory('all')} className={`rounded-full border px-3 py-1.5 text-xs ${category === 'all' ? 'border-accent-primary/40 bg-accent-primary/10 text-accent-primary' : 'border-border-subtle text-text-muted'}`}>全部领域 {articles.length}</button>
+              {categories.map(([name, count]) => <button key={name} onClick={() => chooseCategory(name)} className={`rounded-full border px-3 py-1.5 text-xs ${category === name ? 'border-accent-primary/40 bg-accent-primary/10 text-accent-primary' : 'border-border-subtle text-text-muted hover:text-text-primary'}`}>{name} {count}</button>)}
+            </div>
+            {category !== 'all' && <div className="flex flex-wrap gap-2 border-t border-border-subtle pt-3"><button onClick={() => setSubtopic('all')} className={`text-xs ${subtopic === 'all' ? 'text-accent-primary' : 'text-text-muted'}`}>全部子主题</button>{subtopics.map(([name, count]) => <button key={name} onClick={() => setSubtopic(name)} className={`rounded px-2 py-1 text-[11px] ${subtopic === name ? 'bg-surface-raised text-text-primary' : 'text-text-faint hover:text-text-secondary'}`}>{name} {count}</button>)}</div>}
           </div>
 
-          {/* Clear controls */}
-          {hasFilters && (
-            <button
-              type="button"
-              onClick={resetFilters}
-              className="text-[10px] font-mono text-accent-primary hover:text-text-primary transition-colors cursor-pointer self-center border border-accent-primary/20 bg-accent-primary/5 px-3 py-2 rounded-lg"
-              id="clear-filters-btn"
-            >
-              {t.resetFilters}
-            </button>
-          )}
-        </div>
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-3"><p className="font-mono text-[10px] uppercase tracking-wider text-text-faint">找到 {filtered.length} 篇内容</p><div className="flex flex-wrap items-center gap-2"><select value={difficulty} onChange={(event) => setDifficulty(event.target.value)} className="rounded-lg border border-border-subtle bg-surface-card px-3 py-2 text-xs text-text-muted outline-none"><option value="all">全部难度</option><option value="foundation">基础</option><option value="intermediate">进阶</option><option value="advanced">高级</option></select><select value={contentType} onChange={(event) => setContentType(event.target.value)} className="rounded-lg border border-border-subtle bg-surface-card px-3 py-2 text-xs text-text-muted outline-none"><option value="all">全部类型</option><option value="guide">指南</option><option value="concept">概念</option><option value="source-analysis">源码分析</option><option value="project">项目</option><option value="interactive">交互演示</option></select><select value={sort} onChange={(event) => setSort(event.target.value as SortMode)} className="rounded-lg border border-border-subtle bg-surface-card px-3 py-2 text-xs text-text-muted outline-none"><option value="updated">最近更新</option><option value="recommended">推荐优先</option><option value="title">标题排序</option></select><div className="flex rounded-lg border border-border-subtle p-1"><button aria-label="卡片视图" onClick={() => setView('cards')} className={`rounded p-1.5 ${view === 'cards' ? 'bg-surface-raised text-accent-primary' : 'text-text-faint'}`}><Grid2X2 className="h-4 w-4" /></button><button aria-label="列表视图" onClick={() => setView('list')} className={`rounded p-1.5 ${view === 'list' ? 'bg-surface-raised text-accent-primary' : 'text-text-faint'}`}><List className="h-4 w-4" /></button></div></div></div>
 
-        {/* Row 1: Category (primary axis) */}
-        <div className="flex flex-wrap items-center gap-1.5 border-t border-b border-border-subtle py-4">
-          <span className="text-[10px] font-mono text-text-faint uppercase tracking-widest mr-2">
-            {t.filterCategory}
-          </span>
-          <Chip active={selectedCategoryKey === null} label={t.allArticles} onClick={() => selectCategory(null)} />
-          {availableCategories.map(([key, label]) => (
-            <Chip
-              key={key}
-              active={selectedCategoryKey === key}
-              label={`${label} ${categoryCounts.get(key) ?? 0}`}
-              onClick={() => selectCategory(key)}
-              pulse
-            />
-          ))}
-        </div>
-
-        {/* Row 2: Subtopic (cascading, only when a category is selected) */}
-        {selectedCategoryKey && availableSubtopics.length > 0 && (
-          <div className="flex flex-wrap items-center gap-1.5 pb-4 -mt-1">
-            <span className="text-[10px] font-mono text-text-faint uppercase tracking-widest mr-2 flex items-center gap-1">
-              <Tag className="w-3 h-3" /> {t.filterSubtopic}
-            </span>
-            <Chip active={selectedSubtopic === null} label={t.allSubtopics} onClick={() => setSelectedSubtopic(null)} />
-            {availableSubtopics.map(([key, label]) => (
-              <Chip
-                key={key}
-                active={selectedSubtopic === label}
-                label={label}
-                onClick={() => setSelectedSubtopic(label)}
-              />
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* Article list */}
-      <div className="max-w-4xl mx-auto px-6 space-y-4">
-        {filteredArticles.length > 0 ? (
-          filteredArticles.map((art) => (
-            <motion.a
-              href={`${BASE_URL}knowledge/${art.slug}`}
-              key={art.id}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.3 }}
-              className="group block"
-            >
-              <BorderGlow
-                edgeSensitivity={30}
-                glowColor="76 95 64"
-                backgroundColor="#121214"
-                borderRadius={12}
-                glowRadius={45}
-                glowIntensity={1.15}
-                coneSpread={20}
-                colors={["#bcfd49", "#6366f1", "#4f46e5"]}
-                fillOpacity={0.16}
-                className="w-full"
-              >
-                <div className="p-6 md:p-8 flex flex-col gap-4">
-                  <div className="flex items-center justify-between text-[10px] font-mono">
-                    <div className="flex items-center gap-2">
-                      <span className="text-accent-primary uppercase tracking-wider font-semibold">
-                        {art.category}
-                      </span>
-                      {art.subtopic && (
-                        <span className="text-text-faint uppercase tracking-wider">
-                          / {art.subtopic}
-                        </span>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-3 text-text-faint">
-                      <span className="flex items-center gap-1">
-                        <Calendar className="w-3 h-3" /> {art.date}
-                      </span>
-                      {art.readTime && (
-                        <span className="flex items-center gap-1">
-                          <Clock className="w-3 h-3" /> {art.readTime}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-
-                  <h2 className="font-display font-semibold text-lg md:text-xl text-text-primary group-hover:text-accent-primary transition-colors tracking-wide">
-                    {highlight(art.title, searchQuery)}
-                  </h2>
-
-                  {art.excerpt && (
-                    <p className="text-xs md:text-sm text-text-muted leading-relaxed font-sans font-light">
-                      {highlight(art.excerpt, searchQuery)}
-                    </p>
-                  )}
-
-                  <div className="flex items-center justify-between font-mono text-[9px] text-text-faint pt-4 border-t border-border-subtle">
-                    <div className="flex items-center gap-1.5">
-                      {art.tags.map((tag) => (
-                        <span key={tag} className="text-text-faint bg-surface-base/60 px-1.5 py-0.5 rounded text-[8px]">
-                          #{tag.toUpperCase()}
-                        </span>
-                      ))}
-                    </div>
-                    <span className="text-text-primary opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center gap-1">
-                      {t.examine} <ArrowRight className="w-3 h-3 text-accent-primary" />
-                    </span>
-                  </div>
-                </div>
-              </BorderGlow>
-            </motion.a>
-          ))
-        ) : (
-          <div className="p-12 text-center border border-border-subtle rounded-xl bg-surface-card space-y-2">
-            <p className="text-sm font-mono text-text-muted">{t.noArticlesFound}</p>
-            <p className="text-xs text-text-faint">{t.refineSearch}</p>
-          </div>
-        )}
+          {filtered.length === 0 ? <div className="rounded-xl border border-dashed border-border-strong p-12 text-center text-sm text-text-muted">当前筛选没有内容。可以清除筛选或换一个关键词。</div> : <div className={view === 'cards' ? 'grid gap-4 md:grid-cols-2' : 'space-y-3'}>{filtered.map((article) => <a key={article.slug} href={`${BASE_URL}knowledge/${article.slug}/`} className={`group rounded-xl border border-border-subtle bg-surface-card/65 transition-all hover:-translate-y-0.5 hover:border-accent-primary/30 ${view === 'cards' ? 'flex min-h-56 flex-col p-5' : 'grid gap-4 p-4 md:grid-cols-[160px_1fr_auto] md:items-center'}`}><div className={view === 'cards' ? 'flex items-center justify-between' : ''}><span className="font-mono text-[9px] uppercase tracking-wider text-accent-primary">{article.category}{article.subtopic ? ` / ${article.subtopic}` : ''}</span>{view === 'cards' && <span className="font-mono text-[9px] text-text-faint">{article.readTime}</span>}</div><div className={view === 'cards' ? 'mt-5 flex-1' : ''}><h2 className="font-display text-lg font-bold leading-snug text-text-primary group-hover:text-accent-primary">{highlight(article.title, query)}</h2>{article.excerpt && <p className="mt-3 line-clamp-3 text-xs leading-6 text-text-muted">{highlight(article.excerpt, query)}</p>}</div><div className={view === 'cards' ? 'mt-5 flex items-end justify-between border-t border-border-subtle pt-4' : 'flex items-center justify-between gap-4 md:justify-end'}><span className="font-mono text-[9px] text-text-faint">{article.date}</span><ArrowRight className="h-4 w-4 text-text-faint transition-transform group-hover:translate-x-1 group-hover:text-accent-primary" /></div></a>)}</div>}
+        </main>
       </div>
     </div>
   );
