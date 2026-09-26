@@ -306,45 +306,6 @@ void zoomCamera(float wheelDelta)
     gCameraDistance = clamp(gCameraDistance * scale, 4.0f, 180.0f);
 }
 
-void handleMouseEvent(const SDL_Event &event)
-{
-    // SDL can synthesize mouse events from a touch gesture. Those events must
-    // be ignored here because the real touch event is handled separately.
-    // Do not disable all mouse input on coarse-pointer devices: many laptops,
-    // tablets and embedded browsers expose both touch and a real mouse.
-    if ((event.type == SDL_MOUSEMOTION && event.motion.which == SDL_TOUCH_MOUSEID) ||
-        (event.type != SDL_MOUSEMOTION && event.button.which == SDL_TOUCH_MOUSEID))
-        return;
-
-    const float2 position = {static_cast<float>(event.button.x), static_cast<float>(event.button.y)};
-    if (event.type == SDL_MOUSEBUTTONDOWN)
-    {
-        if (event.button.button == SDL_BUTTON_LEFT)
-            beginDrag(position);
-        else if (event.button.button == SDL_BUTTON_RIGHT)
-            gOrbiting = true;
-        else if (event.button.button == SDL_BUTTON_MIDDLE)
-            shootBox();
-    }
-    else if (event.type == SDL_MOUSEBUTTONUP)
-    {
-        if (event.button.button == SDL_BUTTON_LEFT)
-            releaseDrag();
-        else if (event.button.button == SDL_BUTTON_RIGHT)
-            gOrbiting = false;
-    }
-    else if (event.type == SDL_MOUSEMOTION)
-    {
-        const float2 motionPosition = {static_cast<float>(event.motion.x), static_cast<float>(event.motion.y)};
-        updateDrag(motionPosition);
-        if (gOrbiting)
-        {
-            gCameraAzimuth -= static_cast<float>(event.motion.xrel) * 0.005f;
-            gCameraElevation = clamp(gCameraElevation + static_cast<float>(event.motion.yrel) * 0.005f, rad(-80.0f), rad(80.0f));
-        }
-    }
-}
-
 void handleTouchEvent(const SDL_Event &event)
 {
     int width = 0;
@@ -402,24 +363,12 @@ void pollInput()
     SDL_Event event;
     while (SDL_PollEvent(&event))
     {
-        if (event.type == SDL_MOUSEBUTTONDOWN || event.type == SDL_MOUSEBUTTONUP || event.type == SDL_MOUSEMOTION)
-            handleMouseEvent(event);
-        else if (event.type == SDL_FINGERDOWN || event.type == SDL_FINGERMOTION || event.type == SDL_FINGERUP || event.type == SDL_MULTIGESTURE)
+        // Mouse, wheel and keyboard input are forwarded explicitly by React.
+        // SDL's DOM event translation is unreliable when its hidden window is
+        // resized independently from the CSS canvas. Touch remains on SDL so
+        // multi-finger gestures keep their native normalized coordinates.
+        if (event.type == SDL_FINGERDOWN || event.type == SDL_FINGERMOTION || event.type == SDL_FINGERUP || event.type == SDL_MULTIGESTURE)
             handleTouchEvent(event);
-        else if (event.type == SDL_MOUSEWHEEL)
-            zoomCamera(static_cast<float>(event.wheel.y));
-        else if (event.type == SDL_KEYDOWN)
-        {
-            if (event.key.keysym.sym == SDLK_SPACE)
-                shootBox();
-            else if (event.key.keysym.sym == SDLK_r)
-            {
-                releaseDrag();
-                scenes[gScene](gSolver);
-            }
-            else if (event.key.keysym.sym == SDLK_p)
-                gPaused = !gPaused;
-        }
     }
 }
 
@@ -495,6 +444,58 @@ EMSCRIPTEN_KEEPALIVE void avbd_step_once()
 EMSCRIPTEN_KEEPALIVE void avbd_set_contacts(int visible)
 {
     gShowContacts = visible != 0;
+}
+
+EMSCRIPTEN_KEEPALIVE void avbd_pointer_down(int button, float x, float y)
+{
+    if (gSolver == nullptr)
+        return;
+
+    const float2 position = {x, y};
+    if (button == 0)
+        beginDrag(position);
+    else if (button == 1)
+        shootBox();
+    else if (button == 2)
+        gOrbiting = true;
+}
+
+EMSCRIPTEN_KEEPALIVE void avbd_pointer_move(float x, float y, float deltaX, float deltaY)
+{
+    if (gSolver == nullptr)
+        return;
+
+    updateDrag(float2{x, y});
+    if (gOrbiting)
+    {
+        gCameraAzimuth -= deltaX * 0.005f;
+        gCameraElevation = clamp(gCameraElevation + deltaY * 0.005f, rad(-80.0f), rad(80.0f));
+    }
+}
+
+EMSCRIPTEN_KEEPALIVE void avbd_pointer_up(int button)
+{
+    if (button == 0)
+        releaseDrag();
+    else if (button == 2)
+        gOrbiting = false;
+}
+
+EMSCRIPTEN_KEEPALIVE void avbd_pointer_cancel()
+{
+    releaseDrag();
+    gOrbiting = false;
+}
+
+EMSCRIPTEN_KEEPALIVE void avbd_zoom(float wheelDelta)
+{
+    zoomCamera(wheelDelta);
+}
+
+EMSCRIPTEN_KEEPALIVE void avbd_shoot()
+{
+    if (gSolver != nullptr)
+        shootBox();
 }
 
 EMSCRIPTEN_KEEPALIVE void avbd_resize(int width, int height)

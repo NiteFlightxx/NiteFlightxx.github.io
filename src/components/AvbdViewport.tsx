@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Contact, Pause, Play, RotateCcw, StepForward } from 'lucide-react';
 
 const BASE_URL = import.meta.env.BASE_URL;
-const AVBD_RUNTIME_VERSION = '2026-09-26-input-v2';
+const AVBD_RUNTIME_VERSION = '2026-09-26-input-v3';
 
 interface AvbdModule {
   _avbd_load_scene(scene: number): void;
@@ -10,6 +10,12 @@ interface AvbdModule {
   _avbd_set_paused(paused: number): void;
   _avbd_step_once(): void;
   _avbd_set_contacts(visible: number): void;
+  _avbd_pointer_down(button: number, x: number, y: number): void;
+  _avbd_pointer_move(x: number, y: number, deltaX: number, deltaY: number): void;
+  _avbd_pointer_up(button: number): void;
+  _avbd_pointer_cancel(): void;
+  _avbd_zoom(wheelDelta: number): void;
+  _avbd_shoot(): void;
   _avbd_resize(width: number, height: number): void;
   _avbd_shutdown(): void;
 }
@@ -56,6 +62,7 @@ export default function AvbdViewport() {
   const moduleRef = useRef<AvbdModule | null>(null);
   const lastSizeRef = useRef({ width: 1280, height: 760 });
   const pausedRef = useRef(false);
+  const pointerRef = useRef<{ id: number; button: number; clientX: number; clientY: number } | null>(null);
   const [runtime, setRuntime] = useState<RuntimeState>('loading');
   const [runtimeError, setRuntimeError] = useState('');
   const [scene, setScene] = useState(DEFAULT_SCENE);
@@ -86,8 +93,12 @@ export default function AvbdViewport() {
     observer.observe(viewport);
     resize();
 
-    const preventCanvasWheel = (event: WheelEvent) => event.preventDefault();
-    canvas.addEventListener('wheel', preventCanvasWheel, { passive: false });
+    const handleCanvasWheel = (event: WheelEvent) => {
+      event.preventDefault();
+      const normalizedDelta = Math.max(-4, Math.min(4, -event.deltaY / 100));
+      instance?._avbd_zoom(normalizedDelta);
+    };
+    canvas.addEventListener('wheel', handleCanvasWheel, { passive: false });
 
     const handleVisibility = () => {
       instance?._avbd_set_paused(document.hidden || pausedRef.current ? 1 : 0);
@@ -138,7 +149,7 @@ export default function AvbdViewport() {
     return () => {
       cancelled = true;
       observer.disconnect();
-      canvas.removeEventListener('wheel', preventCanvasWheel);
+      canvas.removeEventListener('wheel', handleCanvasWheel);
       document.removeEventListener('visibilitychange', handleVisibility);
       moduleRef.current = null;
       instance?._avbd_shutdown();
@@ -174,6 +185,14 @@ export default function AvbdViewport() {
     });
   }, []);
 
+  const canvasPoint = useCallback((canvas: HTMLCanvasElement, clientX: number, clientY: number) => {
+    const bounds = canvas.getBoundingClientRect();
+    return {
+      x: (clientX - bounds.left) * canvas.width / Math.max(bounds.width, 1),
+      y: (clientY - bounds.top) * canvas.height / Math.max(bounds.height, 1),
+    };
+  }, []);
+
   return (
     <section className="mx-auto w-full max-w-[1680px] px-3 pt-4 md:px-6 md:pt-7" aria-label="AVBD 交互式物理实验场">
       <div
@@ -187,18 +206,58 @@ export default function AvbdViewport() {
           aria-label={`AVBD 3D 场景：${SCENES[scene][1]}`}
           onPointerDown={(event) => {
             event.currentTarget.focus({ preventScroll: true });
-            if (event.pointerType === 'mouse') {
-              event.currentTarget.setPointerCapture(event.pointerId);
-            }
+            if (event.pointerType !== 'mouse' || !moduleRef.current) return;
+            event.preventDefault();
+            const point = canvasPoint(event.currentTarget, event.clientX, event.clientY);
+            pointerRef.current = {
+              id: event.pointerId,
+              button: event.button,
+              clientX: event.clientX,
+              clientY: event.clientY,
+            };
+            event.currentTarget.setPointerCapture(event.pointerId);
+            moduleRef.current._avbd_pointer_down(event.button, point.x, point.y);
+          }}
+          onPointerMove={(event) => {
+            const pointer = pointerRef.current;
+            if (event.pointerType !== 'mouse' || pointer?.id !== event.pointerId || !moduleRef.current) return;
+            event.preventDefault();
+            const point = canvasPoint(event.currentTarget, event.clientX, event.clientY);
+            const deltaX = event.clientX - pointer.clientX;
+            const deltaY = event.clientY - pointer.clientY;
+            pointer.clientX = event.clientX;
+            pointer.clientY = event.clientY;
+            moduleRef.current._avbd_pointer_move(point.x, point.y, deltaX, deltaY);
           }}
           onPointerUp={(event) => {
+            const pointer = pointerRef.current;
+            if (pointer?.id === event.pointerId) {
+              moduleRef.current?._avbd_pointer_up(pointer.button);
+              pointerRef.current = null;
+            }
             if (event.currentTarget.hasPointerCapture(event.pointerId)) {
               event.currentTarget.releasePointerCapture(event.pointerId);
             }
           }}
           onPointerCancel={(event) => {
+            if (pointerRef.current?.id === event.pointerId) {
+              moduleRef.current?._avbd_pointer_cancel();
+              pointerRef.current = null;
+            }
             if (event.currentTarget.hasPointerCapture(event.pointerId)) {
               event.currentTarget.releasePointerCapture(event.pointerId);
+            }
+          }}
+          onLostPointerCapture={(event) => {
+            if (pointerRef.current?.id === event.pointerId) {
+              moduleRef.current?._avbd_pointer_cancel();
+              pointerRef.current = null;
+            }
+          }}
+          onKeyDown={(event) => {
+            if (event.code === 'Space') {
+              event.preventDefault();
+              moduleRef.current?._avbd_shoot();
             }
           }}
           onContextMenu={(event) => event.preventDefault()}

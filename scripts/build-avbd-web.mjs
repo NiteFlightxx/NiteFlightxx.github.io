@@ -29,7 +29,8 @@ const sources = [
 
 const exportedFunctions = [
   '_main', '_avbd_load_scene', '_avbd_reset_scene', '_avbd_set_paused', '_avbd_step_once',
-  '_avbd_set_contacts', '_avbd_resize', '_avbd_shutdown',
+  '_avbd_set_contacts', '_avbd_pointer_down', '_avbd_pointer_move', '_avbd_pointer_up',
+  '_avbd_pointer_cancel', '_avbd_zoom', '_avbd_shoot', '_avbd_resize', '_avbd_shutdown',
 ];
 
 const args = [
