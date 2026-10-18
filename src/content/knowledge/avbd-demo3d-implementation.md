@@ -14,7 +14,7 @@ topics:
 kind: "practice"
 level: "advanced"
 prerequisites: ["vbd-avbd-math"]
-nextArticles: []
+nextArticles: ["three-avbd-gpu-solver"]
 ---
 
 ## 学习位置
@@ -22,7 +22,7 @@ nextArticles: []
 - **难度**：高级积木（`advanced`）
 - **本文职责**：通过可运行案例验证前置知识，把公式连接到工程结果。
 - **前置积木**：[VBD 与 AVBD 详解 — 从变分隐式积分到块坐标下降与增广拉格朗日的统一框架](/knowledge/vbd-avbd-math/)
-- **后续积木**：读完后可按专题或领域路线选择分支。
+- **后续积木**：[three-avbd GPU 求解器详解](/knowledge/three-avbd-gpu-solver/)：在刚体 AVBD 基础上继续阅读 GPU 碰撞、图染色、间接调度与局部并行求解。
 
 > 阅读时先完成前置积木，再阅读本文的概念、算法、源码和工程章节；同一理论只在它的主文章中展开，其他文章只引用结论。
 
