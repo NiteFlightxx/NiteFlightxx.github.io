@@ -1,1266 +1,1056 @@
 ---
-title: "GPU Physics 插件详解 — 基于 Compute Shader 的 PBD 刚体物理系统"
-excerpt: "深入分析一个自研 GPU 物理插件的全貌：从公共 API 设计、GPU Buffer SoA 架构、15 个 Compute Shader 的完整碰撞管线（Broadphase → GJK → EPA → Manifold → PBD Solver），到移动端 ES3.1 兼容、图着色并行求解、流形热启动等核心技术。"
-date: "2026-07-03"
+title: "GPUPhysicsLab 插件详解 — three-avbd 的 Unreal RDG 移植、GPU AVBD 与工程扩展"
+excerpt: "基于 three-avbd-rewrite 当前源码，追踪 WorldSubsystem、GT/RT 所有权、RDG 碰撞与拓扑、六维 AVBD、接受状态和 Niagara 发布，并区分原生 SAT、曲面 GJK/EPA、单体动力属性与弹簧质点布料的实际实现及验证边界。"
+date: "2026-10-18"
 category: "Physics"
 subtopic: "ConstraintSolver"
-tags: ["GPU Physics", "Compute Shader", "PBD", "GJK", "EPA", "Collision Detection"]
-readTime: "阅读约45分钟"
+tags: ["GPUPhysicsLab", "AVBD", "Unreal Engine", "RDG", "碰撞检测", "源码精读"]
+readTime: "阅读约60分钟"
 kind: "source"
 level: "advanced"
-prerequisites: ["ue-chaos-physics-engine", "pbd-xpbd-math", "gjk-collision-detection"]
+pageType: "source-analysis"
+aliases: ["GPU Physics", "three-avbd UE 移植", "GPUPhysicsLab AVBD"]
+prerequisites: ["three-avbd-gpu-solver", "vbd-avbd-math", "ue-chaos-physics-engine"]
 nextArticles: []
+related: ["avbd-demo3d-implementation", "collision-detection-gjk-epa-sat", "jacobian-matrix", "numerical-integration-methods"]
 topics:
   - id: "ue-chaos-physics"
     stage: "parallel"
     role: "source"
-    order: 30
+    order: 40
+sources:
+  - title: "GPUPhysicsLab 参考版本与移植范围"
+    url: "https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Doc/Porting/REFERENCE.lock.json"
+  - title: "GPUPhysicsLab RDG 求解主链路"
+    url: "https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Source/GPUPhysicsLab/Private/CSDispatch/GPUPhysicsLabSolverPasses.cpp"
+  - title: "GPUPhysicsLab 版本发布与失败恢复"
+    url: "https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Source/GPUPhysicsLab/Private/Simulation/GPUPhysicsLabSimulation.cpp"
+  - title: "GPUPhysicsLab 历史验收范围"
+    url: "https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Doc/Porting/P32_RESULTS.json"
+featured: false
 ---
 
 ## 学习位置
 
-- **难度**：高级积木（`advanced`）
-- **本文职责**：把前置理论映射到 Unreal Engine 或项目源码，重点保留源码证据和边界。
-- **前置积木**：[UE Chaos Physics 引擎详解 — 源码架构、约束求解器与并行流水线](/knowledge/ue-chaos-physics-engine/)、[PBD 与 XPBD 详解 — 从位置投影到柔度可控的约束求解](/knowledge/pbd-xpbd-math/)、[GJK 碰撞检测算法详解 — 从 support function 到 Chaos 引擎实现](/knowledge/gjk-collision-detection/)
-- **后续积木**：读完后可按专题或领域路线选择分支。
-
-> 阅读时先完成前置积木，再阅读本文的概念、算法、源码和工程章节；同一理论只在它的主文章中展开，其他文章只引用结论。
-
-## 本文模块
-
-1. **GPU 数据布局与 Buffer**
-2. **Compute Shader 碰撞阶段**
-3. **PBD Solver 与迭代**
-4. **跨平台、同步和性能诊断**
-
-> 模块按从概念到实现再到验证排列；遇到不熟悉的术语时，先回到本文的前置积木，不在当前文章重复展开基础理论。
-
-
-## 第一节 插件总览与架构
-
-### 1.1 插件定位
-
-GPUPhysics 是一个基于 GPU Compute Shader 的实时刚体物理模拟插件，核心采用 **PBD（Position-Based Dynamics）** 求解框架，完整实现了从宽相到窄相的碰撞检测管线（GJK + EPA + Contact Manifold），并针对移动端 ES3.1 / Metal A12 进行了深度兼容。
-
-插件包含两个模块：
-
-| 模块 | 类型 | 加载阶段 | 职责 |
-|------|------|----------|------|
-| `GPUPhysics` | Runtime | `PostConfigInit` | 物理模拟核心（C++ + Compute Shader） |
-| `GPUPhysicsTests` | UncookedOnly | Default | 编辑器自动化测试 |
-
-源码规模：25 个头文件 + 19 个 C++ 实现文件 + 28 个 HLSL Shader 文件（15 个入口 `.usf` + 13 个被 `#include` 的 `.ush` 头文件）。
-
-### 1.2 分层架构
-
-整个插件按 **接口分离原则** 分为四层：
-
-```
-┌─────────────────────────────────────────────────────┐
-│  Blueprint 层 (APhysicsWorldManager)               │
-│  ─ 场景中的单例 Actor，暴露 UFUNCTION 给蓝图         │
-│  ─ 管理 CompoundBody / 粘附 / 可视化注册            │
-├─────────────────────────────────────────────────────┤
-│  接口层 (Public/Interface/)                          │
-│  ─ IPhysicsWorld: 物理世界抽象                      │
-│  ─ IPhysicsBodyHandle: 物体句柄抽象                 │
-│  ─ IPhysicsQueryInterface: 查询抽象                │
-│  ─ PhysicsTypes: 所有 USTRUCT / UENUM / 委托        │
-│  ─ PhysicsCallbacks: C++ 委托声明                   │
-├─────────────────────────────────────────────────────┤
-│  实现层 (Private/Implementation/)                   │
-│  ─ FGPUPhysicsWorld: IPhysicsWorld 的实现           │
-│  ─ FGPUPhysicsBody: IPhysicsBodyHandle 的实现       │
-│  ─ FGPUPhysicsQuery: IPhysicsQueryInterface 的实现  │
-├─────────────────────────────────────────────────────┤
-│  GPU 调度层 (Private/CSDispatch/)                    │
-│  ─ AGPUSimulationDispatcher: Actor，拥有所有 GPU     │
-│    Buffer / SRV / UAV，执行 StepSimulation()         │
-│  ─ 15 个 Compute Shader 声明类                     │
-│  ─ GPU Readback 系统（异步回读）                    │
-└─────────────────────────────────────────────────────┘
-```
-
-关键设计决策：**接口层不包含任何 RHI / GPU 概念**。`IPhysicsWorld` 只声明 `Simulate(float)`、`CreateBody()` 等纯逻辑接口，GPU 资源的所有权被封装在 `AGPUSimulationDispatcher`（一个 Actor）中。这使得上层可以在不接触 RHI 的情况下使用物理系统。
-
----
-
-## 第二节 公共 API 详解
-
-### 2.1 形状与可视化类型
-
-```cpp
-enum class EPhysicsShapeType : uint8 {
-    Box = 0, Cylinder = 1, Sphere = 2, Capsule = 3, Convex = 4
-};
-```
-
-`Capsule` 仅用于可视化绘制，碰撞管线不实际支持（CPU GJK 和 GPU Broadphase 均未处理）。
-
-```cpp
-enum class EVisualizationType : uint8 {
-    NormalBox = 0, NormalCylinder = 1, NormalSphere = 2,
-    NormalCapsule = 3, NormalConvex = 4,
-    NormalCylinder1 = 101,  // 彩蛋币专用 Instance 显示
-    Custom = 255            // 独立 StaticMesh
-};
-```
-
-`Normal*` 类型使用 `InstancedStaticMeshComponent` 批量渲染（高性能），`Custom` 类型使用独立 `UStaticMeshComponent`（支持自定义 Mesh / 材质 / 缩放 / 阴影）。
-
-### 2.2 物理体创建参数
-
-`FPhysicsBodyCreationParams` 是创建物体的统一入口参数，关键字段：
-
-| 字段 | 类型 | 说明 |
-|------|------|------|
-| `InitialTransform` | FTransform | 初始位置 + 旋转 |
-| `Shape` | FPhysicsShapeData | 形状类型 + 尺寸 |
-| `Mass` | float | 质量，用于计算 InverseMass = 1/Mass |
-| `bKinematic` | bool | 运动学物体（InverseMass=0，不受力但可手动移动） |
-| `InitialLinearVelocity` | FVector | 初始线速度 |
-| `InitialAngularVelocity` | FVector | 初始角速度 |
-| `bStartActive` | bool | 是否初始激活 |
-| `bCollisionEnabled` | bool | 是否参与碰撞 |
-| `bGenerateCollisionEvents` | bool | 是否生成碰撞事件（GPU 端回读） |
-| `Restitution` | float | 弹性系数 |
-| `Friction` | float | 摩擦系数 |
-| `VisualizationConfig` | FVisualizationConfig | 可视化配置 |
-| `ConvexData` | UConvexHullDataAsset* | 凸包数据（仅 Convex 类型） |
-| `HullIndex` | uint32 | CompoundBody 中的子凸包索引 |
-| `BodyGroupID` | uint32 | 内部字段，同组 SubBody 不互相碰撞 |
-
-### 2.3 世界设置
-
-```cpp
-struct FPhysicsWorldSettings {
-    FVector Gravity = (0, 0, -490);  // cm/s²，UE 默认重力
-    float StaticFrictionDD = 0.05;    // 动态-静态摩擦
-    float StaticFrictionDK = 0.05;   // 动态-运动学摩擦
-    float DynamicFrictionDD = 0.01;
-    float DynamicFrictionDK = 0.02;
-    int32 MaxBodies = 4096;
-    bool bEnableRotation = true;
-    int32 MaxContacts = 8192;
-};
-```
-
-> **注意**：摩擦系数分 DD（Dynamic-Dynamic）和 DK（Dynamic-Kinematic）两组。当碰撞对中有一方是 Kinematic（InverseMass=0）时，使用 DK 系数；双方都是 Dynamic 时使用 DD 系数。这允许对"物体落在平台上"和"物体互相堆叠"设置不同的摩擦参数。
-
-### 2.4 模拟设置
-
-`FPhysicsSimulationSettings` 控制求解器和碰撞管线：
-
-```cpp
-struct FPhysicsSimulationSettings {
-    int32 SolverIterations = 16;          // PBD 求解迭代次数
-    float LinearDamping = 0.01;
-    float AngularDamping = 0.05;
-    float MaxAngularVelocity = 1000.0;
-
-    // 碰撞管线开关（可独立开关每个阶段）
-    bool bEnableGJKDetection = true;
-    bool bEnableEPACalculation = true;
-    bool bEnableManifoldGeneration = true;
-    bool bEnablePBDSolver = true;
-
-    // DeltaTime 平滑（移动平均窗口）
-    int32 DeltaTimeSmoothFrames = 5;
-    float MinDeltaTime = 0.01;   // 100 FPS 上限
-    float MaxDeltaTime = 0.025;  // 40 FPS 下限
-
-    // 流形热启动容差
-    float ShapePositionTolerance = 0.4;    // cm
-    float ShapeRotationThreshold = 0.999;  // cos(3.6°)
-    float ContactPositionTolerance = 0.2;   // cm
-};
-```
-
-DeltaTime 平滑使用移动平均：维护一个 `DeltaTimeHistory[DeltaTimeSmoothFrames]` 数组，取平均值后 clamp 到 `[MinDeltaTime, MaxDeltaTime]`。这防止了帧率波动导致的物理不稳定。
-
-### 2.5 IPhysicsWorld 接口
-
-```cpp
-class IPhysicsWorld {
-    // 生命周期
-    virtual bool Initialize(const FPhysicsWorldSettings&) = 0;
-    virtual void Shutdown() = 0;
-    virtual void Simulate(float DeltaTime) = 0;
-
-    // 物体管理
-    virtual TSharedPtr<IPhysicsBodyHandle> CreateBody(const FPhysicsBodyCreationParams&) = 0;
-    virtual bool DestroyBody(TSharedPtr<IPhysicsBodyHandle>) = 0;
-    virtual TArray<TSharedPtr<IPhysicsBodyHandle>> CreateBodies(const TArray<...>&) = 0;
-
-    // 查询
-    virtual IPhysicsQueryInterface* GetQueryInterface() = 0;
-
-    // 设置
-    virtual void SetGravity(const FVector&) = 0;
-    virtual void SetSimulationSettings(const FPhysicsSimulationSettings&) = 0;
-
-    // 事件回调
-    virtual FPhysicsCollisionDelegate& OnCollision() = 0;
-    virtual FPhysicsPreSimulateDelegate& OnPreSimulate() = 0;
-    virtual FPhysicsPostSimulateDelegate& OnPostSimulate() = 0;
-};
-```
-
-### 2.6 IPhysicsBodyHandle 接口
-
-`IPhysicsBodyHandle` 代表 GPU 中的一个 Particle，提供读写接口。关键特性：
-
-- **读操作**：读取上一帧的模拟结果（有 1 帧延迟，因 GPU 异步回读）
-- **写操作**：排队到下一帧应用（不立即生效）
-
-```cpp
-class IPhysicsBodyHandle {
-    // 标识符
-    virtual uint32 GetBodyID() const = 0;
-    virtual bool IsValid() const = 0;
-
-    // 位置和旋转（读上一帧数据）
-    virtual bool GetPosition(FVector&) const = 0;
-    virtual bool GetRotation(FQuat&) const = 0;
-    virtual bool GetTransform(FTransform&) const = 0;
-
-    // 写操作（下一帧应用）
-    virtual void SetPosition(const FVector&) = 0;
-    virtual void SetRotation(const FQuat&) = 0;
-    virtual void SetLinearVelocity(const FVector&) = 0;
-    virtual void SetAngularVelocity(const FVector&) = 0;
-
-    // 力和冲量（累积到下一帧）
-    virtual void AddForce(const FVector&) = 0;
-    virtual void AddImpulse(const FVector&) = 0;
-    virtual void AddTorque(const FVector&) = 0;
-
-    // 质量 / 碰撞 / 激活
-    virtual void SetKinematic(bool) = 0;
-    virtual void SetCollisionEnabled(bool) = 0;
-    virtual void SetActive(bool) = 0;
-
-    // GPU 数据有效性
-    virtual bool HasValidData() const = 0;
-    virtual void UpdateCache() const = 0;
-
-    // 用户数据（关联 Actor）
-    virtual void* GetUserData() const = 0;
-    virtual void SetUserData(void*) = 0;
-    AActor* GetOwnerActor() const;  // 便捷方法
-    void SetOwnerActor(AActor*);
-};
-```
-
-### 2.7 IPhysicsQueryInterface 接口
-
-```cpp
-class IPhysicsQueryInterface {
-    virtual bool Overlap(
-        const FPhysicsShapeData& Shape,
-        const FTransform& Transform,
-        TArray<TSharedPtr<IPhysicsBodyHandle>>& OutOverlaps,
-        const FPhysicsQueryParams& Params = {}) const = 0;
-};
-```
-
-查询基于 CPU 端的上一帧缓存数据，使用 GJK 算法进行精确碰撞检测。当前实现是 O(N) 线性扫描（无 BVH 加速结构），适合中等规模物体数量。
-
----
-
-## 第三节 PhysicsWorldManager —— 蓝图层入口
-
-`APhysicsWorldManager` 是放置在场景中的单例 Actor，将 `IPhysicsWorld` 包装为 Blueprint 友好的 API。
-
-### 3.1 核心配置
-
-```cpp
-UPROPERTY(EditAnywhere) FPhysicsWorldSettings WorldSettings;
-UPROPERTY(EditAnywhere) FPhysicsSimulationSettings SimulationSettings;
-UPROPERTY(EditAnywhere) bool bAutoSimulate = true;   // Tick 自动步进
-UPROPERTY(EditAnywhere) bool bAutoInitialize = true;  // BeginPlay 自动初始化
-UPROPERTY(EditAnywhere) TArray<UConvexHullDataAsset*> ConvexDataAssets; // 预注册凸包
-```
-
-### 3.2 静态单例访问
-
-```cpp
-static APhysicsWorldManager* GetInstance(UWorld* World);
-// 通过 TMap<UWorld*, APhysicsWorldManager*> 实现，每个 World 一个实例
-```
-
-### 3.3 CompoundBody（多凸包组合体）
-
-插件支持由多个凸包组成的"凹型物体"——CompoundBody。内部结构：
-
-```cpp
-struct FCompoundBodyInfo {
-    uint32 MasterBodyID;           // 用户看到的 ID
-    TArray<uint32> SubBodyIDs;     // 每个凸包一个子 Body
-    UStaticMeshComponent* CustomComponent;
-};
-TMap<uint32, FCompoundBodyInfo> CompoundBodyMap;     // Master → Info
-TMap<uint32, uint32> SubBodyToMasterMap;              // Sub → Master
-```
-
-创建 CompoundBody 时，每个凸包创建为一个独立的 SubBody（带相同的 `BodyGroupID`），同组 SubBody 之间不互相碰撞。对外暴露 MasterBodyID，所有操作透明地分发给 SubBody。
-
-### 3.4 物体粘附（AttachBodyToBody）
-
-```cpp
-bool AttachBodyToBody(int32 MasterBodyID, int32 SlaveBodyID);
-```
-
-将 Slave 设为 Kinematic，每帧在模拟后计算相对偏移并跟随 Master 位置：
-
-```cpp
-struct FSlaveAttachmentInfo {
-    int32 MasterBodyID;
-    FVector RelativeOffset;
-};
-TMap<int32, FSlaveAttachmentInfo> SlaveAttachments;
-```
-
-### 3.5 快速查询方法
-
-除了 GJK 精确查询外，Manager 还提供了两个快速检测方法：
-
-- **`SphereOverlapSphereAndCylinderFast`**：针对球体去重叠硬币（Cylinder）和扭蛋（Sphere）的优化检测，跳过 GJK 直接做距离判断
-- **`BoxOverlapSphereAndCylinderFast`**：简化版，只判断物体中心点是否在 Box 内部
-
-这些方法专为推币机等特定玩法场景设计，牺牲精度换取性能。
-
----
-
-## 第四节 ConvexHullDataAsset —— 凸包数据资产
-
-`UConvexHullDataAsset` 是 `UDataAsset` 的子类，存储从 `UStaticMesh` 提取的凸包数据。
-
-### 4.1 数据结构
-
-```cpp
-struct FConvexHull {
-    TArray<FVector> Vertices;           // 顶点（局部空间，最多 32 个）
-    FBox LocalAABB;
-    float MaxDistance;                   // 中心到最远顶点
-
-    // 面数据（用于 Contact Manifold 生成）
-    TArray<FVector> FaceNormals;        // 面法线（局部空间）
-    TArray<FFaceVertexIndices> FaceVertexIndices;  // 面的顶点索引
-    TArray<FVector> FaceCenters;         // 面中心点
-};
-
-class UConvexHullDataAsset {
-    UStaticMesh* SourceMesh;             // 源 Mesh（编辑器重新生成用）
-    TArray<FConvexHull> ConvexHulls;     // 多凸包分解
-    FBox LocalAABB;                       // 合并 AABB
-    FVector CenterOffset;                // 重新中心化偏移量
-};
-```
-
-### 4.2 多凸包分解
-
-一个 DataAsset 可以包含多个 `FConvexHull`，每个对应原始 Mesh 的一个凸包分解（来自 UE 的 `FKConvexElem`）。GPU 端通过 `HullIndex` 索引到具体的凸包。
-
-### 4.3 编辑器工作流
-
-```cpp
-#if WITH_EDITOR
-    UFUNCTION(CallInEditor) void ExtractConvexFromMesh();  // 从 SourceMesh 提取
-    UFUNCTION(CallInEditor) void ClearData();
-#endif
-```
-
-`ExtractConvexFromMesh()` 从 `SourceMesh` 的 `BodySetup` 中读取 `FKConvexElem` 列表，为每个 Elem 提取顶点、面法线、面顶点索引和面中心点，然后计算 `CenterOffset`（使凸包几何中心位于原点，便于可视化对齐）和 `LocalAABB`。
-
----
-
-## 第五节 GPU Buffer 架构
-
-### 5.1 SoA（Structure of Arrays）布局
-
-所有粒子数据采用 **SoA 布局**——每种属性存储在独立的 Buffer 中，而非单个 AoS（Array of Structures）Buffer。这优化了 GPU 内存访问的 coalescing：
-
-```
-CurrentPositionBuffer:  [P0.xyz, Mass][P1.xyz, Mass][P2.xyz, Mass]...
-PreviousPositionBuffer: [PP0.xyz, InvMass][PP1.xyz, InvMass]...
-VelocityBuffer:         [V0.xyz, InvInertia][V1.xyz, InvInertia]...
-CurrentRotationBuffer:  [R0.xyzw][R1.xyzw][R2.xyzw]...
-PreviousRotationBuffer: [PR0.xyzw][PR1.xyzw]...
-AngularVelocityBuffer:  [AV0.xyzw][AV1.xyzw]...
-ShapeTypeBuffer:        [ST0][ST1][ST2]...
-ExtentsBuffer:           [E0.xyzw][E1.xyzw]...
-ParticleStateBuffer:     [State0][State1][State2]...
-```
-
-每个粒子的每种属性占用 **4 个 float**（float4 对齐），即使是 3 分量向量也填充到 4。这使得 GPU 端可以使用 `Buffer<float4>` 高效访问，同时复用第 4 分量存储标量数据（Mass / InverseMass / InvInertiaScale）。
-
-### 5.2 粒子状态位编码
-
-`ParticleStateBuffer` 是 `uint` 类型，按位编码：
-
-| 位 | 含义 |
-|----|------|
-| bit 0 | IsActive（是否激活） |
-| bit 1 | bEnableCollision（是否启用碰撞） |
-| bit 2 | Collide（当前帧是否发生了碰撞，由 PBD Solver 设置） |
-| bit 3 | bGenerateCollisionEvents（是否生成碰撞事件） |
-| bits 17–31 | ParticleID（15 位，最大 32767） |
-
-### 5.3 碰撞管线 Buffer 一览
-
-| Buffer 名称 | 格式 | 元素大小 | 用途 |
-|---|---|---|---|
-| BroadPhasePairBuffer | uint | 8 uints/pair | 宽相碰撞对 |
-| BroadPhasePairCountBuffer | uint | 1 | 碰撞对数量 |
-| IntersectingPairIndicesBuffer | uint | 1/pair | GJK 检测后的相交对索引 |
-| IntersectCountBuffer | uint | 1 | 相交对数量 |
-| GJKOutputDataBuffer | uint | 16 uints/pair | GJK 输出 |
-| EPAResultBuffer | float | 12 floats/pair | EPA 渗透结果 |
-| ManifoldBuffer | float | 132 floats/pair | 局部空间接触流形 |
-| SolverManifoldBuffer | float | 120 floats/pair | 世界空间求解器流形 |
-| ColorGroupIndicesBuffer | uint | 1/pair | 图着色分组索引 |
-| ColorGroupCountBuffer | uint | 1/group | 每组数量 |
-| ParticleDeltaBuffer | float | 6 floats × 12/particle | 每粒子增量列表 |
-| ParticleDeltaCountBuffer | uint | 1/particle | 每粒子增量数 |
-| TotalDeltaBuffer | float | 6 floats/particle | 累计增量 |
-| ConstraintArrayBuffer | float | 136 floats/constraint | 持久化约束 |
-| ParticleConstraintInfoBuffer | uint | 25 uints/particle | 每粒子约束列表 |
-| RestoreInfoBuffer | uint | 2 + N | 热启动结果 |
-| CollisionEventBuffer | float4 | 1 + 64×2 | 碰撞事件 |
-
-### 5.4 FGPUManifold 结构（132 floats = 528 bytes）
-
-```
-Header (5 float4s = 20 floats):
-  [0] Body0ID, Body1ID, NumContactPoints, bIsInitialContact
-  [1] LocalContactNormal.xyz, StaticFriction
-  [2] DynamicFriction, Restitution, MinInitialPhi, padding
-  [3] LastShapeWorldPositionDelta.xyz
-  [4] LastShapeWorldRotationDelta.xyzw
-
-Contact Points ×4 (7 float4s each = 28 floats):
-  [0] LocalContactPoint0.xyz, Depth
-  [1] LocalContactPoint1.xyz, Flags
-  [2] LocalAnchorPoint0.xyz, InitialPhi
-  [3] LocalAnchorPoint1.xyz, padding
-  [4] InitialShapeContactPoint0.xyz, padding
-  [5] InitialShapeContactPoint1.xyz, padding
-  [6] padding×4
-```
-
-Contact Point 的 Flag 位编码：
-
-| 位 | 含义 |
-|----|------|
-| bit 0 | bHasAnchor（有静态摩擦锚点） |
-| bit 1 | bInitialContact（首次接触） |
-| bit 2 | bWasRestored（通过热启动恢复） |
-| bit 3 | bWasReplaced（被替换） |
-
----
-
-## 第六节 完整模拟管线
-
-`AGPUSimulationDispatcher::StepSimulation(float DeltaTime)` 是整个物理模拟的入口。以下是单帧的完整管线：
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│ A. 游戏线程预处理                                            │
-│   1. ProcessPendingFreeSlots() — 回收 5 帧前释放的粒子槽      │
-│   2. 移动 PendingModifications / PendingNewParticles 到局部  │
-│   3. TryProcessAsyncReadback() — 处理上一帧的异步回读         │
-├─────────────────────────────────────────────────────────────┤
-│ B. 渲染线程：StepSimulation lambda                          │
-│   4. 清空 CollisionEventBuffer                               │
-│   5. [有修改] FlushPendingModifications → ParticleModify     │
-│   6. [有新增] FlushPendingParticles → ParticleAdd             │
-│   7. Integrate — 重力积分 + Verlet 位置更新                   │
-│   8. GroundConstraint — 地面约束钳制                          │
-│   9. 清空 Debug/BroadPhasePair/Delta 缓冲                    │
-│  10. Broadphase — AABB 宽相碰撞检测（2D 调度）                │
-│  11. [碰撞求解块]                                            │
-│      a. TryRestoreManifold — 流形热启动                       │
-│      b. GJK Detection — GJK 窄相检测                          │
-│      c. EPA — 渗透深度计算                                    │
-│      d. ManifoldLocalSpace — 局部空间接触流形生成             │
-│  12. Coloring — 图着色分组                                    │
-│  13. PBD 迭代求解：                                           │
-│      for SolverIter in [0, 16):                              │
-│        for ColorGroup in [1, MaxColorGroups):                │
-│          Gather → PBDSolver → ApplyDelta                     │
-│  14. ScatterOutput — 持久化约束到 ConstraintArray              │
-│  15. ResolveVelocity — 从位置差重算速度                       │
-│  16. EnqueueAsyncReadback — 异步回读到 CPU                    │
-└─────────────────────────────────────────────────────────────┘
-```
-
-每一步之间都有显式的 `RHICmdList.Transition` UAV↔SRV 屏障，确保前一步的写入对后一步可见。
-
-### 6.1 粒子回收机制
-
-粒子销毁不是立即的，而是延迟回收：
-
-```cpp
-static constexpr uint32 RECYCLING_DELAY_FRAMES = 5;
-
-void DeactivateParticle(uint32 ParticleIndex) {
-    PendingFreeIndices.Add({ParticleIndex, CurrentFrameIndex});
-}
-
-void ProcessPendingFreeSlots() {
-    // 当 CurrentFrame - DeactivatedFrame >= 5 时，将槽位移入 FreeList
-    for (auto& Slot : PendingFreeIndices) {
-        if (CurrentFrameIndex - Slot.DeactivatedFrame >= RECYCLING_DELAY_FRAMES) {
-            FreeParticleIndices.Push(Slot.ParticleIndex);
-        }
-    }
-}
-```
-
-延迟 5 帧是为了确保 GPU 端所有引用该粒子的 Compute Shader 已经完成（因为异步回读有 1 帧延迟，且碰撞求解涉及多帧流形热启动）。
-
-### 6.2 DeltaTime 平滑
-
-```cpp
-TArray<float> DeltaTimeHistory;
-int32 DeltaTimeHistoryIndex = 0;
-
-float SmoothDeltaTime(float RawDelta) {
-    DeltaTimeHistory[DeltaTimeHistoryIndex] = RawDelta;
-    DeltaTimeHistoryIndex = (DeltaTimeHistoryIndex + 1) % DeltaTimeSmoothFrames;
-    float Sum = 0;
-    for (float d : DeltaTimeHistory) Sum += d;
-    float Avg = Sum / DeltaTimeSmoothFrames;
-    return FMath::Clamp(Avg, MinDeltaTime, MaxDeltaTime);
-}
-```
-
----
-
-## 第七节 Compute Shader 详解
-
-### 7.1 Shader 声明方式
-
-插件使用了两种 Shader 声明方式：
-
-**旧式（8 个）**：使用 `DECLARE_SHADER_TYPE` + `LAYOUT_FIELD`，手动 `SetParameters`/`UnbindParameters`：
-- FParticleIntegrateShader, FParticleVelocityShader, FGroundConstraintShader
-- FCollisionBroadPhaseShader, FCollisionColoringShader, FTryRestoreManifoldShader
-- FParticleAddShader, FParticleModifyShader
-
-**新式（7 个）**：使用 `DECLARE_GLOBAL_SHADER` + `SHADER_USE_PARAMETER_STRUCT` + `BEGIN_SHADER_PARAMETER_STRUCT`：
-- FCollisionDetectionCS, FCollisionEPACS, FCollisionManifoldLocalSpaceCS
-- FCollisionGatherCS, FCollisionPBDSolverCS, FCollisionApplyDeltaCS, FCollisionScatterOutputCS
-
-所有 Shader 目标 `ERHIFeatureLevel::ES3_1`（移动端兼容），使用 `PF_R32_FLOAT` / `PF_R32_UINT` 类型化 Buffer 而非 `float4` 结构化 Buffer。
-
-### 7.2 线程组配置一览
-
-| Shader | numthreads | 调度维度 | 组数公式 |
-|--------|-----------|---------|---------|
-| ParticleAdd | (64,1,1) | 1D | ⌈NewParticleCount/64⌉ |
-| ParticleIntegrate | (64,1,1) | 1D | ⌈MaxParticleCapacity/64⌉ |
-| ParticleModify | (64,1,1) | 1D | ⌈ModificationCount/64⌉ |
-| GroundConstraint | (64,1,1) | 1D | ⌈MaxParticleCapacity/64⌉ |
-| ParticleVelocity | (64,1,1) | 1D | ⌈MaxParticleCapacity/64⌉ |
-| **BroadPhase** | **(8,8,1)** | **2D** | **⌈GridSize/8⌉ × ⌈GridSize/8⌉** |
-| TryRestoreManifold | (64,1,1) | 1D | ⌈MaxPairs/64⌉ |
-| CollisionColoring | (64,1,1) | 1D | ⌈MaxPairs/64⌉ |
-| CollisionDetection (GJK) | (32,1,1) | 1D | ⌈MaxPairs/32⌉ |
-| CollisionEPA | (16,1,1) | 1D | ⌈MaxPairs/16⌉ |
-| ManifoldLocalSpace | (16,1,1) | 1D | ⌈MaxPairs/16⌉ |
-| CollisionGather | (32,1,1) | 1D | ⌈MaxPairs/32⌉ |
-| PBDSolver | (32,1,1) | 1D | ⌈MaxPairs/32⌉ |
-| ApplyDelta | (64,1,1) | 1D | ⌈MaxParticles/64⌉ |
-| ScatterOutput | (64,1,1) | 1D | ⌈MaxPairs/64⌉ |
+- **难度**：高级。
+- **本文职责**：解释 three-avbd 的 GPU 物理流水线如何进入 Unreal Engine，以及宿主适配、独立扩展和当前验证边界。
+- **前置阅读**：[three-avbd GPU 求解器](/knowledge/three-avbd-gpu-solver/)、[VBD 与 AVBD](/knowledge/vbd-avbd-math/)、[Chaos 物理引擎总览](/knowledge/ue-chaos-physics-engine/)。
+- **分工**：基础公式和参考算法在前置文章展开；本文保留理解移植差异所必需的公式、实际源码与工程取舍。
 
-> **BroadPhase 是唯一的 2D 调度**：每个线程处理一对 的碰撞检测，`id.x = IndexB`，`id.y = IndexA`，只计算上三角矩阵（`IndexA < IndexB`）避免重复。GridSize = MaxActiveParticleIndex + 1。
+## 一、先给结论：这不是旧 PBD 插件的换名介绍
 
----
+当前 GPUPhysicsLab 是以锁定 three-avbd 三维 GPU 实现为基础、使用 UE C++、HLSL、RDG/RHI 重写的独立物理运行时。核心是**按刚体分块的六维 AVBD 原对偶求解**，不是旧版文章所描述的“十五个 Compute Shader 的 PBD 系统”。[参考锁:1–36](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Doc/Porting/REFERENCE.lock.json#L1-L36) [求解调度:141–242](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Source/GPUPhysicsLab/Private/CSDispatch/GPUPhysicsLabSolverPasses.cpp#L141-L242)
 
-## 第八节 粒子积分与速度求解
+其主要价值可以概括为三层：
 
-### 8.1 ParticleIntegrate —— 重力积分
+1. **参考数值内核**：两级哈希、Box/Hull SAT、接触历史、CSR、JP 染色、多 lane 原问题、对偶更新和速度重建。
+2. **UE 宿主适配**：WorldSubsystem、GT/RT 分离、持久 GPU 资源、RDG 调度、代际句柄、异步观察、接受版本与 Niagara 发布。
+3. **独立扩展**：圆柱/胶囊几何、单体动力属性、GPU 弹簧质点布料。这些不能冒充锁定参考已有的功能。
 
-**Shader**: `/GPUPhysics/ParticleIntegrate.usf`，入口 `Main`
+还需要先明确五个边界：
 
-每粒子执行：
+- 它没有接管所有 Chaos 刚体，也不是自动替换项目物理后端；公开入口推进自己 World 会话中的 GPU 物体。[World:24–98](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Source/GPUPhysicsLab/Private/World/GPUPhysicsLabWorldSubsystem.cpp#L24-L98)
+- 当前正式 shader 准入要求真实 **SM6 RHI**，不能继承旧文章的“ES3.1/Metal A12 已兼容”结论。[求解调度:84–139](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Source/GPUPhysicsLab/Private/CSDispatch/GPUPhysicsLabSolverPasses.cpp#L84-L139)
+- 原生 Box/Hull 仍是 SAT；只在曲面扩展中看到有界 GJK/EPA，不能说所有窄相都走 GJK/EPA。[接触历史:44–65](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Shaders/Private/Common/Contact/GPUPhysicsLabContactHistory.ush#L44-L65)
+- 布料实际是弹簧力、罚接触与速度—位置积分；尚不是计划中与刚体统一的 AVBD CSR/染色迭代。[布料弹簧:10–49](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Shaders/Private/Cloth/ApplySprings.usf#L10-L49) [布料积分:11–38](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Shaders/Private/Cloth/IntegrateParticles.usf#L11-L38)
+- 课程和局部测试有明确未验收项。源码存在、单项通过、完整产品可用、长期稳定和性能达标，是不同层级。
 
-1. 跳过非激活粒子（state bit 0）和无限质量粒子（InverseMass ≤ 0）
-2. 保存当前 → 前一帧（`PreviousPosition = CurrentPosition`，`PreviousRotation = CurrentRotation`）
-3. 重力施加：`Velocity.z += Gravity × DeltaTime`
-4. Chaos 风格线性阻尼：`Velocity = lerp(Velocity, 0, min(1, 0.99 × DeltaTime))`
-5. 硬速度限制：`Velocity.z` 不超过 `3.0 / DeltaTime`
-6. Verlet 位置更新：`Position += Velocity × DeltaTime`
-7. [旋转启用时] 角阻尼 + 角速度 → 四元数增量 → 旋转更新
+### 1.1 本文版本与证据口径
 
-角速度单位为度/秒，通过 `EulerToQuaternion` 转换为增量四元数后左乘到当前旋转（`NewRot = QuatMultiply(DeltaQuat, CurRot)`）。
+分析目录为 E:\UnrealProjects\GASP57\Plugins\GPUPhysicsLab，读取分支为 three-avbd-rewrite，基线 HEAD：
 
-### 8.2 ParticleVelocity —— 速度重算
+~~~text
+779b2e09cc531d39d8d2ad7d5813823cc5c26bd6
+~~~
 
-**Shader**: `/GPUPhysics/ParticleVelocity.usf`，入口 `Main`
+插件锁定的参考：
 
-在 PBD 求解器修改位置后，从位置差反算速度：
+~~~text
+three-avbd 0.3.0
+2bb1a318e9aad03640b4bce5b5d222484f0925f7
+~~~
 
-```
-targetVelocity = (currentPos - prevPos) / DeltaTime
-```
+分析开始时，World 的参考场景/布料配置、显示和示例存在未提交修改；分析期间这些增量已形成新提交。本文最终冻结到以上提交，并补读了新增的 30×30 布料场景与验收摘要。核心求解文件与此前读本一致；本文没有修改插件。后续新提交不自动属于本文结论。
 
-线性速度被 clamp 到 ±1000，速度变化 clamp 到 ±200，混合因子 0.9。角速度通过 `deltaQuat = currentRot × inverse(prevRot)` → `QuatToAxisAngle` 反算。
+以下文件路径均相对于插件根目录；正文引用给出文件别名与行号，文末映射到完整路径。远端链接需要该提交已推送且读者有访问权限，不能用远端可访问性代替本地源码证据。
 
-### 8.3 GroundConstraint —— 地面约束
+本文明确区分：
 
-**Shader**: `/GPUPhysics/GroundConstraint.usf`
+- **源码事实**：本轮读到的实际函数、分支与数据流。
+- **工程判断**：由实现推导出的成本、限制和建议。
+- **历史证据**：仓库记录的测试结果，本轮没有重新运行 UE。
+- **待验证**：真实场景、长时间运行、跨 GPU、Cook/Shipping 与视觉验收。
 
-简单的地面钳制，使用 `max()` 而非 `if`（Metal 兼容）：
+## 二、它具体借鉴了 three-avbd 的什么
 
-```hlsl
-position.z = max(position.z, GroundLevel);
-```
+### 2.1 继承的是数据契约和执行模型，不只是 AVBD 名词
 
-不包含速度反射（相关代码已注释掉）。
+参考锁明确列出 solver.ts、layout.ts、wgsl-solve、wgsl-collision、wgsl-hull，以及共享 topology/scan 等来源。Body、Joint、Manifold、Contact 的字段尺寸与标志位也被固定。[参考锁:8–36](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Doc/Porting/REFERENCE.lock.json#L8-L36)
 
----
+这意味着忠实移植要同时对齐：
 
-## 第九节 宽相碰撞检测
+- 碰撞发生在什么时刻。
+- 一对物体如何生成及排列。
+- 约束按什么顺序被累加。
+- 接触锚点、特征和乘子如何继承。
+- 颜色间位姿写入何时对后续颜色可见。
+- 小角度四元数、主元下限、罚参数与默认值。
 
-### 9.1 BroadPhase —— AABB 宽相
+如果只复制能量公式，却改成先预测再碰撞、每轮重新生成接触、或统一 Jacobi，就已经改变执行模型。
 
-**Shader**: `/GPUPhysics/CollisionBroadPhase.usf`，入口 `Main`，`[numthreads(8,8,1)]`
+### 2.2 参考算子到 UE 文件的对应
 
-2D 调度，每个线程测试一对粒子。算法：
+最重要的几个映射是：
 
-1. 跳过非激活或碰撞禁用的粒子
-2. 跳过双方都是静态的情况（InverseMass 均为 0）
-3. 计算每粒子的 AABB：
-   - **Box**：`halfExtents` 旋转后的轴向投影和（`sum(|rotatedAxis × extent|)`）
-   - **Cylinder**：轴向投影 + `sqrt(radial1² + radial2²) × Radius + 0.2`
-   - **Sphere**：`center ± Radius`
-   - **Convex**：变换所有顶点取 min/max
-4. AABB 三轴分离测试
-5. 相交则 `InterlockedAdd` 分配输出槽位，写入碰撞对
+- GpuSolver3D.step → AddSolverStep 与 RenderState::SubmitSteps_RenderThread。
+- warmStartBodies → IntegrateBodies.usf。
+- accumulate / finishBody → PrimalSolve.usf、GPUPhysicsLabRigidBlock.ush。
+- warmStartJoints / dualJoint → InitializeSolver.usf、GPUPhysicsLabWarmStart.ush、DualUpdate.usf。
+- 碰撞与缓存 → GenerateCandidatePairs.usf、GPUPhysicsLabContactHistory.ush。
+- 共享 topology/scan → BuildCSR.usf、BuildColors.usf、SequencePasses。
+- World / queries / contacts → Simulation、WorldSubsystem 与查询/事件 shader。
 
-输出 `BroadPhasePairBuffer` 结构（8 uints/pair）：
+对应入口见 [求解调度:44–242](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Source/GPUPhysicsLab/Private/CSDispatch/GPUPhysicsLabSolverPasses.cpp#L44-L242)、[帧提交:386–493](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Source/GPUPhysicsLab/Private/Simulation/GPUPhysicsLabSimulation.cpp#L386-L493)。详细理论不再重复，参考 [three-avbd 全流水线](/knowledge/three-avbd-gpu-solver/)。
 
-```
-[idxA, idxB, distance, combinedMaxDistance, shapeTypeA, shapeTypeB, currentFrame, colorGroup]
-```
+### 2.3 哪些属于 UE 自己增加的设计
 
-### 9.2 TryRestoreManifold —— 流形热启动
+three-avbd 的 JavaScript World 不等于 UE 的 Game Thread/Render Thread。下面这些是宿主工程，不是参考公式：
 
-**Shader**: `/GPUPhysics/CollisionTryRestoreManifold.usf`，入口 `TryRestoreManifoldCS`
+- UObject/UHT/Blueprint 接口。
+- 世界初始化、BeginPlay、EndPlay 和引擎退出。
+- ENQUEUE_RENDER_COMMAND、线程安全共享所有者与 fence。
+- FRDGPooledBuffer 的持久所有权及 RDG 内注册。
+- GPU 接受版本、回滚快照、显示租约。
+- Niagara Data Interface 与 Actor 示例。
 
-这是性能优化的关键：尝试复用上一帧的接触流形，跳过昂贵的 GJK + EPA + Manifold 生成。
+这些适配可以不改变成功步数值，但会改变内存、命令数、延迟和集成方式，必须独立验收。
 
-热启动条件：
+## 三、模块与线程：谁拥有世界，谁拥有数值
 
-1. **变换容差**：比较当前位置差与上一帧存储的 `LastShapeWorldPositionDelta`，分量差 ≤ `ShapePositionTolerance`；比较旋转差的点积与 `ShapeRotationThreshold`（cos 值）
-2. **接触点容差**：将上一帧的 `InitialShapeContactPoint0` 变换到当前 Shape1 的局部空间，与 `InitialShapeContactPoint1` 比较，切向距离 ≤ `ContactPositionTolerance`
+### 3.1 当前模块
 
-成功时直接将上一帧的流形更新到当前帧（更新深度和局部坐标），写入 `ManifoldBuffer` 前部（通过 `RestoreInfoBuffer[0]` 的成功计数作为写入偏移）。
+GPUPhysicsLab.uplugin 声明两个 Runtime 模块：GPUPhysicsLab 在 PostConfigInit 加载，GPUPhysicsLabExamples 在 Default 加载，并依赖 Niagara。不是旧文中的 GPUPhysics/GPUPhysicsTests 组合。[插件描述:1–35](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/GPUPhysicsLab.uplugin#L1-L35)
 
-失败时记录碰撞对索引到 `RestoreInfoBuffer[2..N]`，供后续 GJK 处理。
+核心模块依赖 Engine、RenderCore、RHI、Niagara 等；Editor 构建才额外依赖 UnrealEd。[Build.cs:4–19](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Source/GPUPhysicsLab/GPUPhysicsLab.Build.cs#L4-L19)
 
-### 9.3 Coloring —— 图着色分组
+### 3.2 Game Thread
 
-**Shader**: `/GPUPhysics/CollisionColoringMain.usf`，入口 `CollisionColoringMain`
+UGPUPhysicsLabWorldSubsystem：
 
-图着色将可能同时写入同一粒子的约束分配到不同的颜色组，使每组内的约束互不冲突，可以并行求解。
+1. Initialize 创建唯一 Simulation 并绑定回调。
+2. OnWorldBeginPlay 启动。
+3. Tick 调用 Advance。
+4. Faulted 会话只 Poll，不继续推进。
+5. EndPlay/Deinitialize/PreExit 统一关闭。
 
-当前实现为简化版：`MaxColorGroups = 1`，所有碰撞对分配到单一颜色组（注释中提到"空间哈希着色"但实际未启用）。这意味着 PBD 求解器在一次迭代中只处理所有约束一次，依赖于多次 SolverIteration 来收敛。
+仅支持 Game/PIE 世界，不是编辑器所有预览 World 自动运行。[World:19–98](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Source/GPUPhysicsLab/Private/World/GPUPhysicsLabWorldSubsystem.cpp#L19-L98)
 
----
+GT 持有作者配置、句柄和命令队列；它们不能被当作每步最新 GPU 位姿。运动学目标从当前 GPU 姿态计算速度，而不是把延迟 CPU 缓存写回物理。[Simulation:1181–1233](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Source/GPUPhysicsLab/Private/Simulation/GPUPhysicsLabSimulation.cpp#L1181-L1233)
 
-## 第十节 GJK 窄相碰撞检测
+### 3.3 Render Thread
 
-### 10.1 GJK 算法原理
+RenderState 持有 GPU pooled buffer、回读对象、接触缓冲 parity、状态及显示发布对象。它创建 RDG 图、注册外部资源并调度 shader，不把物理接触逐点交给 GT 求解。[Simulation:88–204、386–493](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Source/GPUPhysicsLab/Private/Simulation/GPUPhysicsLabSimulation.cpp#L88-L493)
 
-GJK（Gilbert-Johnson-Keerthi）算法通过迭代构建 Minkowski 差的单纯形来判断两个凸体是否相交。
+FRDGBufferRef 只属于当前图；跨帧保存的是 pooled buffer。把一个旧图的 FRDGBufferRef 缓存在 UObject 中供下一帧使用，违背这里的资源模型。
 
-**Support 函数**：对于方向 `d`，返回凸体上沿 `d` 方向最远的点：
+### 3.4 GPU
+
+GPU 保存并更新真正位姿、速度、乘子、接触、邻接和颜色。CPU 只做作者准备、调度与异步观察，不存在正常运行时 CPU 窄相回退。[求解调度:29–43、141–168](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Source/GPUPhysicsLab/Private/CSDispatch/GPUPhysicsLabSolverPasses.cpp#L29-L168)
+
+### 3.5 关闭阶段可以等待，正常步进不应全量等待
+
+Shutdown 排队 Release，并通过 FRenderCommandFence 等待 RT 退休后释放共享所有者。它解决对象退出和 GPU 资源生命周期，不是每步调用 FlushRenderingCommands 强制同步。[Simulation:1554–1575](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Source/GPUPhysicsLab/Private/Simulation/GPUPhysicsLabSimulation.cpp#L1554-L1575)
+
+## 四、单位、坐标和形状标签：最容易移植错的一层
+
+### 4.1 内核 SI，作者位置厘米
+
+常规位置和尺寸从厘米乘 $0.01$，惯量若以 $\mathrm{kg\cdot cm^2}$ 给出则乘 $10^{-4}$。角速度保持 $\mathrm{rad/s}$，不是再做长度换算。[数学边界:78–114](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Source/GPUPhysicsLab/Private/Math/GPUPhysicsLabQuaternionMath.h#L78-L114)
+
+Y-up 求解坐标的换基为：
 
 $$
-\text{Support}_{A \ominus B}(d) = \text{Support}_A(d) - \text{Support}_B(-d)
+(x,y,z)_{\mathrm{UE}}\longmapsto(x,z,-y)_{\mathrm{solver}}
 $$
 
-**单纯形演进**：从 1 点单纯形开始，逐步添加 Support 点。每一步计算当前单纯形到原点的最近点，生成新的搜索方向。如果原点被包含在单纯形内（四面体），则两体相交；如果 Support 点不再向原点推进，则分离。
+其行列式为正；尺寸、主惯量等局部轴标量只置换轴，不应用向量方向的负号。四元数也需对应换基，不能只改位置。[数学边界:62–76、115–129](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Source/GPUPhysicsLab/Private/Math/GPUPhysicsLabQuaternionMath.h#L62-L129)
 
-### 10.2 CPU 版本（FGJKAlgorithm）
+### 4.2 公共施力接口已经是 SI
 
-CPU 版本用于 `IPhysicsQueryInterface::Overlap` 查询，完整实现了 `HandleLine` / `HandleTriangle` / `HandleTetrahedron`：
+ApplyRuntimeBodyForce 的参数是 ForceN，Impulse 是 Ns，Torque 是 Nm；AddPush 对这些量换基而不乘 $0.01$，作用点 PointCm 才转换为米。[Simulation:1771–1815](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Source/GPUPhysicsLab/Private/Simulation/GPUPhysicsLabSimulation.cpp#L1771-L1815)
 
-- **HandleLine**：2 点情况，投影原点到线段，必要时降维到单点
-- **HandleTriangle**：3 点情况，测试 3 个顶点区域 + 3 条边区域
-- **HandleTetrahedron**：4 点情况，测试 1 个顶点区域 + 3 条棱区域 + 3 个面区域 + 内部
+因此不能看到某个底层 TryToSolverForce helper，就断言所有公开施力 API 都接收 UE 的厘米量纲。**必须沿实际调用者核对单位。**
 
-CPU 版本的 Support 函数支持 Sphere / Box / Cylinder（固定 Z 轴），不支持 Capsule 和 Convex。
+### 4.3 公开形状枚举不等于 GPU 标签
 
-最大迭代次数 32，容差 `KINDA_SMALL_NUMBER`。算法参考自 PhysX 的 `GuRefGjkEpa.h:computeGjkDistance`。
+公开枚举依次为 Sphere、Capsule、Box、Cylinder、ConvexHull、Sail；内部参考标签为 Box=0、Sphere=1、Sail=2、Hull=3+offset，扩展 Capsule=-1、Cylinder=-2。[作者类型:15–27](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Source/GPUPhysicsLab/Public/Bodies/GPUPhysicsLabBodyDefinition.h#L15-L27) [内核常量:16–21](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Source/GPUPhysicsLab/Private/GPUData/GPUPhysicsLabLimits.h#L16-L21)
 
-> **注意**：CPU 版本不包含 EPA，GJK 检测到相交后即返回，不计算渗透深度。
+负标签避免覆盖凸包 atlas 的偏移空间。直接把公开 enum cast 成 GPU shape 会错判几何。
 
-### 10.3 GPU 版本（GJKCore.ush）
+圆柱/胶囊的作者轴是局部 X；Cylinder 长度为平盖间全高，Capsule 长度为中间直段，完整长度还要加两倍半径。不要按 Unreal 某些默认胶囊组件的局部轴习惯直接套用。[作者类型:97–116](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Source/GPUPhysicsLab/Public/Bodies/GPUPhysicsLabBodyDefinition.h#L97-L116)
 
-GPU 版本使用 **groupshared 内存**优化，每个线程独立处理一个碰撞对（无跨线程同步）：
+## 五、ABI：保留参考记录，用旁路结构扩展
 
-```hlsl
-groupshared float SharedGJKResultBuffer[32 * 16];   // 每线程 16 floats 结果
-groupshared float gs_GJKShapes[32 * 24];             // 每线程 2 个 Shape × 12 floats
-groupshared float gs_GJKSimplex[32 * 41];             // 每线程 1 个 Simplex × 41 floats
-```
+核心记录仍是：
 
-GPU 版本的 Handle 函数直接操作 groupshared 中的 Simplex 数据，维护重心坐标用于计算最近点。
+- Body：160 字节，十个 float4。
+- Joint：160 字节，另有 16 字节 JointInfo。
+- Manifold：32 字节。
+- Contact：64 字节。
+- StepParams：192 字节。
+- BodyDynamics：新增 48 字节旁路记录。
 
-**Convex Support 函数**使用暴力搜索：遍历凸包的所有顶点，取与方向点积最大的点：
+Body/Step 具有 sizeof、alignof、offsetof 和 trivially-copyable 静态断言；不是靠“C++ 看起来有相同字段”来猜 HLSL stride。[Body 数据:7–45](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Source/GPUPhysicsLab/Private/GPUData/GPUPhysicsLabBodyData.h#L7-L45) [Step 数据:7–84](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Source/GPUPhysicsLab/Private/GPUData/GPUPhysicsLabStepData.h#L7-L84) [常量:10–29](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Source/GPUPhysicsLab/Private/GPUData/GPUPhysicsLabLimits.h#L10-L29)
 
-```hlsl
-float3 SupportConvex_Local(float3 dir, uint vertexOffset, uint vertexCount, Buffer<float4> buf) {
-    float bestDot = -1e30;
-    float3 bestVertex = float3(0,0,0);
-    for (uint i = 0; i < vertexCount; i++) {
-        float3 v = buf[vertexOffset + i].xyz;
-        float d = dot(dir, v);
-        if (d > bestDot) { bestDot = d; bestVertex = v; }
-    }
-    return bestVertex;
-}
-```
+Body 仍保存当前/初始/惯性位姿和速度；一些 w 通道是整数位打包，如参考位姿变更步号和形状标签。数值有限性检查不能将所有位打包通道当作普通 float。[速度更新:26–34](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Shaders/Private/Simulation/Integration/UpdateVelocity.usf#L26-L34)
 
-### 10.4 GJK 输出
+### 5.1 为什么新增 BodyDynamics 而不改 Body160
 
-`GJKOutputDataBuffer` 每对 16 uints：
+质心、重力倍率、阻尼、静动摩擦和恢复系数进入单独结构，不挤占旧接触历史字段，不破坏既有渲染步长。[Body 数据:34–45](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Source/GPUPhysicsLab/Private/GPUData/GPUPhysicsLabBodyData.h#L34-L45)
 
-```
-[idxA, idxB, ColorGroup, bIntersect,
- PointA.xyz (asuint), PointB.xyz (asuint),
- Axis.xyz (asuint), Distance (asuint),
- padding×2]
-```
+代价是每体额外缓冲与读取；收益是参考记录保持稳定、默认值可以明确退回原运算。旁路结构也不能自行形成第二个物理世界。
 
-碰撞检测判定条件：`bIntersect == true` **或** `Distance < 0.5`（近距离对保留，为 EPA 和 Manifold 提供输入）。
+## 六、完整执行链：从 UE Tick 到接受的 GPU 姿态
 
----
+当前真实链路如下，布料只在启用时进入：
 
-## 第十一节 EPA 渗透深度计算
+~~~text
+WorldSubsystem.Tick（GT）
+  → Simulation.Advance / 固定步计划
+  → 捕获运动学目标、力与冲量
+  → ENQUEUE_RENDER_COMMAND
+  → RenderState.SubmitSteps_RenderThread（RT）
+      → RegisterExternalBuffer
+      → 备份本步开始前 GPU 状态
+      → [布料 Attachment → Spring Force → Rigid Contact/Reaction → Integrate]
+      → PushBodies
+      → AddSolverStep
+          → BeginCollisionFrame / UpdateRefs / HashInsert
+          → Grid Count → Scan → Scatter → Candidate Pairs
+          → Native Narrowphase → [Surface Narrowphase / SurfaceStatus]
+          → CSR → JP Coloring → Buckets / Indirect Args
+          → WarmStartJoints → WarmStartBodies
+          → iterations × [逐色 Primal → Dual]
+          → UpdateVelocity → FinalizeStep
+      → [Contact Events]
+      → 准备不可变显示副本 / 异步状态读取
+      → Graph.Execute
+  → Poll：检查版本与错误
+      → 成功：接受状态、发布显示
+      → 失败：撤销发布、恢复备份、进入 Faulted
+~~~
 
-### 11.1 EPA 算法原理
+证据：[帧提交:386–493](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Source/GPUPhysicsLab/Private/Simulation/GPUPhysicsLabSimulation.cpp#L386-L493) [求解调度:44–73、141–242](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Source/GPUPhysicsLab/Private/CSDispatch/GPUPhysicsLabSolverPasses.cpp#L44-L242) [状态轮询:1491–1551](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Source/GPUPhysicsLab/Private/Simulation/GPUPhysicsLabSimulation.cpp#L1491-L1551)。
 
-EPA（Expanding Polytope Algorithm）在 GJK 检测到相交后，从 GJK 的最终单纯形出发，逐步扩展多面体直到找到离原点最近的面。该面的法线即为碰撞法线，距离即为渗透深度。
+注意三点：
 
-### 11.2 GPU 实现（EPACore.ush）
+- 刚体碰撞仍在本步 WarmStartBodies 预测之前，不在每轮 primal 中重建。
+- 布料当前在刚体 AVBD 前单独推进，不在每轮中与刚体共同收敛。
+- Graph.Execute 返回不等于 CPU 已拿到最新物理状态；异步回读有自己的完成时机。
 
-GPU 版本使用 groupshared 存储多面体数据，每个线程（最多 16 个）独立处理一对：
+## 七、固定步与外部输入
 
-```hlsl
-groupshared float gs_EPAVertices[16 * 10 * 9];   // 10 顶点 × 9 floats
-groupshared float gs_EPAFaces[16 * 16 * 5];       // 16 面 × 5 uints
-groupshared float gs_HorizonEdges[16 * 18 * 2];   // 18 边 × 2 uints
-groupshared float gs_Shapes[16 * 2 * 11];          // 2 形状 × 11 floats
-```
+### 7.1 时间预算
 
-**初始化**：从 GJK 的 Simplex 构建 6 个正交方向的 Support 点，去重后选择 3 个非共线点创建 2 个初始面。
+默认固定步为 $1/60$ 秒，MaximumSubsteps=4，Iterations=10。PlanUpdate 累加非负输入，最多执行预算内子步，最后将欠账限制到一个 dt。[Simulation:2067–2082](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Source/GPUPhysicsLab/Private/Simulation/GPUPhysicsLabSimulation.cpp#L2067-L2082) [作者设置:191–209](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Source/GPUPhysicsLab/Public/Bodies/GPUPhysicsLabBodyDefinition.h#L191-L209)
 
-**迭代循环**（最多 12 次）：
+这保持参考 World.update 的时间策略。长帧不会无限追赶，也不能声称真实时间永不丢失。增加 iterations 不能替代增加时间子步。
 
-1. `FindClosestFace_Batched`：找距原点最近的面（最大投影距离）
-2. `AddPointToPolytope_Batched`：沿面法线计算新 Support 点
-3. 去重检查：与最近面的 3 个顶点比较
-4. **Horizon 搜索**：标记从新顶点可见的面为 obsolete，提取边界边，取消反向对
-5. 创建新面：从 horizon 边到新顶点
-6. 收敛判断：`Projection >= ClosestDist - Tolerance`
+### 7.2 一次性冲量与持续力
 
-**接触点计算**：将原点投影到最近面上，计算重心坐标，插值 `SupportA` 和 `SupportB` 得到两个体的接触点。
+GT 为每子步准备合并的 push：
 
-> **移动端防崩溃**：EPA 接触点计算中有一个特殊处理——`SuppB = max(SuppB, -1e20)`，用于打断 Metal 驱动中 `Load-Mul` 指令融合导致的崩溃（注释标注为 AGXMetalA12 Code=3 错误）。
+$$
+\mathbf J_{\mathrm{step}}=
+\mathbf J_{\mathrm{once}}+\mathbf Fh
+$$
 
-### 11.3 EPA 输出
+一次性冲量只在计划批次第一步使用，随后清除；Force 保留直到显式 Clear。偏心作用通过作用点与合力矩进入同一 pusher。[Simulation:1203–1221、1771–1815](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Source/GPUPhysicsLab/Private/Simulation/GPUPhysicsLabSimulation.cpp#L1203-L1815)
 
-`EPAResultBuffer` 每对 12 floats：
+**工程取舍**：CPU 合并同体输入，使 GPU 由单一线程更新该体速度，减少共享写入；但会话何时捕获输入、批量子步之间是否允许 BeforeStep 回调，属于宿主时序，不由 AVBD 公式决定。
 
-```
-[bSuccess, PenetrationDepth, Normal.xyz,
- ContactPointA.xyz, ContactPointB.xyz, padding]
-```
+### 7.3 运动学不是“每帧强改动态体位置”
 
----
+目标移动以当前 GPU 位姿、目标和计划时长生成运动学速度，旋转使用短半球差。StepFixed 若有待处理运动学目标，会禁止整体流形复用。[Simulation:1169–1201](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Source/GPUPhysicsLab/Private/Simulation/GPUPhysicsLabSimulation.cpp#L1169-L1201)
 
-## 第十二节 Contact Manifold 生成
+Static、Kinematic、Simulated 是作者运动类型；底层固定/运动学仍沿参考质量零和速度通道表达，公开类型不能直接等同于一个质量字段。
 
-### 12.1 流形生成流程
+## 八、RDG 适配：把资源依赖写对，本身就是算法的一部分
 
-**Shader**: `/GPUPhysics/CollisionManifoldLocalSpace.usf`，入口 `CollisionManifoldLocalSpaceCS`
+### 8.1 持久与临时资源
 
-从 GJK + EPA 结果生成局部空间接触流形：
+RenderState 将 BodyStorage 等 pooled buffer 注册进当前图；scan 的块和 scratch 则由当前图分配。需要跨帧的显示快照通过 QueueBufferExtraction 取得 pooled 所有权。[帧提交:398–423](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Source/GPUPhysicsLab/Private/Simulation/GPUPhysicsLabSimulation.cpp#L398-L423) [扫描调度:9–29](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Source/GPUPhysicsLab/Private/CSDispatch/GPUPhysicsLabSequencePasses.cpp#L9-L29) [显示发布:16–42](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Source/GPUPhysicsLab/Private/Display/GPUPhysicsLabPosePublication.cpp#L16-L42)
 
-1. 读取 GJK 输出（PointA, PointB, Axis, Distance）和 EPA 输出（Normal, Depth, ContactA, ContactB）
-2. 如果 EPA 失败，回退到 GJK 数据
-3. 调用 `GenerateContactManifoldFromEPA`：
-   - 对每个 Shape 调用 `GetContactFace` 获取参考面（最多 4 个顶点）
-   - 根据面类型选择裁剪策略
+### 8.2 每个 pass 独立参数块
 
-### 12.2 参考面提取（ContactFace.ush）
+ColoringPasses 为每个 pass 分配独立参数，声明 SRV/UAV/IndirectArgs。RDG 才能看见颜色、计数器、位姿和派发参数之间的读写关系。[染色调度:22–65](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Source/GPUPhysicsLab/Private/CSDispatch/GPUPhysicsLabColoringPasses.cpp#L22-L65)
 
-| 形状 | 面提取策略 |
-|------|-----------|
-| Box | 找到局部方向的主轴，生成该面的 4 个角顶点 |
-| Sphere | 返回 0 点（点接触，使用 ClipNone） |
-| Cylinder | 轴向（dot > 0.99）：4 点端面；径向（dot < 0.14）：2 点侧面；否则 0 点 |
-| Convex | 查询 ConvexInfoBuffer 获取面信息，按方向点积 + 距离加权选择最佳面 |
+“我在 C++ 先后调用两个函数”不等于资源依赖已经完整；不能省掉 shader 参数声明，指望裸 RHI buffer 地址自动进入 RDG 追踪。
 
-### 12.3 Sutherland-Hodgman 裁剪（FaceClipper.ush）
+### 8.3 矩阵与浮点语义适配
 
-对于面-面接触（`ClipNxN`）：
+WGSL 的列索引与 HLSL 数学行矩阵表示不同。GPUPhysicsLabRigidBlock 明确交叉块的角/线索引，并按真实元素取值展开 LDLᵀ。[局部块:8–39](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Shaders/Private/Common/Geometry/GPUPhysicsLabRigidBlock.ush#L8-L39)
 
-1. 从两个参考面的边界边生成裁剪平面
-2. 构建初始多边形（或使用 2 点面）
-3. **Sutherland-Hodgman 裁剪**：对每个裁剪平面，计算多边形顶点到平面的距离，保留内侧点，计算边-面交点，双缓冲交替
-4. 计算每个接触点的深度（投影到两个面平面）
-5. 按深度降序排序
-6. **降维到 4 点**：保留 P0，找到最远的 P1，在 P0-P1 基线两侧找最大垂直距离的点
+源码大量使用 precise 控制特定中间表达式，但接触热启动乘子还特意保留非 precise 表达式，记录了 DXC/driver 组合折叠可能改变全步差分。[约束数学:161–171](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Shaders/Private/Common/Solver/GPUPhysicsLabRigidConstraint.ush#L161-L171)
 
-使用 groupshared 工作空间（`SharedWorkspace[16 × 168]`，half 精度）存储多边形和裁剪平面。
+结论不是“给所有变量加 precise 更正确”，而是需要对照具体表达式、归约树和参考比较契约。
 
-### 12.4 局部空间转换
+## 九、宽相：两级网格、配对所有权与分层筛选
 
-生成世界空间流形后，将其转换到 Shape1 的局部空间存储：
+CPU PlanBroadphase 对半径使用 Wirth selection，得到 coarse/fine 网格与 large 列表；动态粗体标记决定是否需要补充固定体探测。[宽相调度:46–76](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Source/GPUPhysicsLab/Private/CSDispatch/GPUPhysicsLabBroadphasePasses.cpp#L46-L76)
 
-```hlsl
-LocalContactNormal = QuatRotateVector(QuatInverse(Rot1), WorldNormal);
-LocalContactPoint = QuatRotateVector(InvRot, WorldContactPoint - Pos);
-```
+GPU 随后执行：
 
-同时存储 `LastShapeWorldPositionDelta` 和 `LastShapeWorldRotationDelta`，供下一帧的 TryRestoreManifold 使用。
+1. 清网格计数/写入指针。
+2. gridCount。
+3. exclusive scan。
+4. gridScatter。
+5. 动态体探测相邻格。
+6. 必要时 findFixedLarge 补齐跨级/大体配对。
+7. 写候选数与下一阶段 indirect args。
 
----
+入口：[宽相调度:15–38、84–100](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Source/GPUPhysicsLab/Private/CSDispatch/GPUPhysicsLabBroadphasePasses.cpp#L15-L100)。它不是旧内核的 LBVH。
 
-## 第十三节 PBD 碰撞求解器
+候选还经过固定—固定剔除、双向 groups/mask、包围球、世界 AABB、面轴和禁碰撞配对筛选，避免把所有桶内对象直接送进窄相。具体见 [候选 shader:53–107](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Shaders/Private/Broadphase/Pairs/GenerateCandidatePairs.usf#L53-L107)。实现责任与参考相同，见文末源码索引。
 
-### 13.1 Gather —— 局部到世界空间转换
+### 9.1 scan 如何进入 UE
 
-**Shader**: `/GPUPhysics/CollisionGather.usf`，入口 `CollisionGatherCS`，`[numthreads(32,1,1)]`
+一个工作组扫描 512 项，线程数 256；组和递归到更高层，再向下添加偏移。SequencePasses 为每层创建独立 scratch 和 pass，避免层间错误别名。[扫描调度:9–29](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Source/GPUPhysicsLab/Private/CSDispatch/GPUPhysicsLabSequencePasses.cpp#L9-L29) [扫描 shader:1–24](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Shaders/Private/Broadphase/Sort/ScanBlocks.usf#L1-L24)
 
-将局部空间流形转换为世界空间求解器流形：
+基础推导见 [three-avbd 前缀和章节](/knowledge/three-avbd-gpu-solver/)。这里新增的是 RDG 生命周期与显式绑定。
 
-1. 读取局部流形 + 两个粒子的当前位置 / 旋转
-2. `WorldNormal = QuatRotateVector(Rot1, LocalContactNormal)`（手动归一化，处理零向量）
-3. 计算切线 `TangentU` / `TangentV`（基于 `|Normal.z|` 选择基向量）
-4. 对每个接触点：
-   - `WorldP0 = Pos0 + QuatRotateVector(Rot0, LocalContactPoint0)`
-   - `Phi = dot(WorldP0 - WorldP1, WorldNormal)`（深度，带缩放：0→1 区间线性到 0.6）
-5. 第一次迭代：计算切向误差（静态摩擦用锚点，动态摩擦用相对速度 × DeltaTime）
-6. 后续迭代：读取 `TotalDeltaBuffer` 中两个体的累计增量，更新 `ContactDelta`
+## 十、原生窄相与接触缓存
 
-### 13.2 PBDSolver —— 核心求解
+### 10.1 保留 SAT 与多点流形
 
-**Shader**: `/GPUPhysics/CollisionPBDSolver.usf`，入口 `PBDCollisionSolverCS`，`[numthreads(32,1,1)]`
+原生接触根据形状路由：
 
-#### GroupShared 缓存
+- sphere–sphere / sphere–box：解析路径。
+- 涉及 Hull：真实凸多面体 SAT/裁剪。
+- box / sail：OBB SAT，Sail 碰撞仍按盒。
+- 含负标签曲面：交给扩展 permutation，不在原生路径重复生成。
 
-```hlsl
-groupshared float gs_DeltaData[32 * 12];
-// 每线程 12 floats: deltaPosA[3], deltaRotA[3], deltaPosB[3], deltaRotB[3]
-```
+入口：[接触历史:44–65](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Shaders/Private/Common/Contact/GPUPhysicsLabContactHistory.ush#L44-L65)。Box 的十五轴、faceBias 和最多八点裁剪分别落在 [SAT:35–53](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Shaders/Private/Common/Geometry/GPUPhysicsLabConvexSAT.ush#L35-L53) 与 [裁剪:6–36](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Shaders/Private/Common/Contact/GPUPhysicsLabPolyhedronClipping.ush#L6-L36)。这些机制的意义已在 [参考专题](/knowledge/three-avbd-gpu-solver/) 详细解释。
 
-#### 法向约束求解
+### 10.2 Pair 哈希与原子语义
 
-对每个接触点（4 内部迭代 × NumContacts）：
+HashInsert 使用 InterlockedExchange 携带被交换旧值继续线性探测，对应 WGSL atomicExchange。读取 atomic u32 则用 InterlockedOr(...,0) 表达原子读，不仅是普通 UAV load。[流形入口:5–8](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Shaders/Private/Narrowphase/Manifold/UpdateManifolds.usf#L5-L8) [接触历史:19–27](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Shaders/Private/Common/Contact/GPUPhysicsLabContactHistory.ush#L19-L27)
 
-1. 读取 `Phi`（clamp 到 MaxPushOut = 0.5）
-2. 计算有效质量：$W = m_A^{-1} + m_B^{-1} + I_A^{-1} (\mathbf{R}_A \times \mathbf{n})^2 + I_B^{-1} (\mathbf{R}_B \times \mathbf{n})^2$
-3. 高度差缩放：如果法线 · up > 0.1，上方物体的有效质量减半（`scaleA 或 scaleB = 0.5`），减少上方物体的修正量
-4. $\lambda = 0.8 \times C_{adjusted} / (W_1 \times scaleA + W_2 \times scaleB)$
-5. 单侧约束：`NetPushOutNormal + lambda ≥ 0`（不允许拉力）
-6. 累积 `deltaPos` 和 `deltaRot`（位置 + `R × n` 旋转修正）
+这是跨语言移植中非常具体的差异：类型都叫 uint，不代表原子访问语义相同。
 
-#### 摩擦求解
+### 10.3 匹配、粘着与两种复用
 
-当 `CurrentSolverIter > 6` 时启用摩擦：
+接触继承保留参考的 feature 优先、nearest 补救、stick 锚点与乘子/罚参数衰减。reuseContacts 根据参考位姿变更步号判断；reuseManifolds 则沿用整个旧集合。[接触历史:29–42、66 起](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Shaders/Private/Common/Contact/GPUPhysicsLabContactHistory.ush#L29-L66)
 
-1. 读取切向 `ContactDelta`（从 Gather 阶段累积）
-2. 更新 `ContactDelta` 加入当前迭代的切向位移分量
-3. `PushOutU = -FrictionStepFactor × ContactDeltaU × ContactMassU`
-   - `FrictionStepFactor`：iter < 10 时 0.5，之后 0.25
-4. **摩擦锥**：
-   - 切向推力 ≤ 静摩擦极限（`StaticFriction × |NormalPressure|`）→ 全静态摩擦（ratio=1）
-   - 超过 → clamp 到动摩擦极限（`DynamicFriction × |NormalPressure|`）
-5. 应用切向位移到 deltaPos 和 deltaRot
+两者不能混淆：
 
-#### 增量输出
+- reuseContacts 仍需要本步找到该配对。
+- reuseManifolds 可以绕过整个 grid/narrowphase，但不会发现旧集合以外的新接触。
+- 位姿、过滤、拓扑和资源变更必须使整体复用失效。
+- 完整历史验收的 P20 问题仍单列，不因局部公式正确而消失。
 
-每个约束对两个体产生增量，通过 `InterlockedAdd` 分配输出槽位到 `ParticleDeltaBuffer`：
+## 十一、CSR 与 Jones–Plassmann 染色
 
-```hlsl
-InterlockedAdd(ParticleDeltaCountBuffer[idx], 1, slot);
-if (slot < MAX_DELTAS_PER_PARTICLE) {  // 最多 12 个增量
-    ParticleDeltaBuffer[base + slot * 6 + 0..2] = deltaPos;
-    ParticleDeltaBuffer[base + slot * 6 + 3..5] = deltaRot;
-}
-```
+CSR 把每个动态体连接的 Joint 与 Manifold 放进紧凑邻接行。Degree→Scan→Fill→Sort 的顺序保持参考；容量区间按 body capacity 分配，而 scan 只覆盖 live bodyCount+1，二者不能混用。[拓扑调度:32–93](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Source/GPUPhysicsLab/Private/CSDispatch/GPUPhysicsLabTopologyPasses.cpp#L32-L93)
 
-#### 碰撞事件生成
+JP 染色继续采用 compact、mark、AB/BA 轮次、稳定颜色桶与 GPU 间接派发。[染色调度:33–65](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Source/GPUPhysicsLab/Private/CSDispatch/GPUPhysicsLabColoringPasses.cpp#L33-L65)
 
-如果任一物体启用了 `bGenerateCollisionEvents` 且本对尚未记录事件：
+图顶点是动态刚体，边来自两动态端点约束；共同接触固定地板不会强迫所有箱子异色。这不是显式连通分量/睡眠岛系统。
 
-```hlsl
-if (bGenerateCollisionEvents && bEventRecorded == 0) {
-    // 平均有深度的接触点位置
-    InterlockedAdd(CollisionEventBuffer[0], 1, EventIndex);
-    // 写入 [idxA, idxB, avgContactPos.xyz, avgContactPos.z, WorldNormal.xyz]
-}
-```
+### 11.1 染色冲突并不会自动变安全 Jacobi
 
-### 13.3 ApplyDelta —— 增量应用
+shader 在待处理状态上增加 clashes；adapt 之后可以增加轮数或颜色容量。冲突尚未解决时，同色相邻体的就地读写前提不成立，不能把这种状态命名为“安全并行回退”。[染色 shader:149–165](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Shaders/Private/Solver/Coloring/BuildColors.usf#L149-L165) [自适应:7–22](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Source/GPUPhysicsLab/Private/Simulation/GPUPhysicsLabAdaptation.h#L7-L22)
 
-**Shader**: `/GPUPhysics/CollisionApplyDelta.usf`，入口 `CollisionApplyDeltaCS`，`[numthreads(64,1,1)]`
+这是物理正确性约束，不只是性能指标。零 clashes 也是必要诊断项之一，而非整个引擎正确的充分条件。
 
-每粒子执行：
+## 十二、原问题：保留每刚体六维局部系统
 
-1. 读取 `ParticleDeltaCountBuffer[idx]`，跳过 0 增量粒子
-2. clamp 到 `MAX_DELTAS_PER_PARTICLE = 12`
-3. 累加所有增量：`totalDeltaPos += deltaPos[i]`，`totalDeltaRot += deltaRot[i]`
-4. 位置更新：`currentPos += totalDeltaPos`
-5. 旋转更新：`deltaQuat = EulerToQuaternion(totalDeltaRot)`，`currentRot = normalize(QuatMultiply(deltaQuat, currentRot))`
-6. 写入 `TotalDeltaBuffer`（供下一次 Gather 迭代读取）
-7. 清零 `ParticleDeltaCountBuffer[idx]`
+每体更新平移和小角度旋转：
 
-### 13.4 ScatterOutput —— 约束持久化
+$$
+\Delta\mathbf q_i=
+\begin{bmatrix}\Delta\mathbf x_i\\\Delta\boldsymbol\theta_i\end{bmatrix},
+\qquad
+\mathbf H_i\Delta\mathbf q_i=\mathbf g_i
+$$
 
-**Shader**: `/GPUPhysics/CollisionScatterOutput.usf`，入口 `ScatterOutputCS`
+惯性项加上本体 CSR 约束行；单行按下式累加：
 
-在 PBD 求解完成后，将流形持久化到 `ConstraintArrayBuffer` 供下一帧热启动使用：
+$$
+\mathbf H_i\mathrel{+}=k\mathbf J\mathbf J^\mathsf T,
+\qquad
+\mathbf g_i\mathrel{+}=\mathbf J(kC+\lambda)
+$$
 
-1. 更新 `LastShapeWorldPositionDelta` 和 `LastShapeWorldRotationDelta`
-2. 从 `SolverManifoldBuffer` 读取 `StaticFrictionRatio`：
-   - ≥ 1.0 → 设置 `bHasAnchor` flag（静态摩擦锚点有效）
-   - > 0 → 按 ratio 插值锚点
-   - = 0 → 重置锚点 = 接触点，清除 flag
-3. 通过 `AddConstraintToParticle` 将约束索引添加到两个粒子的约束列表
-4. 构建 `FGPUConstraint` 写入 `ConstraintArrayBufferRW`
+Acc 保存线、角、交叉块和右端，不建立全场景大矩阵。[局部块:9–24](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Shaders/Private/Common/Geometry/GPUPhysicsLabRigidBlock.ush#L9-L24) [Primal:29–110](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Shaders/Private/Solver/Primal/PrimalSolve.usf#L29-L110)
 
----
+### 12.1 多 lane 并行的是邻接项
 
-## 第十四节 移动端 ES3.1 兼容
+1/2/4/8 lane 按颜色桶大小选择，分摊每体 CSR 项；一个流形内部遍历多个点，之后共享内存归约，由 lane 0 解方程和写位姿。[Primal:21–110](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Shaders/Private/Solver/Primal/PrimalSolve.usf#L21-L110)
 
-### 14.1 类型化 Buffer 而非结构化 Buffer
+默认打包阈值仍是 $2^{31}$、$2^{15}$、$2^{12}$，不是所有常见规模下一体一线程。[Step 默认:90–100](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Source/GPUPhysicsLab/Private/GPUData/GPUPhysicsLabStepData.h#L90-L100)
 
-ES3.1 不支持 `RWStructuredBuffer<float4>` 的随机读写，因此所有 Buffer 使用 `RWBuffer<float>` / `RWBuffer<uint>`（类型化 Buffer），通过 4 个连续 float 模拟 float4：
+### 12.2 LDLᵀ 与四元数
 
-```hlsl
-// 读取粒子位置（float4 打包在 float buffer 中）
-uint base = particleIndex * 4;
-float3 position = float3(PositionBuffer[base], PositionBuffer[base+1], PositionBuffer[base+2]);
-float mass = PositionBuffer[base+3];
-```
+六维 LDLᵀ 手工展开，第二至第六 pivot 下限为：
 
-### 14.2 CFLAG_AllowTypedUAVLoads
+$$
+D_k\leftarrow\max(D_k,10^{-5}H_{kk}),\qquad k=2,\ldots,6
+$$
 
-旧式 Shader 使用 `#pragma CFLAG_AllowTypedUAVLoads` 允许对类型化 UAV 进行随机读取（ES3.1 需要 `GL_EXT_shader_image_load_formatted` 扩展）。
+随后位置减去线性解，旋转用负角增量 qadd 更新。没有选主元/线搜索的新算法。[局部块:32–88](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Shaders/Private/Common/Geometry/GPUPhysicsLabRigidBlock.ush#L32-L88)
 
-### 14.3 iOS Metal 防崩溃
+qadd 是小角度一阶积分后归一化，qsub 是 $2\operatorname{vec}(ab^{-1})$，不是精确 log/exp。[数学边界:27–37](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Source/GPUPhysicsLab/Private/Math/GPUPhysicsLabQuaternionMath.h#L27-L37)
 
-- **ParticleModify 条件写入**：只写入对应 flag 位置 1 的 Buffer，减少分散写入避免 `AGXMetalA12 Code=3` 错误
-- **EPA 反融合**：`SuppB = max(SuppB, -1e20)` 打断 `Load-Mul` 指令融合
-- **GroundConstraint 使用 `max()`**：替代 `if` 赋值，避免 Metal 分支预测问题
-- **Half 精度 GPUShape**：使用 `half3` / `half4` 减少 GPU 寄存器压力
-- **`asuint` / `asfloat` 类型双关**：避免 FTZ（Flush-to-Zero）问题
+### 12.3 初值不等于惯性目标
 
-### 14.4 GroupShared 分区
+默认无额外动力属性时：
 
-GJK、EPA、Manifold 和 PBD Solver 使用 groupshared 内存，但采用 **per-thread 分区**（每个线程拥有独立的内存段），无需 `GroupMemoryBarrier`：
+$$
+\mathbf y=\mathbf x_n+h\mathbf v_n+h^2\mathbf g
+$$
 
-```hlsl
-// GJK: 每线程 41 floats 的 Simplex 存储
-float GetSimplexBase(uint threadIdx) { return threadIdx * 41; }
-```
+没有 $1/2$。startAtRest 仅让慢体从步初位姿开始迭代，目标仍包含重力；它不是睡眠或清零速度。[刚体积分:47–81](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Shaders/Private/Simulation/Integration/IntegrateBodies.usf#L47-L81)
 
-只有 EPAPolytope 的全局↔shared 转换辅助函数使用 `GroupMemoryBarrierWithGroupSync()`，但这些函数在批量路径中未被调用。
+## 十三、接触行与对偶：真正共享的求解数学
 
----
+### 13.1 接触误差不是每轮重新算几何穿透
 
-## 第十五节 GPU 异步回读
+接触行沿参考 Taylor 形式：
 
-### 15.1 异步回读机制
+$$
+C^*=(1-\alpha)C_0+
+\mathbf l\cdot(\Delta\mathbf x_A-\Delta\mathbf x_B)
++(\mathbf r_A\times\mathbf l)\cdot\Delta\boldsymbol\theta_A
++(\mathbf r_B\times(-\mathbf l))\cdot\Delta\boldsymbol\theta_B
+$$
 
-```cpp
-struct FAsyncReadbackResources {
-    TSharedPtr<FenceRHIRef> SharedFence;
-    TUniquePtr<FRHIGPUBufferReadback> PositionReadback;
-    TUniquePtr<FRHIGPUBufferReadback> RotationReadback;
-    TUniquePtr<FRHIGPUBufferReadback> StateReadback;
-    TUniquePtr<FRHIGPUBufferReadback> VelocityReadback;
-    TUniquePtr<FRHIGPUBufferReadback> AngularVelocityReadback;
-    TUniquePtr<FRHIGPUBufferReadback> DebugReadback;
-    TUniquePtr<FRHIGPUBufferReadback> CollisionEventReadback;
-    uint64 EnqueuedFrameIndex;
-    bool bPending;
-    bool bIncludeVelocityData;
-};
-```
+球与扩展曲面特征域使用 initial rotation 的力臂，Box/Hull 保持当前旋转规则。这样避免滚动旋转在法向线性化中制造虚假分离。[约束数学:91–135](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Shaders/Private/Common/Solver/GPUPhysicsLabRigidConstraint.ush#L91-L135)
 
-每帧模拟结束后，`EnqueueAsyncReadback` 将 7 个 Buffer 拷贝到 `FRHIGPUBufferReadback` 暂存区并设置共享 Fence。下一帧开始时，`TryProcessAsyncReadback` 检查 Fence 是否 signaled，如果是则锁定暂存 Buffer 并将数据转换为 CPU 端的 `FPhysicsParticleData`。
+### 13.2 法向与摩擦
 
-### 15.2 缓存延迟
+$$
+\mathbf F=\mathbf k\odot\mathbf C^*+\boldsymbol\lambda,\qquad
+F_n\leftarrow\min(F_n,0),\qquad
+\|\mathbf F_t\|\le\mu|F_n|
+$$
 
-由于异步回读有 1 帧延迟：
+负法向数值表示本实现约定下的承载分支，不是吸力。摩擦是二维向量整体圆锥约束，不是两条轴分别裁成方框。[约束数学:108–126](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Shaders/Private/Common/Solver/GPUPhysicsLabRigidConstraint.ush#L108-L126)
 
-- `GetPosition()` / `GetRotation()` / `GetVelocity()` 读取的是**上一帧**的模拟结果
-- `SetPosition()` / `SetVelocity()` 排队到**下一帧**应用
-- 新创建的物体在第一次 `Simulate()` 之前 `HasValidData()` 返回 `false`
+Primal 和 Dual 共用 EvaluateBodyContact，保证单体扩展的摩擦与恢复项在两个阶段使用同一评价函数。[Primal:84–87](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Shaders/Private/Solver/Primal/PrimalSolve.usf#L84-L87) [Dual:15–28](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Shaders/Private/Solver/Dual/DualUpdate.usf#L15-L28)
 
-### 15.3 FPhysicsParticleData 缓存结构
+### 13.3 暖启动、罚参数与材料刚度
 
-```cpp
-struct FPhysicsParticleData {
-    FVector CurrentPosition;      // 48 bytes (3 × float)
-    FVector PreviousPosition;
-    FVector Velocity;
-    FVector DeltaPosition;        // legacy, 未使用
-    float CurrentRotation[4];     // 四元数，float[4] 匹配 HLSL float4
-    float PreviousRotation[4];
-    FVector AngularVelocity;
-    FVector DeltaRotation;        // legacy
-    float Mass;
-    float InverseMass;
-    float InvInertiaScale;
-    float bGenerateCollisionEvents;
-    int32 ShapeType;               // 0=Box, 1=Cylinder, 2=Sphere, 3=Capsule, 4=Convex
-    FVector Extents;
-    int32 ParticleID;
-    int32 IsActive;
-    int32 bEnableCollision;
-    int32 FrameIndex;
-    int32 BodyGroupID;
-    int32 Padding;
-};  // 总计 160 bytes
-```
+跨步乘子乘 $\alpha\gamma$，罚参数乘 $\gamma$ 后夹在数值范围与材料刚度内。硬关节乘子累积，有限刚度与弹簧有自己的分支；不能用一个硬约束公式覆盖全部类型。[关节暖启动:16–77](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Shaders/Private/Common/Solver/GPUPhysicsLabWarmStart.ush#L16-L77)
 
-`FGPUPhysicsBody` 持有 `mutable FPhysicsParticleData CachedData` 和 `mutable bool bCacheValid`。getter 方法在访问前懒更新缓存。
+接触法向实际承载时才增加对应罚参数，切向未超过摩擦边界时才继续加强。massPenalty 从较轻动态质量除以 $h^2$ 给出法向初值下限。[约束数学:137–171](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Shaders/Private/Common/Solver/GPUPhysicsLabRigidConstraint.ush#L137-L171)
 
----
+### 13.4 塑性、断裂与事件时机
 
-## 第十六节 可视化系统
+yield 使角向力受限并迁移 rest，breakBend 比较初始 restStart 与当前 rest 的净偏转，fracture 将刚度/乘子归零。它不是累计疲劳或裂纹扩展。[关节暖启动:29–76](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Shaders/Private/Common/Solver/GPUPhysicsLabWarmStart.ush#L29-L76)
 
-### 16.1 ParticleVisualizationActor
+GPU 失效约束后，JavaScript/C++ 层回调尚未到达是正常异步现象。不能把“没有收到回调”直接判为“GPU 仍在施加这条关节”。
 
-`AParticleVisualizationActor` 是被动更新的可视化 Actor——不使用 `Tick`，由 `PhysicsWorldManager` 在模拟后调用 `UpdateVisualization()`。
+## 十四、速度、Finalize 与接受版本
 
-#### 混合渲染策略
+### 14.1 从位姿差重建速度
 
-| 类型 | 渲染方式 | 适用场景 |
-|------|---------|---------|
-| NormalBox/Cylinder/Sphere/Capsule/Convex | InstancedStaticMeshComponent | 大量相同形状的粒子 |
-| NormalCylinder1 (101) | 独立的 ISM | 彩蛋币等需要单独材质的 Cylinder |
-| Custom (255) | 独立 StaticMeshComponent | 需要自定义 Mesh/材质/缩放/阴影的物体 |
+默认质心零时：
 
-#### Instance 缩放计算
+$$
+\mathbf v_{n+1}=\frac{\mathbf x_{n+1}-\mathbf x_n}{h},
+\qquad
+\boldsymbol\omega_{n+1}=\frac{\operatorname{qsub}(q_{n+1},q_n)}{h}
+$$
 
-```cpp
-static FVector CalculateInstanceScale(
-    EPhysicsShapeType ShapeType,
-    const FVector& ActualExtents,    // 物理形状的实际尺寸
-    const FVector& DefaultExtents    // Mesh 的默认尺寸
-);
-// Box: (ActualHalfX/DefaultHalfX, ActualHalfY/DefaultHalfY, ActualHalfZ/DefaultHalfZ)
-// Cylinder: (Radius/DefaultRadius, HalfHeight/DefaultHalfHeight, Radius/DefaultRadius)
-// Sphere: (Radius/DefaultRadius) × (1,1,1)
-```
+质心偏移非零时，代码还加入旋转质心位移对线速度的贡献。vel.w 保存沿 up 的历史速度。[速度更新:7–25](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Shaders/Private/Simulation/Integration/UpdateVelocity.usf#L7-L25)
 
-#### Custom 类型生命周期管理
+### 14.2 非有限值检查不修改物理解
 
-- 创建时：`CreateCustomComponent` → 新建 `UStaticMeshComponent`，设置 Mesh / 材质 / 缩放 / 阴影
-- 每帧：`UpdateCustomComponent` → 更新 Transform 和配置
-- 销毁时：`DestroyCustomComponent` → 从 TMap 移除并销毁 Component
+UpdateVelocity 检查位姿、惯性目标、速度与四元数有效性；发现非法后用 CAS 记录首错，而不是清速度、强行归零位置或自动重试。[速度更新:26–35](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Shaders/Private/Simulation/Integration/UpdateVelocity.usf#L26-L35)
 
-### 16.2 Debug 绘制
+独立 FinalizeCS 在后续 dispatch 才写 Completed/Accepted 版本；不能让速度 kernel 的线程 0 在其他工作组未结束时宣称整步成功。[速度更新:37–46](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Shaders/Private/Simulation/Integration/UpdateVelocity.usf#L37-L46)
 
-通过 CVar `GPUPhysics.DebugDraw` 启用：
+### 14.3 三个版本不应混为一谈
 
-- Box：`DrawDebugBox`（半尺寸）
-- Cylinder：`DrawDebugCylinder`（16 段，Radius + HalfHeight）
-- Sphere：`DrawDebugSphere`
-- Convex：变换凸包顶点到世界空间，`DrawDebugLine` 绘制边（多凸包用循环颜色区分）
-- Custom 类型用橙色，其他用绿色
+- SubmittedSteps：GT 已提交的步数。
+- CompletedSteps：异步状态中确认完成的步数。
+- StepStatus[4]：GPU 接受步号。
 
----
+GT Poll 验证这些数的单调性与范围。显示发布还要把快照版本与状态、Epoch 对齐，而不是只看“GPU buffer 还活着”。[Simulation:1517–1551](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Source/GPUPhysicsLab/Private/Simulation/GPUPhysicsLabSimulation.cpp#L1517-L1551) [发布:43–55](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Source/GPUPhysicsLab/Private/Display/GPUPhysicsLabPosePublication.cpp#L43-L55)
 
-## 第十七节 碰撞事件系统
+## 十五、接受状态与失败恢复：必须覆盖的不只是 Body
 
-### 17.1 事件生成流程
+### 15.1 GPU 备份
 
-1. 创建 Body 时设置 `bGenerateCollisionEvents = true`
-2. PBD Solver 检测到碰撞时，通过 `InterlockedAdd` 在 `CollisionEventBuffer` 分配事件槽位
-3. 写入事件数据：`[idxA, idxB, avgContactPos, WorldNormal]`
-4. 异步回读到 CPU
-5. `PhysicsWorldManager::GetAllCollisionEvents()` 返回当前帧事件列表
+每个提交子步开始前，RenderState 在 GPU 内复制当前状态到备份：
 
-### 17.2 事件缓冲区布局
+- Body、Reference、Status。
+- Joint、Grid、Pairs、Hash、Counters、CSR、Colors、Args。
+- Contact/Manifold 两代及 ContactWatch 集合/事件。
+- 启用时的 Cloth Particle/Spring/Contact/Attachment。
 
-```
-CollisionEventBuffer:
-  [0..3]   uint4  — 事件计数器（counter）
-  [4+0×8]  Event 0: [idxA, idxB, contactPos.xyz(asuint), contactPos.z, normal.xyz(asuint), pad]
-  [4+1×8]  Event 1: ...
-  ...
-  [4+63×8] Event 63 (MaxCollisionEvents = 64)
-```
+接触 parity、整体流形有效标记和事件 flip 也需要保持一致。[Simulation:400–423](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Source/GPUPhysicsLab/Private/Simulation/GPUPhysicsLabSimulation.cpp#L400-L423)
 
-使用 `asuint` 将 float 编码为 uint 存储（ES3.1 兼容），回读时用 `asfloat` 解码。
+只备份 Body、失败后继续使用新 Contact lambda，不能称为同一物理状态的恢复。
 
-### 17.3 去重
+### 15.2 失败后先撤销发布，再恢复
 
-`MaxCollisionEventDedupSlots = 4096`，用于事件去重（避免同一对物体在一帧内生成多个事件）。
+Poll 发现传输、版本或 GPU error 后，清观察快照，Revoke 显示并排队 RestoreAccepted；fence 完成后进入 Faulted。当前路径不在原会话中自动改 dt/增迭代重试。[Simulation:1491–1545](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Source/GPUPhysicsLab/Private/Simulation/GPUPhysicsLabSimulation.cpp#L1491-L1545)
 
----
+工程收益是错误不会被悄悄修值后混入后续正常步；成本是额外 GPU 存储与每步复制。不能将它描述成 three-avbd 原版不存在成本的“免费回滚”。
 
-## 第十八节 编辑器工具
+### 15.3 不能笼统承诺所有错误都已进入拒绝事务
 
-### 18.1 Shader 编译器辅助
+这里要区分代码实际做了什么：
 
-`FShaderCompilerHelper` 提供编辑器命令直接编译 Shader 生成 GLSL：
+- 曲面 GJK/EPA 失败会设置 $0x100$，SurfaceStatus 将它转换为 StepStatus error=3。[曲面状态:1–10](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Shaders/Private/Narrowphase/Manifold/SurfaceStatus.usf#L1-L10)
+- 非有限刚体结果会进入 StepStatus。[速度更新:26–35](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Shaders/Private/Simulation/Integration/UpdateVelocity.usf#L26-L35)
+- 普通 pair/contact/manifold 容量溢出与 coloring clashes，当前读到的链路仍主要写 Counters，并由异步 adapt 处理；Finalize 本身没有统一读取这些计数。[接触历史:29–34](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Shaders/Private/Common/Contact/GPUPhysicsLabContactHistory.ush#L29-L34) [自适应:7–22](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Source/GPUPhysicsLab/Private/Simulation/GPUPhysicsLabAdaptation.h#L7-L22) [Simulation:2149–2167](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Source/GPUPhysicsLab/Private/Simulation/GPUPhysicsLabSimulation.cpp#L2149-L2167)
 
-```
-CompileShader <ShaderName> [USFFile] [OutputDir]
-CompileAllShaders <OutputDir>
-```
+**因此不能把计划里的“所有溢出与冲突均整步拒绝”当成已经逐项证实的运行时保证。** 溢出当步是否丢接触、冲突当步是否破坏并行前提，需要独立失败注入；后续扩容不等于回滚并重算了该步。
 
-注册为 IConsoleCommand，在编辑器控制台直接调用。
+同样，多子步批量提交的备份推进、失败步身份与通用版本校验兼容性，都应按真实失败路径验证。局部 rollback 测试不能替代任意阶段、任意批次的事务证明。
 
-### 18.2 ConvexHullDataAsset 编辑器
+## 十六、运行时身份、删除、Reset 与容量
 
-`UConvexHullDataAsset` 提供两个 `CallInEditor` 按钮：
+### 16.1 句柄是会话、槽位、代际三元组
 
-- `ExtractConvexFromMesh()`：从 `SourceMesh` 的 BodySetup 提取凸包数据
-- `ClearData()`：清空所有数据
+Body/Shape/Joint Handle 都包含 Simulation GUID、Slot 和 Generation。删除再复用槽位，不会让旧句柄复活；跨 World 句柄也不能通用。[作者类型:29–94](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Source/GPUPhysicsLab/Public/Bodies/GPUPhysicsLabBodyDefinition.h#L29-L94) [Simulation:1578–1619](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Source/GPUPhysicsLab/Private/Simulation/GPUPhysicsLabSimulation.cpp#L1578-L1619)
 
-### 18.3 测试模块
+公共 IsValid 只能检查结构形式；是否仍是当前活对象，还要经过 Simulation 的代际/会话检查。
 
-`GPUPhysicsTests` 模块（UncookedOnly）包含：
+### 16.2 Body 固定容量与接触容量增长是两回事
 
-- `PhysicsWorldManagerTest.cpp`：自动化测试，验证 PhysicsWorldManager 的创建、初始化、Body 管理等功能
-- 通过 `AutomationController` 集成到 UE 自动化测试框架
+CreateRuntimeBody 从 FreeRuntimeBodies 取预留槽，耗尽便拒绝，不自动增长 BodyStorage。Shape 可以共享，但一个 Body 仍只有一个 Shape，不是 Compound 追加接口。[Simulation:1622–1659](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Source/GPUPhysicsLab/Private/Simulation/GPUPhysicsLabSimulation.cpp#L1622-L1659)
 
----
+Pair/Contact/Manifold 容量可通过 RequestSceneCapacityGrowth 与 adapt 增长，需重建相关资源和 bind 关系，迁移两代历史并使整体流形缓存失效。[Simulation:500–546、1137–1153、2149–2167](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Source/GPUPhysicsLab/Private/Simulation/GPUPhysicsLabSimulation.cpp#L500-L2167)
 
-## 第十九节 关键设计决策与限制
+“接触能扩容”不表示“运行时刚体无限增加”。
 
-### 19.1 设计优势
+### 16.3 拓扑编辑不是普通数组修改
 
-1. **接口分离**：上层无需接触 RHI，GPU 资源封装在 Dispatcher Actor 中
-2. **SoA 布局**：优化 GPU coalescing 访问
-3. **热启动**：TryRestoreManifold 在物体相对静止时跳过整个 GJK+EPA+Manifold 管线
-4. **增量累积**：PBD Solver 的增量通过 ParticleDeltaBuffer 收集，ApplyDelta 统一应用，避免同一帧内多次读写位置 Buffer
-5. **移动端兼容**：ES3.1 / Metal A12 全链路兼容
+删除 Body 会影响关节、形状引用、过滤、历史、显示身份和查询结果。Reset 也不只是将位置数组复制回初始值：旧句柄、事件、已排队回读和 display epoch 都需要失效。
 
-### 19.2 当前限制
+当前代码有相应寿命入口，但历史 P28 明确只验收有界预分配事务；任意动态编辑同时扩容、Hull registry 增长和全部失败注入仍有限制。[P28 验收:1–31](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Doc/Porting/P28_RESULTS.json#L1-L31)
 
-1. **图着色未启用**：`MaxColorGroups = 1`，所有约束在单一颜色组中求解，依赖 SolverIterations 收敛而非并行分组
-2. **CPU 查询无加速结构**：`Overlap` 是 O(N) 线性扫描，无 BVH / 网格加速
-3. **CPU 无 EPA**：GJK 检测到相交后不计算渗透深度
-4. **Capsule 不支持碰撞**：仅用于可视化绘制
-5. **多凸包碰撞未完全实现**：GPU 将多凸包视为单一凸包外壳，真正的 per-hull 碰撞需要为每个 hull 创建独立 Body（CompoundBody 方式）
-6. **DeltaTime 硬编码**：Body 的力/冲量转换中 `DeltaTime = 1.0/60.0` 硬编码，未使用实际帧率
+## 十七、查询与异步读回
 
-### 19.3 性能参数推荐
+### 17.1 CPU 快照只能观察，不能反向驱动物理
 
-| 参数 | 推荐值 | 说明 |
-|------|--------|------|
-| MaxBodies | ≤ 4096 | 移动端建议 ≤ 2048 |
-| SolverIterations | 12–16 | 更多迭代更稳定但更慢 |
-| MaxBroadPhasePairs | 10240 | Broadphase 输出上限 |
-| DeltaTimeSmoothFrames | 5 | 平滑窗口 |
-| MinDeltaTime / MaxDeltaTime | 0.01 / 0.025 | 限制在 40–100 FPS |
-| RECYCLING_DELAY_FRAMES | 5 | 不可调（硬编码），确保 GPU 安全 |
+诊断、Body、Joint、Raycast、Contact Events 各有请求、RT 回读和 GT 校验流程。它们必须带上请求时身份与版本，防止槽位复用后把旧结果解释成新物体。[Simulation:663–807、1299–1490](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Source/GPUPhysicsLab/Private/Simulation/GPUPhysicsLabSimulation.cpp#L663-L1490)
 
----
+读回延迟不能通过每步全量拷回再上传来“修复”，否则会失去 GPU 权威状态并引入旧帧覆盖新帧。
 
-## 附录 A：所有 Compute Shader 一览
+### 17.2 射线不是完整空间查询系统
 
-| # | Shader 类 | USF 文件 | 入口 | 线程组 | 用途 |
-|---|-----------|---------|------|--------|------|
-| 1 | FParticleAddShader | ParticleAdd.usf | AddParticlesMain | 64 | 新粒子写入 |
-| 2 | FParticleModifyShader | ParticleModify.usf | ParticleModifyMain | 64 | 粒子属性修改 |
-| 3 | FParticleIntegrateShader | ParticleIntegrate.usf | Main | 64 | 重力积分 |
-| 4 | FGroundConstraintShader | GroundConstraint.usf | Main | 64 | 地面约束 |
-| 5 | FCollisionBroadPhaseShader | CollisionBroadPhase.usf | Main | 8×8 | AABB 宽相 |
-| 6 | FTryRestoreManifoldShader | CollisionTryRestoreManifold.usf | TryRestoreManifoldCS | 64 | 流形热启动 |
-| 7 | FCollisionDetectionCS | CollisionDetection.usf | CollisionDetectionCS | 32 | GJK 窄相 |
-| 8 | FCollisionEPACS | CollisionEPA.usf | CollisionEPACS | 16 | EPA 渗透 |
-| 9 | FCollisionManifoldLocalSpaceCS | CollisionManifoldLocalSpace.usf | CollisionManifoldLocalSpaceCS | 16 | 流形生成 |
-| 10 | FCollisionColoringShader | CollisionColoringMain.usf | CollisionColoringMain | 64 | 图着色 |
-| 11 | FCollisionGatherCS | CollisionGather.usf | CollisionGatherCS | 32 | 局部→世界 |
-| 12 | FCollisionPBDSolverCS | CollisionPBDSolver.usf | PBDCollisionSolverCS | 32 | PBD 求解 |
-| 13 | FCollisionApplyDeltaCS | CollisionApplyDelta.usf | CollisionApplyDeltaCS | 64 | 增量应用 |
-| 14 | FCollisionScatterOutputCS | CollisionScatterOutput.usf | ScatterOutputCS | 64 | 约束持久化 |
-| 15 | FParticleVelocityShader | ParticleVelocity.usf | Main | 64 | 速度重算 |
+当前有 Raycast.usf 与最近命中选择/结果阶段；大批量查询是否足够高效、是否覆盖所有混合形状，仍需按具体入口验收。不能从“存在宽相网格”推导“射线已自动沿网格/BVH 加速”。[查询 shader:1 起](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Shaders/Private/Queries/Raycast.usf#L1)
 
-## 附录 B：Shader Include 依赖树
+### 17.3 事件不是同步逐点回调
 
-```
-Common/
-  ├── ParticleData.ush      — 粒子结构、SoA 访问、MaxDistance 计算
-  ├── QuaternionMath.ush    — 四元数库（EulerToQuaternion, QuatMultiply, ...）
-  ├── CollisionTypes.ush    — 所有碰撞结构体、常量、Pack/Unpack 函数
-  └── DebugMacros.ush       — 调试宏（8 阶段 × 100 slots）
+ContactEvents 对比配对集合给出 begin/end，关节状态回读后解码断裂等结果。通知有缓冲容量、watch 配置和异步延迟，不适合作为每轮 primal 的 CPU 反馈控制环。
 
-GJK/
-  ├── ShapeSupport.ush      — Support 函数
-  ├── GJKSimplex.ush        — CPU 参考版 Simplex 处理
-  └── GJKCore.ush           — GPU groupshared 版 GJK 核心
+## 十八、Niagara 发布：GPU 直读不等于整条链零拷贝
 
-EPA/
-  ├── EPAPolytope.ush       — 多面体数据结构 + groupshared
-  └── EPACore.ush           — EPA 算法（含 EPAPolytope.ush）
+### 18.1 当前发布是不可变快照租约
 
-Manifold/
-  ├── ContactFace.ush       — 参考面提取
-  ├── FaceClipper.ush       — Sutherland-Hodgman 裁剪
-  └── ManifoldCore.ush      — 流形生成入口（含 ContactFace + FaceClipper）
-```
+PosePublication::Prepare：
 
-## 附录 C：CVar 控制台变量
+1. 检查订阅/请求和待处理数量上限。
+2. 将 Body 拷贝到不可变 GPU buffer。
+3. 提取 pooled buffer；附带活槽索引和 Generation 表。
+4. 布料启用时也复制粒子状态。
+5. 异步读回 32 字节 status 验证发布版本。
 
-| CVar | 默认值 | 说明 |
-|------|--------|------|
-| `GPUPhysics.DebugDraw` | 0 | 启用 Debug 绘制 |
-| `GPUPhysics.EnableSimulate` | 1 | 启用/暂停物理模拟 |
+Poll 只有在 error=0、completed=step、accepted=step 且 Epoch 相符时才替换 Accepted。[发布:16–55](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Source/GPUPhysicsLab/Private/Display/GPUPhysicsLabPosePublication.cpp#L16-L55)
 
-## 附录 D：源文件索引
+所以它避免了 CPU 中转全部位姿，但**并非像 three-avbd BodyMesh 那样直接把持续改写的仿真 buffer 裸露给显示**。这里确实有 GPU→GPU 全体记录复制和保留多个快照的成本。
 
-```
-Public/
-  Interface/
-    PhysicsTypes.h          — USTRUCT/UENUM/委托定义
-    IPhysicsWorld.h         — 物理世界接口
-    IPhysicsBodyHandle.h    — 物体句柄接口
-    IPhysicsQueryInterface.h — 查询接口
-    PhysicsCallbacks.h      — C++ 委托声明
-  Data/
-    ConvexHullDataAsset.h   — 凸包数据资产
-  PhysicsWorldManager.h     — 蓝图层 Actor
+### 18.2 为什么值得这个成本
 
-Private/
-  Implementation/
-    GPUPhysicsWorld.h/.cpp  — IPhysicsWorld 实现
-    GPUPhysicsBody.h/.cpp   — IPhysicsBodyHandle 实现
-    GPUPhysicsQuery.h/.cpp  — IPhysicsQueryInterface 实现
-  CSDispatch/
-    GPUSimulationDispatcher.h/.cpp — GPU 调度器（核心）
-    GPUSimulationShaders.h/.cpp     — 旧式 Shader 声明
-    CollisionDetectionShader.h     — GJK Shader
-    CollisionEPAShader.h            — EPA Shader
-    CollisionGatherShader.h/.cpp   — Gather Shader
-    CollisionManifoldLocalSpaceShader.h/.cpp — Manifold Shader
-    CollisionPBDSolverShader.h     — PBD Solver Shader
-    CollisionApplyDeltaShader.h/.cpp — ApplyDelta Shader
-    CollisionScatterOutputShader.h/.cpp — ScatterOutput Shader
-  Utility/
-    GJKTypes.h/.cpp         — GJK 数据结构
-    GJKSupport.h/.cpp       — Support 函数（CPU）
-    GJKAlgorithm.h/.cpp     — GJK 算法（CPU）
-  Visualization/
-    ParticleVisualizationActor.h/.cpp — 可视化 Actor
-  PhysicsWorldManager.cpp  — 蓝图层实现
-  ShaderCompilerHelper.h/.cpp — Shader 编译辅助
-  GPUPhysics.h/.cpp         — 模块入口
-```
+Niagara 可能在不同渲染阶段消费数据；可变 BodyStorage、在途编辑与旧身份若直接组合，容易出现错槽、闪烁或过期资源。不可变 lease 用 Epoch、Step、Slot、Generation 固定一次可观察视图。
+
+**工程取舍**：版本一致性与渲染生命周期安全，交换显存、复制带宽和异步发布延迟。不是简单的“GPU 一定比 CPU 数组显示快”。
+
+### 18.3 不把接口检查当作最终画面验收
+
+GPU DI、CPU 数组显示与用户 Niagara System 资产是三层。函数编译通过、buffer 验证通过，不证明 Burst 数、mesh 轴向、材质、遮挡和实际 PIE 画面都正确。新增只读 Epoch 函数已进入本文冻结提交，但编译/验证通过仍不能替代用户 Niagara 资产的最终画面验收。
+
+## 十九、圆柱与胶囊：独立扩展，不是旧内核复活
+
+### 19.1 两套几何路由，共用一套物理状态
+
+原生 permutation 只处理非曲面对；Surface permutation 只处理至少含一个曲面的 pair，共同输出同一 Manifold/Contact，之后进入同一 CSR/JP/Primal/Dual。[接触历史:44–65](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Shaders/Private/Common/Contact/GPUPhysicsLabContactHistory.ush#L44-L65)
+
+没有第二个 SurfaceWorld，也没有 CPU 先生成接触供生产求解的后门。
+
+### 19.2 解析支撑与有界 GJK/EPA
+
+曲面支持函数直接表达有限圆柱和胶囊；解析 sphere、轴线/侧壁、poly 接触分支优先，剩余进入 GJK/EPA。[曲面几何:6–28、184–286、292–338](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Shaders/Private/Common/Geometry/GPUPhysicsLabSurfaceCollision.ush#L6-L338)
+
+进入通用路径前将两体平移到 pair-local origin，降低大世界坐标相减的精度压力。它仍是 f32，不是任意尺度精确计算。[曲面几何:292–315](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Shaders/Private/Common/Geometry/GPUPhysicsLabSurfaceCollision.ush#L292-L315)
+
+当前预算为：
+
+- GJK 最多 64 轮。
+- EPA 最多 96 轮。
+- 顶点 100、面 196、horizon 边 196。
+- 每个 pair 由独占工作组处理自己的共享工作区。
+
+不是旧文档中另一套 EPA 容量。[曲面几何:86–153、317–338](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Shaders/Private/Common/Geometry/GPUPhysicsLabSurfaceCollision.ush#L86-L338) [流形入口:10–19](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Shaders/Private/Narrowphase/Manifold/UpdateManifolds.usf#L10-L19)
+
+### 19.3 为什么曲面使用单线程工作组
+
+普通原生窄相是 64 线程工作组，每线程一对；Surface permutation 则 numthreads(1,1,1)，用二维 groups 覆盖候选容量，保障一对独占 groupshared EPA arena。[流形入口:10–19](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Shaders/Private/Narrowphase/Manifold/UpdateManifolds.usf#L10-L19) [窄相调度:51–54](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Source/GPUPhysicsLab/Private/CSDispatch/GPUPhysicsLabUpdateManifoldsCS.cpp#L51-L54)
+
+它不是 64 个 pair 并发写同一个共享多面体。代价是大规模复杂曲面的占用率、共享内存和调度成本必须单独测量。
+
+### 19.4 接触见证与支撑覆盖
+
+EPA 共面面可能由多个三角形组成，投影点未必落在第一个三角形内部；代码寻找真正包含投影点的面，而不是用负重心权重外推表面点。[曲面几何:108–133](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Shaders/Private/Common/Geometry/GPUPhysicsLabSurfaceCollision.ush#L108-L133)
+
+曲面/poly 的 cap 或侧线还会补真实支撑特征点，以免圆柱只凭偏心单点站立。[曲面几何:155–182、330–335](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Shaders/Private/Common/Geometry/GPUPhysicsLabSurfaceCollision.ush#L155-L335)
+
+工程判断：几何相交正确、接触点真实、支撑覆盖充分、跨帧历史稳定是四个层次；多点存在也不能直接证明薄盘长期堆叠已稳定。
+
+## 二十、单体动力属性：默认参考路径之外的明确扩展
+
+### 20.1 质量、主惯量、重力与阻尼
+
+公开 Dynamics 包含 MassKg、InertiaTensorScale、CenterOfMassOffsetCm、Linear/AngularDamping、GravityScale、Restitution 与独立摩擦。[作者类型:118–161](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Source/GPUPhysicsLab/Public/Bodies/GPUPhysicsLabBodyDefinition.h#L118-L161)
+
+质量覆盖和主惯量缩放是作者阶段；GPU 使用旁路数据改变惯性项、积分及材料评价。阻尼为：
+
+$$
+\mathbf v\leftarrow e^{-dh}\mathbf v
+$$
+
+默认 $d=0$，不会暗中加入全局阻尼来稳定参考场景。[刚体积分:47–57](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Shaders/Private/Simulation/Integration/IntegrateBodies.usf#L47-L57)
+
+### 20.2 质心偏移不是移动碰撞几何
+
+几何原点仍为 $\mathbf x$，质心为：
+
+$$
+\mathbf x_{\mathrm{COM}}=\mathbf x+\mathbf R\mathbf c
+$$
+
+线性惯性能量需使用质心运动，因此 Jacobian 带有旋转力臂，线角交叉块不能省略。BodyInertia 增加角向和平移耦合，Integrate/UpdateVelocity 也补质心位移。[动力属性:25–45](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Shaders/Private/Common/Solver/GPUPhysicsLabBodyDynamics.ush#L25-L45) [刚体积分:60–73](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Shaders/Private/Simulation/Integration/IntegrateBodies.usf#L60-L73) [速度更新:16–21](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Shaders/Private/Simulation/Integration/UpdateVelocity.usf#L16-L21)
+
+只改一个 COM 展示点，而不改惯性能量、冲量力臂和速度定义，会让这些环节互相矛盾。
+
+### 20.3 静/动摩擦与恢复系数
+
+启用独立摩擦后，两体静/动摩擦分别取几何平均；先检查静摩擦边界，滑动时按动摩擦幅值裁切。恢复系数取双方最大值，法向接近速度超过阈值才加入恢复目标。[材料评价:7–39](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Shaders/Private/Common/Solver/GPUPhysicsLabBodyMaterial.ush#L7-L39)
+
+恢复目标依赖步开始速度，而不是从每轮位姿变化反推新的冲击速度，避免随迭代反复注入回弹。Primal/Dual 必须调用同一材料函数。
+
+**边界**：这不是 three-avbd 原版双摩擦/恢复模型；也不是任意完整非对角惯性张量、轴锁定或 Compound 的实现。
+
+## 二十一、布料：必须按当前 shader 讲，不按计划图讲
+
+### 21.1 实际解法是弹簧质点
+
+ApplySprings 每线程独占一个粒子，遍历全部 Spring，累加自己相连弹簧的力：
+
+$$
+\mathbf f_A=
+-\left[k(\ell-\ell_0)+d(\mathbf v_A-\mathbf v_B)\cdot\mathbf n\right]\mathbf n
+$$
+
+然后 IntegrateParticles 先更新速度，再更新位置：
+
+$$
+\mathbf v_{n+1}=\mathbf v_n+h(\mathbf g+m^{-1}\mathbf f),\qquad
+\mathbf x_{n+1}=\mathbf x_n+h\mathbf v_{n+1}
+$$
+
+这是力基半隐式 Euler 形式；不是逐粒子 $3\times3$ AVBD、不是 XPBD lambda，也没有在刚体 iterations 中反复解这些弹簧。[布料弹簧:10–49](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Shaders/Private/Cloth/ApplySprings.usf#L10-L49) [布料积分:11–38](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Shaders/Private/Cloth/IntegrateParticles.usf#L11-L38)
+
+因此计划中“统一 CSR/JP/Primal/Dual”只能作为后续方向，不能作为现状架构图。
+
+### 21.2 当前接触与反作用
+
+布料粒子扫描所有 Body，只处理内部标签为 Box/Sphere 的形状，选最小 gap 的一体，施加法向罚力和阻尼。厚度进入几何 gap，但没有在此看到布料摩擦锥或多接触集合。[布料接触:26–92](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Shaders/Private/Cloth/ApplyRigidContacts.usf#L26-L92)
+
+反作用 pass 每个动态刚体扫描所有粒子接触，累加反向力与力矩，再更新刚体速度。[布料反作用:18–44](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Shaders/Private/Cloth/ApplyRigidReaction.usf#L18-L44)
+
+这实现了最小双向作用，但不能外推为通用精确动量/角动量守恒：当前接触相对速度使用粒子速度减刚体线速度，角向更新直接除主惯量；复杂旋转刚体、偏移质心与各向异性惯量的兼容性需要单独验证。
+
+### 21.3 附件与生命周期
+
+ApplyAttachments 将粒子放在刚体局部锚点并设置为固定，提供锚点速度。当前这条路径没有反向写刚体；**附件反作用不同于碰撞反作用，不能混称已完成。**[布料附件:10–21](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Shaders/Private/Cloth/ApplyAttachments.usf#L10-L21)
+
+粒子、弹簧、接触与附件已有独立缓冲和 accepted 备份，但其寿命与刚体共用一个 Simulation；关闭布料不产生另一个物理后端。[帧提交:409–442](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Source/GPUPhysicsLab/Private/Simulation/GPUPhysicsLabSimulation.cpp#L409-L442)
+
+### 21.4 当前复杂度与稳定性限制
+
+设粒子数 $N_p$、弹簧数 $N_s$、刚体数 $N_b$：
+
+- 弹簧力累加约为 $O(N_pN_s)$。
+- 粒子—刚体检测约为 $O(N_pN_b)$。
+- 刚体反作用收集也约为 $O(N_pN_b)$。
+
+这规避了共享端点浮点原子写入，代价是全扫描。大规模优先优化邻接/候选，而不是只增加线程数。
+
+弹簧积分还受到 $h\sqrt{k/m}$ 等无量纲尺度影响；同一 dt 下无限加大刚度不能获得隐式 AVBD 的稳定性。当前代码也未给出布料自碰撞、撕裂、通用曲面碰撞、连续碰撞或网格布料高规模性能保证。
+
+### 21.5 新增的 30×30 布料场景是什么
+
+冻结提交已增加 cloth/Grid 30x30：900 个粒子、30 点固定边、间距 10cm、跨度 $290\times290$ cm；5102 根弹簧由结构 1740、剪切 1682、隔点距离弯曲 1680 组成。[场景构建:39–73](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Source/GPUPhysicsLabExamples/Private/Scenes/GPUPhysicsLabReferenceScenes.cpp#L39-L73)
+
+Bending 在这里是隔点距离弹簧，不是二面角能量。该预设没有刚体障碍、没有自碰撞，也未自动生成连续布料网格表面；显示先消费粒子位置。[场景指南:7–18](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Doc/Porting/CLOTH_GRID_SCENE.md#L7-L18)
+
+记录的双配置各 7/7 覆盖 120 个 GPU 步、固定边、自由边下落、重启与刚体/布料场景切换；明确没有用户 Niagara 资产、网格表面和最终视觉验收，不构成长时间稳定或规模性能结论。[网格验收:32–71](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Doc/Porting/CLOTH_GRID_RESULTS.json#L32-L71)
+
+这比“存在一个布料计划”更进一步，但仍不能写成已交付通用布料引擎。
+
+## 二十二、优化手段与成本：哪些继承，哪些是 UE 新账单
+
+### 22.1 继承参考的主要优化
+
+- 两级网格与 large 旁路降低混合尺度候选压力。
+- 动态体负责探测，避免固定体重复遍历。
+- 哈希历史、feature/nearest 与局部复用减少冷启动。
+- CSR + 稳定邻接降低散乱遍历。
+- 增量 JP 与稳定颜色桶保持局部就地求解的并行前提。
+- 多 lane 缩短小颜色桶中高 degree 刚体的串行累加链。
+- GPU indirect args 避免每阶段 CPU 回读数量。
+
+这些分别位于 [宽相调度:15–100](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Source/GPUPhysicsLab/Private/CSDispatch/GPUPhysicsLabBroadphasePasses.cpp#L15-L100)、[接触历史:19–42](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Shaders/Private/Common/Contact/GPUPhysicsLabContactHistory.ush#L19-L42)、[拓扑调度:32–93](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Source/GPUPhysicsLab/Private/CSDispatch/GPUPhysicsLabTopologyPasses.cpp#L32-L93)、[染色调度:33–65](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Source/GPUPhysicsLab/Private/CSDispatch/GPUPhysicsLabColoringPasses.cpp#L33-L65)、[Primal:21–110](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Shaders/Private/Solver/Primal/PrimalSolve.usf#L21-L110)。
+
+### 22.2 UE 引入的额外成本
+
+当前每步 GPU 备份不仅有 Body，还包括较大的碰撞/拓扑工作区；启用显示时又生成不可变快照。因此不能将参考 WebGPU 的 solver 毫秒直接乘比例，推算 UE 最终帧耗时。[Simulation:400–423](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Source/GPUPhysicsLab/Private/Simulation/GPUPhysicsLabSimulation.cpp#L400-L423) [发布:16–42](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Source/GPUPhysicsLab/Private/Display/GPUPhysicsLabPosePublication.cpp#L16-L42)
+
+显存至少拆成：
+
+$$
+M_{\mathrm{total}}=
+M_{\mathrm{live}}+
+M_{\mathrm{backup}}+
+M_{\mathrm{display}}+
+M_{\mathrm{scratch}}+
+M_{\mathrm{readback}}
+$$
+
+对比时需报告实际分配容量、快照保留数与扩容峰值，而不是只乘活跃 Body 数。
+
+### 22.3 默认资源绑定也会产生压力
+
+SolverPasses 使用 RDG Blackboard 为一个图复用一份默认 BodyDynamics SRV，避免按迭代/颜色重复创建相同默认资源。[求解调度:22–43](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Source/GPUPhysicsLab/Private/CSDispatch/GPUPhysicsLabSolverPasses.cpp#L22-L43)
+
+这说明 GPU 物理瓶颈可能包含 descriptor、参数块、pass 编码与资源重建，不全是碰撞乘加次数。
+
+### 22.4 稀疏颜色融合是实验性路径
+
+开启后，主循环先做前 16 色，再一次 SparseCS 处理尾部；shader 用共享内存屏障与 DeviceMemoryBarrierWithGroupSync 保证同工作组内后色看到前色 UAV 写入。[求解调度:191–230](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Source/GPUPhysicsLab/Private/CSDispatch/GPUPhysicsLabSolverPasses.cpp#L191-L230) [Primal:113–139](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Shaders/Private/Solver/Primal/PrimalSolve.usf#L113-L139)
+
+原版已有真实破坏场景长回放分歧，默认关闭。UE 修正过重复求解尾部与遗漏 UAV 可见性的移植错误，专项通过不能消除参考自身已知风险。[忠实性复核末节][p44] [参考风险说明](/knowledge/three-avbd-gpu-solver/)。
+
+不要为了减少 dispatch 默认打开它，更不能将 groupshared barrier 当作所有 storage/UAV 可见性的替代。
+
+### 22.5 优先优化建议
+
+以下是工程建议，不代表本轮已经改代码：
+
+1. 先确保 overflow=0、clashes=0、几何与版本有效。
+2. 分开测宽相、窄相、CSR、染色、Primal/Dual、备份与显示复制。
+3. 对高 degree 体观察长尾，不只看平均邻接度。
+4. 对布料先替换全扫描数据访问，之后再调线程与共享内存。
+5. 对曲面单独测 EPA 轮数、共享内存和失败率，不沿用 Box 的容量/性能结论。
+6. 对宿主减少重复 SRV、空 pass、重复快照和无必要回读，但不能牺牲身份与版本保护。
+7. 每个优化同时比较物理误差、长期回放、资源峰值与 GPU 时间。
+
+## 二十三、关键参数与调参顺序
+
+### 23.1 先统一入口默认
+
+DefaultStepParams 的基础值为：
+
+- dt=$1/60$，gravity=$-10$。
+- alpha=$0.99$，gamma=$0.999$。
+- betaLin=$10000$，betaAng=$100$。
+- 五个参考策略 matchNearest/faceBias/reuseContacts/startAtRest/massPenalty 开启。
+- sparse colors 与整体流形复用默认不在开启位中。
+- up 为 Y；reference 播种与 UE 作者边界再显式选坐标框架。
+
+DefaultStepParams 本身没有填全容量，不能直接拿零容量参数派发。[Step 默认:90–100](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Source/GPUPhysicsLab/Private/GPUData/GPUPhysicsLabStepData.h#L90-L100)
+
+公开 FreeBodySettings 默认 gravity=-1000 $\mathrm{cm/s^2}$，对应 $-10\ \mathrm{m/s^2}$；不要混入 three-avbd JavaScript World 的 $-9.81$ 默认。[作者设置:191–209](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Source/GPUPhysicsLab/Public/Bodies/GPUPhysicsLabBodyDefinition.h#L191-L209)
+
+### 23.2 先调时间和尺度，再调稳定参数
+
+推荐顺序：
+
+1. 验证单位、轴、尺寸、质量/主惯量及运动类型。
+2. 固定 dt、substep budget、iterations。
+3. 验证候选、法向、点覆盖和接触连续性。
+4. 清除容量截断与染色冲突。
+5. 在默认 startAtRest、massPenalty 下观察堆叠与质量比。
+6. 再调整 alpha/gamma/beta，而不是一开始全部改。
+7. 最后调多 lane、颜色轮次、复用策略和可视化频率。
+
+alpha 同时进入稳定化误差和暖启动；gamma 控制跨步历史衰减；beta 控制违反量对应的罚参数增长。它们不是互不相关的三个“硬度滑块”。
+
+### 23.3 编译期常量不是现成编辑器属性
+
+当前常量含：
+
+$$
+\mathrm{margin}=0.01\ \mathrm m,\quad
+\mathrm{reuseLin}=0.002\ \mathrm m,\quad
+\mathrm{reuseAng}=0.002\ \mathrm{rad}
+$$
+
+以及 penaltyMin=1、penaltyMax=$10^{10}$、pivotFloor=$10^{-5}$、restSpeed=0.1、nearestFraction=0.05。[内核常量:27–29](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Source/GPUPhysicsLab/Private/GPUData/GPUPhysicsLabLimits.h#L27-L29)
+
+这些必须结合运行时入口、shader 构造与 C++ 一致性理解，不能写成它们全已暴露为 WorldSubsystem 的 Blueprint 可调字段。
+
+### 23.4 曲面和布料单独调参
+
+曲面几何 tolerance、EPA 容量/轮数不是 AVBD 的 iterations。增加后者不能解决 EPA 未取得有效见证；增大几何 tolerance 也不能当作稳定性优化。
+
+布料弹簧刚度、接触 stiffness/damping、粒子质量和 dt 属于另一种离散模型。它们不应套用 rigid beta/penaltyMin 的解释。
+
+## 二十四、验证状态：不要把几种清单相互替代
+
+以下全部是本轮读取到的仓库记录，不是重新编译/运行的结果。
+
+### 24.1 P32 的 53 项
+
+P32_RESULTS 记录 Development/DebugGame 各 53/53，通过状态为 ACCEPTED_WITH_LIMITS。清单明确排除 P20，保留 Niagara/Blueprint 人工检查、密集碰撞/跨 GPU 性能等限制。[P32 结果:1–54](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Doc/Porting/P32_RESULTS.json#L1-L54)
+
+它证明的是那次精确清单，不是“整个插件所有能力全部通过”。
+
+### 24.2 原始 75 项覆盖仍为 66/75
+
+ORIGINAL_GPU_COVERAGE 记录 66 ACCEPTED、9 PORT_REQUIRED。剩余 case index 为 6、33、36、40、47、50、54、60、70。[原始覆盖:1 起](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Doc/Porting/ORIGINAL_GPU_COVERAGE.json#L1)
+
+Actor 目录已有 75 个入口，不代表 75 个原断言都完成。60 个可见场景也不能替代逐项算法/API 验证。
+
+### 24.3 217 项扩展回归
+
+BODY_DYNAMICS_RESULTS 记录 2026-10-17 的双配置各 217/217，由原 209 项、两项独立创建和六项动力属性测试组成，记录实际选中 RTX 5060、D3D12/SM6 与报告/二进制指纹。[动力属性结果:1–65、229–233](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Doc/Porting/BODY_DYNAMICS_RESULTS.json#L1-L233)
+
+同文件仍明确保留 P20 和原始 75 项剩余九项。217 大于 75，不代表两个集合存在覆盖包含关系。
+
+### 24.4 P20 仍未验收
+
+ReferenceContactHistory 的完整 D3D12 运行记录包含 DXGI_ERROR_DEVICE_REMOVED；按既有决定暂缓，但状态仍为 NOT_ACCEPTED。局部 Hash/匹配检查通过，不能改写为完整历史已稳定。[P20 讲义:57–85](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Doc/Porting/Lessons/PORT_LESSON_20.md#L57-L85)
+
+设备移除的根因不能仅从最后出现的 shader 名推断。本文没有新现场，不将它归咎于某个缓存分支，也不以普通场景能运行否定该失败。
+
+### 24.5 布料 rollback 与规模测试的边界
+
+CLOTH07 仅验证独立布料存储在一次注入错误后的恢复，不关闭附件反作用、自碰撞、长时间稳定或规模问题。[布料验收:1–19](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Doc/Porting/CLOTH07_RESULTS.json#L1-L19)
+
+P31 测量范围为 free-body/no-collision，只有有限规模与短长期检查，不能外推成密集接触的 RTX 性能预算。[P31 结果:1–21、38–45](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Doc/Porting/P31_RESULTS.json#L1-L45)
+
+## 二十五、面向项目的诊断顺序
+
+### 25.1 不动：先看入口，不先改求解系数
+
+确认 World 类型为 Game/PIE、BeginPlay 启动成功、配置发生在允许阶段、会话不是 Faulted、Body 是 Simulated、没有误用无碰撞 ConfigureFreeBodies。[World:19–98、134–150](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Source/GPUPhysicsLab/Private/World/GPUPhysicsLabWorldSubsystem.cpp#L19-L150)
+
+再看 submitted/completed/accepted 是否前进；只看 Actor Transform 不一定是在看 GPU 权威位置。
+
+### 25.2 有几何但不碰撞
+
+检查公开形状到内部 tag、曲面 permutation、groups/mask、候选计数和容量。检查 native Hull 是否真的有 atlas 数据，而不是仅在 public enum 选了 ConvexHull。
+
+若 pair 根本没生成，增大 iterations 无效；若 EPA 失败，则属于几何分支，不该用清速度掩盖。
+
+### 25.3 抖动、滑动与穿透
+
+依次检查：
+
+1. overflow / clashes。
+2. 法向与 signed gap。
+3. 支撑点覆盖与 feature 连续性。
+4. stick 锚点和暖启动历史。
+5. startAtRest / massPenalty。
+6. 时间步、质量比、迭代预算。
+7. 非默认 COM、恢复、独立摩擦是否改变模型。
+
+不要在这些没分清前同时增加阻尼、缩小 margin、放宽容差和增迭代。
+
+### 25.4 显示闪烁或槽位错乱
+
+看 Epoch、Slot、Generation、Step 与 accepted lease 是否一致；检查 Reset/删除后的订阅是否撤销，Niagara mesh 轴与 FullSize/Radius 语义是否正确。
+
+GPU 正在模拟不代表显示已消费最新接受版本；CPU 数组延迟也不能当作 GPU 求解错误。
+
+### 25.5 GPU 时间变长或设备错误
+
+先隔离曲面、布料、查询、复制和渲染负载，再分阶段计时。密集曲面 EPA、布料全扫描、颜色小桶长尾、descriptor 压力和显示快照都有不同证据路径。
+
+保留原始 device removed、DRED/验证日志与首次非法状态，不能通过提高 TDR、忽略错误或缩小失败清单制造通过。
+
+## 二十六、最小可落地使用方式
+
+### 26.1 验证最小刚体场景
+
+- 使用同 World 的公开 WorldSubsystem。
+- BeginPlay 前配置一个固定 Box 地面与一个动态 Box/Sphere，并预留 Body 容量。
+- 使用碰撞会话，而不是 FreeBodies。
+- 保留默认时间、AVBD、复用与材料参数。
+- 先用只读诊断确认位姿/接触，再接 Niagara。
+- 再测试冲量、偏心力、运动学平台、删除/复用、Reset 和重复 Play/Stop。
+
+不要一开始混入曲面、布料、COM 偏移和稀疏融合，否则首次异常难以归因。
+
+### 26.2 在基线成立后扩展
+
+按以下顺序增加：
+
+1. Joint/Spring 与塑性断裂。
+2. 原生 Hull 的真实导入数据。
+3. Cylinder/Capsule，验证局部轴与真实尺寸。
+4. 非默认 Dynamics。
+5. 布料最小粒子/弹簧/Box-Sphere 接触。
+6. 目标规模、回放、资源生命周期和显示资产验收。
+
+这些步骤是工程建议，不代表本文替用户完成了 UE 运行验证。
+
+## 二十七、总结：哪些可确认，哪些仍开放
+
+### 27.1 当前可以确认
+
+- 唯一 World/Simulation/RenderState，而非并排保留旧后端。
+- 刚体核心继承锁定 three-avbd GPU 数值路径。
+- Body160、Joint160、Manifold32、Contact64、Params192。
+- 两级哈希、原生 SAT/解析几何与接触历史。
+- CSR、JP、逐色局部六维原问题和对偶。
+- GT 作者输入、RT 资源所有权、GPU 权威物理。
+- GPU 接受状态、异步观察与不可变 Niagara 发布。
+- 圆柱/胶囊、单体 Dynamics、弹簧质点布料属于明确扩展。
+
+### 27.2 不能据此宣称
+
+- 所有原始 API/算法测试已完全移植。
+- 所有 overflow/clashes 都统一整步拒绝。
+- P20 设备问题已经关闭。
+- 任意曲面、尺度、薄盘密集堆叠长期稳定。
+- 布料已采用统一 AVBD、完整摩擦/自碰撞或通用曲面接触。
+- Chaos 自动双向耦合、网络复制、跨设备确定性。
+- ES3.1、所有 Metal 设备、Cook/Shipping 全面兼容。
+- GPU 显示完全零拷贝、目标大规模性能已经达标。
+
+### 27.3 最重要的工程原则
+
+**参考算法、宿主适配和新增物理域必须分别解释、分别测试。**
+
+一个几何夹具通过，不等于完整步正确；完整步正确，不等于身份/资源生命周期正确；版本发布正确，不等于长期稳定或性能达标。GPUPhysicsLab 的学习价值，恰好在于可以沿着这些边界逐层检查，而不是把“借鉴 three-avbd”写成一个无法验证的标签。
+
+## 源码索引与固定版本
+
+路径相对于 E:\UnrealProjects\GASP57\Plugins\GPUPhysicsLab。正文行号属于本次读取版本，固定链接指向本文标注 HEAD；分析期间产生的新提交已单独复核，后续增量不作为这些链接的证明。课程 JSON 是历史证据，不是本轮测试输出。
+
+- P00：[GPUPhysicsLab.uplugin][p00] — 模块与插件依赖。
+- P01：[Doc/Porting/REFERENCE.lock.json][p01] — 参考提交、范围和默认。
+- P02：[Source/GPUPhysicsLab/Private/World/GPUPhysicsLabWorldSubsystem.cpp][p02] — World 生命周期与配置。
+- P03：[Source/GPUPhysicsLab/Private/Simulation/GPUPhysicsLabSimulation.cpp][p03] — 提交、输入、状态、回滚、寿命。
+- P04：[Source/GPUPhysicsLab/Private/CSDispatch/GPUPhysicsLabSolverPasses.cpp][p04] — 完整 RDG 求解主链。
+- P05：[Source/GPUPhysicsLab/Private/Math/GPUPhysicsLabQuaternionMath.h][p05] — 单位、换基、四元数。
+- P06：[Source/GPUPhysicsLab/Public/Bodies/GPUPhysicsLabBodyDefinition.h][p06] — 公开形状、身份、动力属性与设置。
+- P07：[Source/GPUPhysicsLab/Private/GPUData/GPUPhysicsLabLimits.h][p07] — ABI 常量与内核标签。
+- P08：[Source/GPUPhysicsLab/Private/GPUData/GPUPhysicsLabBodyData.h][p08] — Body 与 Dynamics 布局。
+- P09：[Source/GPUPhysicsLab/Private/GPUData/GPUPhysicsLabStepData.h][p09] — Step 布局与默认。
+- P10：[Source/GPUPhysicsLab/Private/CSDispatch/GPUPhysicsLabBroadphasePasses.cpp][p10] — 网格和候选调度。
+- P11：[Shaders/Private/Narrowphase/Manifold/UpdateManifolds.usf][p11] — 哈希与两类窄相入口。
+- P12：[Shaders/Private/Common/Contact/GPUPhysicsLabContactHistory.ush][p12] — 接触历史及几何路由。
+- P13：[Source/GPUPhysicsLab/Private/CSDispatch/GPUPhysicsLabSequencePasses.cpp][p13] — RDG scan。
+- P14：[Source/GPUPhysicsLab/Private/CSDispatch/GPUPhysicsLabColoringPasses.cpp][p14] — 颜色与间接参数调度。
+- P15：[Shaders/Private/Common/Solver/GPUPhysicsLabRigidConstraint.ush][p15] — 关节与接触数学。
+- P16：[Shaders/Private/Common/Geometry/GPUPhysicsLabRigidBlock.ush][p16] — 六维块与 LDLᵀ。
+- P17：[Shaders/Private/Simulation/Integration/UpdateVelocity.usf][p17] — 速度与 Finalize。
+- P18：[Source/GPUPhysicsLab/Private/CSDispatch/GPUPhysicsLabTopologyPasses.cpp][p18] — CSR 调度。
+- P19：[Shaders/Private/Solver/Coloring/BuildColors.usf][p19] — JP 与颜色桶。
+- P20：[Source/GPUPhysicsLab/Private/Simulation/GPUPhysicsLabAdaptation.h][p20] — 计数自适应。
+- P21：[Source/GPUPhysicsLab/Private/Display/GPUPhysicsLabPosePublication.cpp][p21] — 不可变显示版本。
+- P22：[Shaders/Private/Solver/Primal/PrimalSolve.usf][p22] — 多 lane 与稀疏尾部。
+- P23：[Shaders/Private/Simulation/Integration/IntegrateBodies.usf][p23] — 惯性目标与初值。
+- P24：[Shaders/Private/Cloth/ApplySprings.usf][p24] — 布料弹簧力。
+- P25：[Shaders/Private/Cloth/IntegrateParticles.usf][p25] — 布料积分。
+- P26：[Shaders/Private/Cloth/ApplyRigidContacts.usf][p26] — 布料法向接触。
+- P27：[Shaders/Private/Cloth/ApplyRigidReaction.usf][p27] — 布料反作用。
+- P28：[Shaders/Private/Common/Solver/GPUPhysicsLabWarmStart.ush][p28] — 关节暖启动、对偶与塑性。
+- P29：[Shaders/Private/Solver/Dual/DualUpdate.usf][p29] — 统一刚体约束对偶派发。
+- P30：[Source/GPUPhysicsLab/GPUPhysicsLab.Build.cs][p30] — 模块依赖。
+- P31：[Shaders/Private/Broadphase/Sort/ScanBlocks.usf][p31] — 分块前缀和。
+- P32：[Shaders/Private/Narrowphase/Manifold/SurfaceStatus.usf][p32] — 曲面失败状态。
+- P33：[Shaders/Private/Queries/Raycast.usf][p33] — 射线查询。
+- P34：[Shaders/Private/Common/Geometry/GPUPhysicsLabSurfaceCollision.ush][p34] — 曲面解析支撑与 GJK/EPA。
+- P35：[Source/GPUPhysicsLab/Private/CSDispatch/GPUPhysicsLabUpdateManifoldsCS.cpp][p35] — 原生和曲面窄相调度。
+- P36：[Shaders/Private/Common/Solver/GPUPhysicsLabBodyDynamics.ush][p36] — 质心耦合与默认动力属性。
+- P37：[Doc/Porting/P28_RESULTS.json][p37] — 有界事务历史验收。
+- P38：[Shaders/Private/Common/Solver/GPUPhysicsLabBodyMaterial.ush][p38] — 静动摩擦和恢复。
+- P39：[Shaders/Private/Cloth/ApplyAttachments.usf][p39] — 布料附件。
+- P40：[Doc/Porting/P32_RESULTS.json][p40] — P32 验收范围。
+- P41：[Doc/Porting/BODY_DYNAMICS_RESULTS.json][p41] — 217 项历史记录与限制。
+- P42：[Doc/Porting/ORIGINAL_GPU_COVERAGE.json][p42] — 原始75项覆盖。
+- P43：[Doc/Porting/Lessons/PORT_LESSON_20.md][p43] — P20未验收。
+- P44：[Doc/Porting/P02_P32_FIDELITY_AUDIT_20261017.md][p44] — 忠实性复核与后续纠正。
+- P45：[Doc/Porting/CLOTH07_RESULTS.json][p45] — 布料错误回滚验收范围。
+- P46：[Doc/Porting/P31_RESULTS.json][p46] — 性能记录与范围。
+- P47：[Doc/Porting/CLOTH_GRID_RESULTS.json][p47] — 30×30 网格历史验收。
+- P48：[Source/GPUPhysicsLabExamples/Private/Scenes/GPUPhysicsLabReferenceScenes.cpp][p48] — 900 粒子与5102弹簧构建。
+- P49：[Doc/Porting/CLOTH_GRID_SCENE.md][p49] — 布料显示与使用边界。
+- P50：[Shaders/Private/Broadphase/Pairs/GenerateCandidatePairs.usf][p50] — 网格探测与候选过滤。
+- P51：[Shaders/Private/Common/Geometry/GPUPhysicsLabConvexSAT.ush][p51] — 原生 Box/Hull SAT。
+- P52：[Shaders/Private/Common/Contact/GPUPhysicsLabPolyhedronClipping.ush][p52] — 多点裁剪与边接触。
+
+[p00]: https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/GPUPhysicsLab.uplugin
+[p01]: https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Doc/Porting/REFERENCE.lock.json
+[p02]: https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Source/GPUPhysicsLab/Private/World/GPUPhysicsLabWorldSubsystem.cpp
+[p03]: https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Source/GPUPhysicsLab/Private/Simulation/GPUPhysicsLabSimulation.cpp
+[p04]: https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Source/GPUPhysicsLab/Private/CSDispatch/GPUPhysicsLabSolverPasses.cpp
+[p05]: https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Source/GPUPhysicsLab/Private/Math/GPUPhysicsLabQuaternionMath.h
+[p06]: https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Source/GPUPhysicsLab/Public/Bodies/GPUPhysicsLabBodyDefinition.h
+[p07]: https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Source/GPUPhysicsLab/Private/GPUData/GPUPhysicsLabLimits.h
+[p08]: https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Source/GPUPhysicsLab/Private/GPUData/GPUPhysicsLabBodyData.h
+[p09]: https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Source/GPUPhysicsLab/Private/GPUData/GPUPhysicsLabStepData.h
+[p10]: https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Source/GPUPhysicsLab/Private/CSDispatch/GPUPhysicsLabBroadphasePasses.cpp
+[p11]: https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Shaders/Private/Narrowphase/Manifold/UpdateManifolds.usf
+[p12]: https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Shaders/Private/Common/Contact/GPUPhysicsLabContactHistory.ush
+[p13]: https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Source/GPUPhysicsLab/Private/CSDispatch/GPUPhysicsLabSequencePasses.cpp
+[p14]: https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Source/GPUPhysicsLab/Private/CSDispatch/GPUPhysicsLabColoringPasses.cpp
+[p15]: https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Shaders/Private/Common/Solver/GPUPhysicsLabRigidConstraint.ush
+[p16]: https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Shaders/Private/Common/Geometry/GPUPhysicsLabRigidBlock.ush
+[p17]: https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Shaders/Private/Simulation/Integration/UpdateVelocity.usf
+[p18]: https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Source/GPUPhysicsLab/Private/CSDispatch/GPUPhysicsLabTopologyPasses.cpp
+[p19]: https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Shaders/Private/Solver/Coloring/BuildColors.usf
+[p20]: https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Source/GPUPhysicsLab/Private/Simulation/GPUPhysicsLabAdaptation.h
+[p21]: https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Source/GPUPhysicsLab/Private/Display/GPUPhysicsLabPosePublication.cpp
+[p22]: https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Shaders/Private/Solver/Primal/PrimalSolve.usf
+[p23]: https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Shaders/Private/Simulation/Integration/IntegrateBodies.usf
+[p24]: https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Shaders/Private/Cloth/ApplySprings.usf
+[p25]: https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Shaders/Private/Cloth/IntegrateParticles.usf
+[p26]: https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Shaders/Private/Cloth/ApplyRigidContacts.usf
+[p27]: https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Shaders/Private/Cloth/ApplyRigidReaction.usf
+[p28]: https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Shaders/Private/Common/Solver/GPUPhysicsLabWarmStart.ush
+[p29]: https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Shaders/Private/Solver/Dual/DualUpdate.usf
+[p30]: https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Source/GPUPhysicsLab/GPUPhysicsLab.Build.cs
+[p31]: https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Shaders/Private/Broadphase/Sort/ScanBlocks.usf
+[p32]: https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Shaders/Private/Narrowphase/Manifold/SurfaceStatus.usf
+[p33]: https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Shaders/Private/Queries/Raycast.usf
+[p34]: https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Shaders/Private/Common/Geometry/GPUPhysicsLabSurfaceCollision.ush
+[p35]: https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Source/GPUPhysicsLab/Private/CSDispatch/GPUPhysicsLabUpdateManifoldsCS.cpp
+[p36]: https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Shaders/Private/Common/Solver/GPUPhysicsLabBodyDynamics.ush
+[p37]: https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Doc/Porting/P28_RESULTS.json
+[p38]: https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Shaders/Private/Common/Solver/GPUPhysicsLabBodyMaterial.ush
+[p39]: https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Shaders/Private/Cloth/ApplyAttachments.usf
+[p40]: https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Doc/Porting/P32_RESULTS.json
+[p41]: https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Doc/Porting/BODY_DYNAMICS_RESULTS.json
+[p42]: https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Doc/Porting/ORIGINAL_GPU_COVERAGE.json
+[p43]: https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Doc/Porting/Lessons/PORT_LESSON_20.md
+[p44]: https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Doc/Porting/P02_P32_FIDELITY_AUDIT_20261017.md
+[p45]: https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Doc/Porting/CLOTH07_RESULTS.json
+[p46]: https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Doc/Porting/P31_RESULTS.json
+[p47]: https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Doc/Porting/CLOTH_GRID_RESULTS.json
+[p48]: https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Source/GPUPhysicsLabExamples/Private/Scenes/GPUPhysicsLabReferenceScenes.cpp
+[p49]: https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Doc/Porting/CLOTH_GRID_SCENE.md
+[p50]: https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Shaders/Private/Broadphase/Pairs/GenerateCandidatePairs.usf
+[p51]: https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Shaders/Private/Common/Geometry/GPUPhysicsLabConvexSAT.ush
+[p52]: https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Shaders/Private/Common/Contact/GPUPhysicsLabPolyhedronClipping.ush

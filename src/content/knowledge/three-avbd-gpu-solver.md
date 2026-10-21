@@ -11,7 +11,7 @@ level: "advanced"
 pageType: "source-analysis"
 aliases: ["GpuSolver3D", "three-avbd GPU", "WebGPU AVBD"]
 prerequisites: ["vbd-avbd-math", "avbd-demo3d-implementation", "iterative-linear-solvers"]
-nextArticles: []
+nextArticles: ["gpu-physics-plugin"]
 related: ["collision-detection-gjk-epa-sat", "jacobian-matrix", "numerical-integration-methods", "gpu-physics-plugin"]
 topics:
   - id: "ue-chaos-physics"

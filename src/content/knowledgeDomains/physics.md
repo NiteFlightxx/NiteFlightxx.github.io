@@ -15,7 +15,7 @@ learningPaths:
   - id: "deformable-and-fluid"
     title: "软体与流体分支"
     description: "先掌握 PDE，再按流体或变分求解方向进入高级专题。"
-    articles: ["partial-differential-equations", "sph-fluid-simulation", "pbf-fluid-simulation", "vbd-avbd-math", "avbd-demo3d-implementation", "three-avbd-gpu-solver", "position-based-elastic-rods"]
+    articles: ["partial-differential-equations", "sph-fluid-simulation", "pbf-fluid-simulation", "vbd-avbd-math", "avbd-demo3d-implementation", "three-avbd-gpu-solver", "gpu-physics-plugin", "position-based-elastic-rods"]
   - id: "flight-control"
     title: "飞行控制分支"
     description: "用交互基础建立直觉，再进入动力学、PID 和仿真控制实现。"
