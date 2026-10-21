@@ -1,288 +1,101 @@
-# 添加新文章标准工作流
-
-> 本文档是向网站「知识库」添加新文章的唯一权威流程。每篇新文档都必须按此流程执行，以保证分类、路由、目录、公式渲染与样式全部一致。
-
----
-
-## 0. 集合定义
-
-| | 知识库 Knowledge |
-|---|---|
-| 目的 | 知识沉淀 / 技术分析 / 经验总结 / 教学内容 |
-| 目录 | `src/content/knowledge/*.md` |
-| 分类字段 | `category` + `subtopic` |
-| 分类取值 | Engine / Physics / Animation / Rendering / Gameplay / AI / Mathematics |
-| 子主题取值 | 见下方「知识库子主题词表」（受控枚举，与 category 配对） |
-| 路由 | `/knowledge/<slug>/` |
-| 返回链接 | `/#knowledge`（落到知识库 tab） |
-| `readTime` 字段 | **必填** |
+# 知识库文档维护流程
 
-分类的中文显示名由 `src/lib/taxonomy.ts` 的 `KNOWLEDGE_CATEGORIES` 单一映射，**不要**在前matter 里写中文，写英文枚举即可。`subtopic` 同理，中文显示名由 `KNOWLEDGE_SUBTOPICS` 映射。
+## 组织原则
 
-知识领域入口定义在 `src/content/knowledgeDomains/*.md`。领域文件负责领域介绍、精选文章和学习路线；文章仍然只维护自己的正文。新增领域入口时，必须使用已有 `category`，并通过 `npm run audit:knowledge-nav` 检查精选文章和路线引用的 slug。
+知识库采用直接阅读的文档形式，不是课程平台。内容按理解所需的先后关系排列，但不添加学习目标、练习验收、完成打卡或空白规划课节。
 
-## 专题归属
+每个概念只保留一份完整解释。其他文章保留理解当前上下文必需的符号、公式与短摘要，再链接主文。不为了缩短篇幅删除独特的源码证据、推导或交互。
 
-项目页承担专题导航，知识文章承担可复用理论或源码证据。文章需要加入专题时，在 frontmatter 增加 `topics`：
+## 文件与 URL
 
-```yaml
-topics:
-  - id: "ue-chaos-physics"
-    stage: "solver"
-    role: "source"
-    order: 10
-```
+正文放在 `src/content/knowledge/<slug>.md`，规范 URL 为 `/knowledge/<slug>/`。已公开文件名不随标题修改；改变标题时，把旧标题放入 aliases，保留检索能力。
 
-`id` 必须对应 `src/content/topics/<id>.md`。`stage` 必须是该专题定义的阶段 ID；`order` 只在同一专题阶段内排序。`role` 可用：`theory`（理论）、`source`（源码）、`algorithm`（通用算法）、`comparison`（引擎对比）、`practice`（工程实践）、`experiment`（实验验证）。
+`/knowledge/` 直接显示入口文档；`/knowledge/library/` 提供搜索、筛选、收藏和最近阅读。旧课程和领域地址只是兼容别名，不新增介绍页。
 
-专题正文放在 `src/content/topics/`，专题页面负责说明范围、源码版本和阅读路线。不要把完整数学推导复制到专题页，专题页只保留上下文和链接。
+`src/data/reading-order.json` 是侧栏和上一篇/下一篇的顺序来源。每篇公开文章恰好出现一次；没有正文的主题不进入目录。`prerequisites` 表示真正必要的概念依赖，不能把“可能相关”都写成先修要求，也不能形成循环。
 
-### 知识库子主题词表（受控枚举）
+## 标题与摘要
 
-`subtopic` 必须从下表对应分类中选取，写英文枚举值。新增子主题需同步登记到 `src/content/config.ts` 的 `KNOWLEDGE_SUBTOPICS` 与 `src/lib/taxonomy.ts` 的 `KNOWLEDGE_SUBTOPICS`。
-
-| 分类 | 可用 subtopic |
-|---|---|
-| Engine | SourceArchitecture / ModuleSystem / MemoryManagement / JobSystem / AssetPipeline / ReflectionSerialization / VFXSystem |
-| Physics | ConstraintSolver / ChaosPhysics / Collision / RigidBodyDynamics / VehicleDynamics / FlightController / Fluid |
-| Animation | AnimationNode / ControlRigIK / Retargeting / MotionMatching / PoseSearch / ProceduralAnimation |
-| Rendering | RDG / Shader / Nanite / Lumen / Material / PostProcess |
-| Gameplay | GAS / Combat / Interaction / StateMachine / Networking |
-| AI | Agent / BehaviorTree / Pathfinding / MCP / RAG |
-| Mathematics | LinearAlgebra / Calculus / Optimization / NumericalMethods / Probability / DifferentialEquations |
+标题使用明确的主题与范围，例如“数值积分：方法、误差与稳定性”。不再强制“详解 — 从……到……”句式，不使用“终极、统一框架、全掌握”等无法兑现的表述。
 
----
+- 标题原则上不超过 48 字符，保留 UE、GJK、XPBD 等可检索术语。
+- 摘要用一句话说明独特内容，不枚举全文所有章节。
+- 开头直接说明问题、模型或范围，可补必要的站内链接。
+- 不再使用“学习位置、前置积木、本文模块”等全库重复模板。
+- 章节标题直接命名概念，不写“第一块积木、顺水推舟”等引导话术。
+- 内容顺序自然展开，不强制所有文章套相同章节结构。
 
-## 1. 创建 Markdown 文件
+## Frontmatter
 
-文件名即 slug，会直接出现在 URL 中。使用英文短横线命名：
+从 `src/content/knowledge/_template.md` 复制，完整填写后再将 draft 改为 false。
 
-```
-src/content/knowledge/<slug>.md        # 如 ue-fullbody-ik-math.md
-```
+~~~yaml
+title: "技术主题：明确范围"
+excerpt: "一句话说明问题和本文采用的解释方式。"
+date: "2026-10-21"
+category: "Physics"
+subtopic: "ConstraintSolver"
+tags: ["约束", "数值方法", "刚体"]
+readTime: "阅读约15分钟"
+draft: false
+kind: "algorithm"
+level: "intermediate"
+pageType: "guide"
+aliases: []
+prerequisites: []
+nextArticles: []
+related: []
+sources:
+  - title: "实际阅读的一手资料"
+    url: "https://example.com/primary-source"
+~~~
 
-> ⚠️ 文件名一旦发布即为永久链接的一部分，不要事后改名（会导致外链失效）。
+category 与 subtopic 必须使用 `src/content/config.ts` 与 `src/lib/taxonomy.ts` 中的配对枚举。tags 为 3–6 项。date 采用 ISO 日期，readTime 是估算，不表示完整运行验证耗时。
 
-## 2. 编写 Frontmatter
+kind 可用 theory、source、algorithm、comparison、practice、experiment；level 为 foundation、intermediate、advanced。它们用于检索与范围判断，不用于考试或完成度。
 
-复制对应模板，逐字段填写。**所有字段值用引号包裹**。
+源码文章优先设为 pageType: source-analysis，注明快照、文件、函数与行号。不要为了补来源面板加入没读过或并不能支持结论的链接。
 
-### 知识库模板
+## 正文、公式与代码
 
-```markdown
----
-title: "UE FullBodyIK 插件详解 — Humanoid IK、Goal 与 Effector 收敛迭代"
-excerpt: "基于 UE 5.9 FullBodyIK 插件源码，梳理 Humanoid IK、Goal、Effectors、收敛迭代的数学原理与实现。"
-date: "2026-07-01"
-category: "Animation"
-subtopic: "ControlRigIK"
-tags: ["UE5", "IK", "FullBodyIK", "数学", "C++"]
-readTime: "阅读约35分钟"
-topics:
-  - id: "ue-chaos-physics"
-    stage: "architecture"
-    role: "source"
-    order: 10
----
-```
+正文不再写 H1，从 H2 开始，层级不跳级；文章标题由布局渲染，目录自动从正文标题生成。不要手写第二份目录。
 
-### 字段规则
+所有数学统一使用 LaTeX：行内 `$...$`；块级 `$$` 独占行，前后留空行。公式不能放进普通代码块来冒充排版；单位、向量、矩阵和符号首次出现时就地说明。
 
-| 字段 | 必填 | 规则 |
-|---|---|---|
-| `title` | 是 | 文章标题，必须遵循下方「标题命名规范」 |
-| `excerpt` | 是 | 一句话摘要，用于卡片预览 + `<meta description>` |
-| `date` | 是 | ISO 日期 `YYYY-MM-DD`，发布日 |
-| `category` | 是 | 必须是上方枚举值之一（区分大小写） |
-| `subtopic` | 是 | 必须是对应 category 下的子主题枚举（见上表，区分大小写） |
-| `tags` | 是 | 字符串数组，3–6 个，混合中文标签可 |
-| `readTime` | 是 | 显示串如 `"阅读约40分钟"` |
-| `topics` | 否 | 专题引用数组；每个引用必须包含 `id`、`stage`、`role`、`order` |
-| `kind` | 否 | `theory` / `source` / `algorithm` / `comparison` / `practice` / `experiment`，默认 `theory` |
-| `level` | 否 | `foundation` / `intermediate` / `advanced`，默认 `intermediate` |
-| `prerequisites` | 否 | 前置文章 slug 数组 |
-| `nextArticles` | 否 | 推荐后续文章 slug 数组 |
-| `draft` | 否 | `true` 则不生成路由、不出现在卡片列表（默认 `false`） |
+代码区分可运行示例、伪代码与真实源码。积分阶段、矩阵空间、法线方向、单位与容差必须一致。出现稳定性或精度结论时，写清模型、步长、光滑性与求解收敛条件。
 
-### 标题命名规范
+独立示例若用于数值对比，优先让审计直接执行文中的代码，不再复制一套“测试专用算法”。不能据此宣称真实引擎场景或 GPU 性能已经验证。
 
-知识库所有文章的 `title` 必须遵循统一句式，保证卡片列表视觉一致、读者能一眼判断"讲什么 / 多硬核 / 属哪个领域"。
+## 源码与资料
 
-**统一句式**：
+明确分开：
 
-```
-[主题词]详解 — [价值点副标题]
-```
+- 源码事实：来自指定版本的文件和直接调用链。
+- 一般原理：数学推导或论文模型，不代表引擎已经采用。
+- 工程建议：有假设的配置方向，需要场景测试。
+- 待验证：运行性能、网络行为、资产接入或证据不足的推断。
 
-三条硬规则（无例外）：
+项目专题定义仍位于 `src/content/topics/`。通过 topics 的 id、stage、role、order 关联文章，不复制完整正文。领域描述文件在 `src/content/knowledgeDomains/`，不是第二套完整文章。
 
-| 规则 | 内容 | 说明 |
-|---|---|---|
-| **副标题** | 统一用破折号 ` — `（前后各一空格）点明价值/覆盖范围，**不用冒号** | 破折号后补充"这篇覆盖什么"，不重复 category/subtopic 已有的信息 |
-| **"详解"后缀** | 一律保留 `详解`，前面不加"数学原理""物理原理"等修饰词 | "详解"统一标识本文是系统性拆解而非速记；深度由分类/子主题/标签体现 |
-| **UE 术语** | 保留英文（IK Retargeter、Control Rig、PID、RK4、XPBD 等不中文化）；UE 专属内容统一带 `UE` 前缀；纯通用数学/物理不带 | 这些是 UE 原生术语，中文化反而失真、不利搜索；"UE"前缀用于一眼区分引擎专属 vs 通用内容 |
+## 修改已有内容
 
-**判定流程**：
+改写前先检查入站链接、标题锚点、交互挂载与源码出处。删除重复展开时，要留下准确摘要和目标链接；改章名时更新站内深链接，必要时保留旧锚点到新对应章节。
 
-1. 是否讲 UE 专属内容（源码、插件、引擎子系统）？
-   - 是 → 主题词前加 `UE `
-   - 否 → 不加前缀
-2. 副标题是否补充了卡片读者还不知道的信息？
-   - 是 → 加 ` — 副标题`
-   - 副标题若只是复述 category/subtopic，则不必加（但默认建议加，点明覆盖范围）
+标题修改不更新文件名。不要把发布日期全部改成当天；版本核对日期可以在源码范围段单独记录。旧历史方案不反向约束当前标题和 UI。
 
-**命名示例**（对照现有文章）：
+## 验证
 
-| 内容 | 合规标题 |
-|---|---|
-| UE IK 重定向 Op 堆栈 | `UE IK Retargeter Op 堆栈详解 — 堆栈架构与逐 Op 公式拆解` |
-| 雅可比矩阵（通用数学） | `雅可比矩阵详解 — 从导数到机器人、飞控与游戏物理的统一框架` |
-| 数值积分 | `物理模拟数值积分方法详解 — 从欧拉到 RK4 与 XPBD` |
-| 无人机飞控 | `四轴无人机飞控详解 — 从刚体动力学到级联 PID 与混控` |
-| UE 动画节点 | `UE 动画节点详解 — IK、混合、骨骼控制与惯性化` |
-
-**禁止的写法**：
-
-- ❌ `XXX的数学原理详解` / `XXX的物理原理详解`（不加"数学原理""物理原理"等修饰词，直接 `XXX详解`）
-- ❌ `XXX：从…到…` 用冒号副标题（统一用破折号 ` — `）
-- ❌ `虚幻引擎 XXX`（引擎称呼统一用 `UE`，不用全称）
-- ❌ 纯术语无副标题（如 `雅可比矩阵详解`），副标题能帮卡片读者判断是否值得点开
-
-## 3. 编写正文 — 关键约定
-
-### 3.1 不要写手动「目录」章节
-
-左侧导航目录由 `ArticleToc` 组件根据 `##` / `###` 标题**自动生成**（含 scroll-spy 高亮 + 锚点跳转）。正文里**不要**再写 `## 目录` + 一堆链接列表——那是旧写法，会与左侧目录重复。直接从正文第一个真实章节开始。
-
-### 3.2 标题层级
-
-| 层级 | 用途 | 示例 |
-|---|---|---|
-| `#` H1 | **不要写**（标题由布局渲染，写正文 H1 会重复） | — |
-| `##` H2 | 一级章节，进左侧目录 | `## 一、IK 类节点` |
-| `###` H3 | 二级章节，进左侧目录（缩进） | `### 2.1 TwoBoneIK` |
-| `####`+ | 不进目录，仅正文小标题 | `#### 数学原理` |
-
-`rehype-slug` 会自动给标题生成 `id`（中文标题也会被转成 URL 安全 slug），无需手写锚点。
-
-左侧目录按层级折叠:每个 `##` 自带一个箭头,点击只折叠/展开其下的 `###` 子项(整个目录不会被一次性隐藏)。因此写正文时**保持 H2→H3 的嵌套结构**,目录的折叠分组才有意义——不要让 H3 跨越到另一个 H2 之外。
-
-### 3.3 数学公式 — 必须用围栏式
-
-这是**最重要的渲染规则**。`remark-math` 只在 `$$` 独占一行时才解析为块级（居中、显示样式）公式。
-
-✅ 正确（块级公式，居中渲染）：
-
-```markdown
-$$
-\vec P_{joint}^{new} = \vec P_{root} + \text{proj}\cdot\vec d_{des}
-$$
-```
-
-❌ 错误（单行 `$$...$$` 会被当成**行内公式**，左对齐、不居中）：
-
-```markdown
-$$\vec P_{joint}^{new} = \vec P_{root} + \text{proj}\cdot\vec d_{des}$$
-```
-
-行内公式用单 `$`：`每个骨骼 $b$ 的权重 $w_b$`。
-
-### 3.4 公式常见错误
-
-| 错误 | 示例 | 修正 |
-|---|---|---|
-| 双重下标 | `\text{Layer}_{s(b)}_b` | `{\text{Layer}_{s(b)}}_b`（用 `{}` 分组） |
-| `\text{}` 内含 Unicode 数学符 | `\text{a × b}` | `\text{a} \times \text{b}` |
-| 未闭合环境 | `\frac{a}{b}` 漏 `}` | 检查每个 `\frac\{\}\{\}`、`\left(\right)` 配对 |
-
-公式渲染失败时 KaTeX 会输出**红色文字**。本地预览时如果看到红色公式，对照上表排查。已渲染的公式不会变红。
-
-### 3.5 其他元素
-
-- **表格**：标准 Markdown 表格，会自动套用暗色面板样式（表头 mono 大写、隔行底纹、横向滚动）。
-- **代码块**：` ```cpp ` 等围栏代码块，自动暗色面板 + mono 字体。
-- **引用**：`>` 块引用，左侧绿色竖线 + 灰色文字，用于源码路径说明、版本说明等。
-- **分割线**：`---`，细绿色分隔线。
-- **图片 / GIF / 视频**：见 [`MEDIA_EMBEDDING.md`](MEDIA_EMBEDDING.md)。静态图片和 GIF 用标准 `![alt](/images/x.png)` 语法（文件放 `public/`，非 `src/assets/`）；MP4 需先开管线，详见该文档 §4。
-
-### 3.6 专题文章的边界
-
-- 专题页写阅读顺序、源码范围、模块关系和阶段说明。
-- 知识文章写完整理论、算法推导或源码分析。
-- 同一套推导只保留一个权威文章，其他文章用链接引用。
-- 源码结论需要标出 Unreal Engine 版本或源码路径；推断内容要明确标注。
-
-## 4. 本地验证（必做）
-
-```bash
-npm run dev
-```
-
-打开 `http://localhost:4324/`（端口被占用会自动顺延，看终端输出）：
-
-1. 打开 `/knowledge/`，确认四个入口（学习路线、领域、文章库、专题）可见
-2. 从文章库搜索或筛选文章，确认筛选条件写入 URL
-3. 点击文章卡片 → **新标签页打开**文章页
-3. 检查：
-   - 左侧目录列出所有 `##` / `###`
-   - 点击目录项 → 平滑滚动到对应章节
-   - 滚动正文 → 目录高亮跟随（scroll-spy）
-   - 公式**居中**显示，无红色错误
-   - 顶部「← 返回知识库」回到知识库首页
-
-类型 + 构建检查：
-
-```bash
-npx astro check      # 0 errors 0 warnings
-npm run build        # 应生成对应路由 HTML
+~~~sh
+npm run check
+npm run audit:knowledge-learning
 npm run audit:topics
 npm run audit:knowledge-nav
-```
+npm run audit:reading-order
+npm run audit:document-examples
+npm run build
+git diff --check
+~~~
 
-## 5. 检查清单（发布前逐项确认）
+构建包含公式/关系审计、Astro、Pagefind、阅读界面与文章 HTML 审计。浏览器补查长标题换行、中文检索、KaTeX、目录锚点、移动端溢出与已有交互。
 
-- [ ] frontmatter 字段完整、分类枚举正确、`date` 为 ISO 格式
-- [ ] `title` 遵循「标题命名规范」句式（`[主题词]详解 — [副标题]`，UE 专属带 `UE` 前缀，英文术语保留）
-- [ ] 正文**无手动 `## 目录` 章节**
-- [ ] 正文**无 H1**（`#`），从 `##` 开始
-- [ ] 所有块级公式为**围栏式** `$$`（独占行）
-- [ ] 本地预览**无红色公式**
-- [ ] `npx astro check` 0 errors
-- [ ] `npm run build` 成功，`dist/<collection>/<slug>/index.html` 存在
-- [ ] 卡片点击新标签页打开，URL 可独立分享
-- [ ] 左侧目录、scroll-spy、返回链接正常
-- [ ] 若加入专题，`npm run audit:topics` 通过，专题阶段和阅读顺序正确
-- [ ] 若加入领域路线，`npm run audit:knowledge-nav` 通过，文章 slug 均存在
-
-## 4.1 知识库入口约定
-
-知识库采用“知识中心 → 领域 / 路线 / 文章库 → 单篇文章”的结构：
-
-| 路由 | 用途 |
-|---|---|
-| `/knowledge/` | 主入口，提供搜索、主要入口和全部文章摘要 |
-| `/#knowledge` | 主知识库 Tab，提供搜索、领域、子主题、文章类型筛选和文章列表 |
-| `/knowledge/domain/<slug>/` | 可选的领域说明页，不作为主文章入口 |
-| `/projects/<slug>/` | 专题上下文、源码范围和研究阶段 |
-
-领域页、路线页和专题页只展示摘要与链接；完整推导和源码分析只保留在 `/knowledge/<slug>/`，避免重复内容。
-
----
-
-## 附：涉及文件索引（添加文章通常**无需**改动这些）
-
-| 文件 | 作用 | 何时要改 |
-|---|---|---|
-| `src/content/config.ts` | 集合 schema 定义 | 新增分类枚举时 |
-| `src/content/topics/*.md` | 专题定义、阶段和研究范围 | 新增专题时 |
-| `src/content/knowledgeDomains/*.md` | 领域入口、精选文章和学习路线 | 新增知识领域时 |
-| `src/lib/taxonomy.ts` | 分类中文映射（单一真相源） | 新增分类时同步 |
-| `src/pages/knowledge/[slug].astro` | 知识库文章路由 | 一般不动 |
-| `src/pages/knowledge/domain/[domain].astro` | 领域知识入口页 | 新增领域页面能力时 |
-| `scripts/audit-knowledge-nav.mjs` | 领域导航引用检查 | 新增或调整领域路线时 |
-| `src/pages/projects/[slug].astro` | 专题详情页路由 | 新增专题页面能力时 |
-| `src/layouts/ArticleLayout.astro` | 文章页布局（TOC + 正文） | 调整版式时 |
-| `src/components/ArticleToc.tsx` | 左侧目录（折叠 + scroll-spy） | 调整目录行为时 |
-| `src/index.css` `.article-body` 段 | 正文排版样式 | 调整正文样式时 |
-| `astro.config.mjs` | remark/rehype 插件（math + slug + katex） | 不动 |
-| `scripts/fence-math.py` | 把单行 `$$` 批量转围栏式（历史文档修正用） | 修正旧文档时 |
+静态构建与数学示例通过不等于 UE 运行时或 WebGL 性能测试通过；交付时分别报告。

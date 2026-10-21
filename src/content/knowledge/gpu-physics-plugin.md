@@ -1,6 +1,6 @@
 ---
-title: "GPUPhysicsLab 插件详解 — three-avbd 的 Unreal RDG 移植、GPU AVBD 与工程扩展"
-excerpt: "基于 three-avbd-rewrite 当前源码，追踪 WorldSubsystem、GT/RT 所有权、RDG 碰撞与拓扑、六维 AVBD、接受状态和 Niagara 发布，并区分原生 SAT、曲面 GJK/EPA、单体动力属性与弹簧质点布料的实际实现及验证边界。"
+title: "GPUPhysicsLab：UE GPU 物理实现"
+excerpt: "追踪 UE 宿主、RDG 资源、AVBD 状态提交与 Niagara 发布，区分移植与独立扩展。"
 date: "2026-10-18"
 category: "Physics"
 subtopic: "ConstraintSolver"
@@ -9,8 +9,8 @@ readTime: "阅读约60分钟"
 kind: "source"
 level: "advanced"
 pageType: "source-analysis"
-aliases: ["GPU Physics", "three-avbd UE 移植", "GPUPhysicsLab AVBD"]
-prerequisites: ["three-avbd-gpu-solver", "vbd-avbd-math", "ue-chaos-physics-engine"]
+aliases: ["GPU Physics","three-avbd UE 移植","GPUPhysicsLab AVBD","GPUPhysicsLab 插件详解 — three-avbd 的 Unreal RDG 移植、GPU AVBD 与工程扩展"]
+prerequisites: ["three-avbd-gpu-solver", "vbd-avbd-math"]
 nextArticles: []
 related: ["avbd-demo3d-implementation", "collision-detection-gjk-epa-sat", "jacobian-matrix", "numerical-integration-methods"]
 topics:
@@ -30,12 +30,7 @@ sources:
 featured: false
 ---
 
-## 学习位置
-
-- **难度**：高级。
-- **本文职责**：解释 three-avbd 的 GPU 物理流水线如何进入 Unreal Engine，以及宿主适配、独立扩展和当前验证边界。
-- **前置阅读**：[three-avbd GPU 求解器](/knowledge/three-avbd-gpu-solver/)、[VBD 与 AVBD](/knowledge/vbd-avbd-math/)、[Chaos 物理引擎总览](/knowledge/ue-chaos-physics-engine/)。
-- **分工**：基础公式和参考算法在前置文章展开；本文保留理解移植差异所必需的公式、实际源码与工程取舍。
+GPUPhysicsLab 的重点不仅是把公式写成 shader，还包括 GT/RT 所有权、RDG 依赖、有效状态提交与失败恢复。本文区分来自[three-avbd](/knowledge/three-avbd-gpu-solver/)的设计、UE 宿主适配以及独立扩展；曲面接触和布料的实际算法分别说明，不把所有 GPU pass 都归为统一 AVBD。
 
 ## 一、先给结论：这不是旧 PBD 插件的换名介绍
 

@@ -1,6 +1,6 @@
 ---
-title: "UE Chaos Physics 引擎详解 — 源码架构、约束求解器与并行流水线"
-excerpt: "基于 UE 5 源码工程级拆解 Chaos 物理引擎：从 GBF 特征时间 PBD 模型、AdvanceOneTimeStepImpl 六阶段流水线、SoA 刚体状态、三阶段求解器（Position/Velocity/Projection）、双层并行（Island 分组 + 64 位位掩码图染色），到 GJK+EPA 窄相、Split-Impulse、Shock Propagation、Rewind 确定性。覆盖数学推导、求解器本质 J·M⁻¹·Jᵀλ=−C、稳定性与抖动/堆叠/爆炸的工程原因，以及重写 Chaos 的架构设计。与《PBD 与 XPBD 详解》《线性方程组迭代求解详解》《物理模拟数值积分方法详解》互为印证。"
+title: "Chaos 物理引擎：架构与求解流水线"
+excerpt: "沿刚体状态和时间步梳理 Chaos 的碰撞、约束、并行调度与结果回写。"
 date: "2026-07-04"
 category: "Physics"
 subtopic: "ChaosPhysics"
@@ -11,7 +11,7 @@ level: "advanced"
 prerequisites: ["classical-mechanics", "numerical-integration-methods", "iterative-linear-solvers"]
 nextArticles: ["collision-detection-gjk-epa-sat", "pbd-xpbd-math", "chaos-kinematic-sync"]
 pageType: "source-analysis"
-aliases: ["Chaos Physics", "UE 物理引擎", "Chaos Solver"]
+aliases: ["Chaos Physics","UE 物理引擎","Chaos Solver","UE Chaos Physics 引擎详解 — 源码架构、约束求解器与并行流水线"]
 featured: true
 topics:
   - id: "ue-chaos-physics"
@@ -20,28 +20,11 @@ topics:
     order: 10
 ---
 
-## 学习位置
-
-- **难度**：高级积木（`advanced`）
-- **本文职责**：把前置理论映射到 Unreal Engine 或项目源码，重点保留源码证据和边界。
-- **前置积木**：[经典力学三大体系详解 — 牛顿、拉格朗日与哈密顿的等价框架与工程映射](/knowledge/classical-mechanics/)、[物理模拟数值积分方法详解 — 从欧拉到 RK4 与 XPBD](/knowledge/numerical-integration-methods/)、[线性方程组迭代求解详解 — 从雅可比、高斯-赛德尔到共轭梯度与约束求解](/knowledge/iterative-linear-solvers/)
-- **后续积木**：[凸体碰撞检测详解 — 从 SAT 到 GJK 再到 EPA 的积木式推导](/knowledge/collision-detection-gjk-epa-sat/)、[PBD 与 XPBD 详解 — 从位置投影到柔度可控的约束求解](/knowledge/pbd-xpbd-math/)、[UE Chaos 运动学同步详解 — P.Chaos.SyncKinematicOnGameThread 的三态控制与双路径镜像](/knowledge/chaos-kinematic-sync/)
-
-> 阅读时先完成前置积木，再阅读本文的概念、算法、源码和工程章节；同一理论只在它的主文章中展开，其他文章只引用结论。
-
-## 本文模块
-
-1. **Chaos 状态和 Simulation Tick**
-2. **碰撞、约束与求解器流水线**
-3. **Position/Velocity/Projection 三阶段**
-4. **Island 并行、确定性与工程诊断**
-
-> 模块按从概念到实现再到验证排列；遇到不熟悉的术语时，先回到本文的前置积木，不在当前文章重复展开基础理论。
-
+阅读 Chaos 应先定位状态归谁所有、何时推进和何时回写，再看碰撞与约束如何接入。本文是一份架构与源码导航，通用积分与约束推导分别链接[数值积分](/knowledge/numerical-integration-methods/)和[约束求解](/knowledge/physics_constraints_deep_dive/)。线程模式和具体算法必须以文中源码范围为准，性能、确定性与项目配置需要独立验证。
 
 > Chaos 是 Unreal Engine 5 的默认刚体物理引擎，取代了 UE4 时代的 PhysX。它不是一个"换了名字的 PhysX"，而是一次从求解器内核开始的重新设计：以 **PBD（Position-Based Dynamics）** 作为刚体约束的核心范式，用"预测位置 → 投影约束 → 反推速度"的循环取代了传统基于力/冲量的 Sequential Impulse 主循环。
 >
-> 本文所有工程结论均来自 UE 源码 `Engine/Source/Runtime/Experimental/Chaos/` 的逐文件分析，关键处标注 `文件:行号`，可对照查阅。Chaos 的 PBD/XPBD 数学推导详见本站&#12298;[PBD 与 XPBD 详解](/knowledge/pbd-xpbd-math/)&#12299;，雅可比/高斯-赛德尔/PGS 的数值线性代数背景详见&#12298;[线性方程组迭代求解详解](/knowledge/iterative-linear-solvers/)&#12299;，积分方法背景详见&#12298;[物理模拟数值积分方法详解](/knowledge/numerical-integration-methods/)&#12299;——本文不重复这些推导，只讲 Chaos 怎么把它们组装成一台能跑 60FPS 的引擎。
+> 本文所有工程结论均来自 UE 源码 `Engine/Source/Runtime/Experimental/Chaos/` 的逐文件分析，关键处标注 `文件:行号`，可对照查阅。Chaos 的 PBD/XPBD 数学推导详见本站&#12298;[位置约束求解：PBD 与 XPBD](/knowledge/pbd-xpbd-math/)&#12299;，雅可比/高斯-赛德尔/PGS 的数值线性代数背景详见&#12298;[线性系统的迭代求解](/knowledge/iterative-linear-solvers/)&#12299;，积分方法背景详见&#12298;[数值积分：方法、误差与稳定性](/knowledge/numerical-integration-methods/)&#12299;——本文不重复这些推导，只讲 Chaos 怎么把它们组装成一台能跑 60FPS 的引擎。
 
 ---
 
@@ -112,7 +95,7 @@ $$
 2. **过约束（over-constraint）**：同时要求不可穿透 + 不可拉伸 + 体积守恒，约束方程彼此冲突，迭代不收敛。**Chaos 的解法**：三阶段求解 + 质量条件化（mass conditioning）+ 投影阶段。
 3. **大时间步穿透**：高速物体在一个时间步内跨过薄墙。**Chaos 的解法**：CCD（连续碰撞检测）扫掠求交。
 
-理解了这三处，就理解了 Chaos 为什么是现在这个架构。详细推导见&#12298;[物理模拟数值积分方法详解](/knowledge/numerical-integration-methods/)&#12299;。
+理解了这三处，就理解了 Chaos 为什么是现在这个架构。详细推导见&#12298;[数值积分：方法、误差与稳定性](/knowledge/numerical-integration-methods/)&#12299;。
 
 ---
 
@@ -314,7 +297,7 @@ one-shot 流形构造（`CollisionOneShotManifolds.cpp:820`）：先 GJK 求最�
 
 ### 4.1 约束求解的统一数学形式
 
-所有约束求解——PBD、XPBD、Sequential Impulse、PGS——最终都在解同一个线性系统（推导见&#12298;[线性方程组迭代求解详解](/knowledge/iterative-linear-solvers/)&#12299;第十一章、&#12298;[雅可比矩阵详解](/knowledge/jacobian-matrix/)&#12299;）：
+所有约束求解——PBD、XPBD、Sequential Impulse、PGS——最终都在解同一个线性系统（推导见&#12298;[线性系统的迭代求解](/knowledge/iterative-linear-solvers/)&#12299;第十一章、&#12298;[Jacobian 矩阵与局部线性化](/knowledge/jacobian-matrix/)&#12299;）：
 
 $$
 \boxed{\quad \underbrace{\mathbf{J}\mathbf{M}^{-1}\mathbf{J}^{\mathsf T}}_{\mathbf{W}\text{（有效质量矩阵）}}\,\boldsymbol\lambda = -\frac{\mathbf{C}}{\Delta t^2} \quad}
@@ -330,7 +313,7 @@ $$
 
 ### 4.2 Jacobi vs Gauss-Seidel：为什么 GPU 适合 Jacobi、CPU 适合 GS
 
-这部分的数值线性代数详见&#12298;[线性方程组迭代求解详解](/knowledge/iterative-linear-solvers/)&#12299;第三章/第四章，这里只讲物理引擎的取舍：
+这部分的数值线性代数详见&#12298;[线性系统的迭代求解](/knowledge/iterative-linear-solvers/)&#12299;第三章/第四章，这里只讲物理引擎的取舍：
 
 | 策略 | 更新方式 | 收敛 | 并行性 |
 |---|---|---|---|
@@ -438,7 +421,7 @@ $$
 
 Chaos 的对应是 `TargetPhi`（`FManifoldPoint::TargetPhi`）——位置阶段把穿透驱动到目标 $\phi$，而非严格 0。$\beta$ 太小漂移累积，太大震荡。
 
-2. **XPBD compliance**：用柔度 $\tilde\alpha$ 让约束在有限迭代下收敛到正确刚度，而非靠迭代硬凑（见&#12298;[PBD 与 XPBD 详解](/knowledge/pbd-xpbd-math/)&#12299;§3）。
+2. **XPBD compliance**：用柔度 $\tilde\alpha$ 让约束在有限迭代下收敛到正确刚度，而非靠迭代硬凑（见&#12298;[位置约束求解：PBD 与 XPBD](/knowledge/pbd-xpbd-math/)&#12299;§3）。
 
 ### 5.3 能量爆炸的四个原因
 
@@ -504,7 +487,7 @@ const int32 ColorIndex = FreeColorsMask != 0
 
 #### 为什么 constraint ordering 重要
 
-Gauss-Seidel 的收敛率 $\rho(\mathbf{B}_{GS})$ 依赖变量更新顺序（详见&#12298;[线性方程组迭代求解详解](/knowledge/iterative-linear-solvers/)&#12299;§6.3）。Chaos 在多处排序约束：
+Gauss-Seidel 的收敛率 $\rho(\mathbf{B}_{GS})$ 依赖变量更新顺序（详见&#12298;[线性系统的迭代求解](/knowledge/iterative-linear-solvers/)&#12299;§6.3）。Chaos 在多处排序约束：
 
 - **Island Level 排序**：BFS 到 kinematic 的距离，让"被支撑"的约束先解（shock propagation 自下而上）；
 - **约束方向**：`GetConstraintDirection`（`PBDCollisionConstraint.cpp:1300`）按重力方向判定谁压谁，先解底层；
@@ -702,6 +685,6 @@ PBD 解它的标量特例，XPBD 加 compliance 解耦刚度，Sequential Impuls
 
 读源码时的三条捷径：① 主循环看 `PBDRigidsEvolutionGBF::AdvanceOneTimeStepImpl`（`PBDRigidsEvolutionGBF.cpp:532`）；② 求解器看 `ConstraintGroupSolver.cpp:428/505/586` 三阶段；③ 并行看 `IslandGroupManager.cpp:511`（Tasks DAG）和 `SolverPartitionManager.cpp:124`（位掩码染色）。这三个文件是 Chaos 的脊柱。
 
-想继续深入 PBD/XPBD 的数学推导，见&#12298;[PBD 与 XPBD 详解](/knowledge/pbd-xpbd-math/)&#12299;；想理解雅可比/有效质量 $\mathbf{J}\mathbf{M}^{-1}\mathbf{J}^{\mathsf T}$ 的来源，见&#12298;[雅可比矩阵详解](/knowledge/jacobian-matrix/)&#12299;；想把 Jacobi/GS/PGS 的收敛性彻底打通，见&#12298;[线性方程组迭代求解详解](/knowledge/iterative-linear-solvers/)&#12299;；积分方法（显式/半隐式/隐式/Verlet）的对比见&#12298;[物理模拟数值积分方法详解](/knowledge/numerical-integration-methods/)&#12299;。Chaos 的布料子系统和 GPU 物理另有&#12298;[Chaos 布料](/knowledge/chaos-cloth/)&#12299;和&#12298;[GPU 物理插件](/knowledge/gpu-physics-plugin/)&#12299;。
+想继续深入 PBD/XPBD 的数学推导，见&#12298;[位置约束求解：PBD 与 XPBD](/knowledge/pbd-xpbd-math/)&#12299;；想理解雅可比/有效质量 $\mathbf{J}\mathbf{M}^{-1}\mathbf{J}^{\mathsf T}$ 的来源，见&#12298;[Jacobian 矩阵与局部线性化](/knowledge/jacobian-matrix/)&#12299;；想把 Jacobi/GS/PGS 的收敛性彻底打通，见&#12298;[线性系统的迭代求解](/knowledge/iterative-linear-solvers/)&#12299;；积分方法（显式/半隐式/隐式/Verlet）的对比见&#12298;[数值积分：方法、误差与稳定性](/knowledge/numerical-integration-methods/)&#12299;。Chaos 的布料子系统和 GPU 物理另有&#12298;[Chaos 布料](/knowledge/chaos-cloth/)&#12299;和&#12298;[GPU 物理插件](/knowledge/gpu-physics-plugin/)&#12299;。
 
 [Part 1 / Total]

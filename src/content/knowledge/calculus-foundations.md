@@ -1,6 +1,6 @@
 ---
-title: "微积分详解 — 从极限到微分、积分与向量微积分"
-excerpt: "系统讲解微积分核心理论：数学预备知识、三角函数、指数对数、函数极限、微分学（导数、偏导数、梯度、雅可比矩阵、海森矩阵、中值定理、泰勒级数、傅里叶级数）、积分学（定积分、换元法、分部积分、多重积分、曲线曲面积分）、向量微积分（梯度、散度、旋度、Gauss/Stokes 公式）。配合 UE C++ 代码示例（FastInvSqrt、FastSin、缓动函数、数值积分）。"
+title: "工程微积分：变化率、累积与局部近似"
+excerpt: "从导数和积分理解运动与累积，再查阅偏导、泰勒近似和向量微积分。"
 date: "2026-09-06"
 category: "Mathematics"
 subtopic: "Calculus"
@@ -13,23 +13,16 @@ topics:
     order: 10
 kind: "theory"
 level: "foundation"
-prerequisites: ["mathematical-notation-reference"]
+prerequisites: []
 nextArticles: ["differential-equations", "jacobian-matrix"]
+aliases: ["微积分详解 — 从极限到微分、积分与向量微积分"]
 ---
 
-## 学习位置
-
-- **难度**：基础积木（`foundation`）
-- **本文职责**：建立概念、符号和推导，作为后续算法的共同语言。
-- **前置积木**：[高等数学符号速查详解 — 集合、逻辑、微积分、线代与 LaTeX 书写](/knowledge/mathematical-notation-reference/)
-- **后续积木**：[常微分方程与数值方法详解 — 从牛顿运动方程到欧拉、Verlet 与龙格-库塔](/knowledge/differential-equations/)、[雅可比矩阵详解 — 从导数到机器人、飞控与游戏物理的统一框架](/knowledge/jacobian-matrix/)
-
-> 阅读时先完成前置积木，再阅读本文的概念、算法、源码和工程章节；同一理论只在它的主文章中展开，其他文章只引用结论。
-
+物理中的速度、加速度与能量变化，都需要描述“某个量如何随另一个量变化”。本文围绕变化率、累积和局部近似组织基础知识；三角函数与向量微积分可按需查阅，不是进入物理模拟的统一门槛。[Jacobian](/knowledge/jacobian-matrix/)与[Hessian](/knowledge/hessian-matrix/)分别承担多输出映射和二阶模型的深入解释。
 
 > 微积分是游戏物理与动画编程的数学基础：位置是速度的积分，速度是位置的导数；力场是势函数的梯度；流体行为由偏微分方程描述。本文系统梳理从极限到向量微积分的完整理论链，并配合 UE C++ 实践示例。
 >
-> 本文为教材式总览，ODE 数值方法见&#12298;[常微分方程与数值方法详解](/knowledge/differential-equations/)&#12299;，PDE 与有限差分离散见&#12298;[偏微分方程与数值离散详解](/knowledge/partial-differential-equations/)&#12299;，数学符号速查见&#12298;[高等数学符号速查详解](/knowledge/mathematical-notation-reference/)&#12299;。雅可比/海森矩阵的深拆见&#12298;[雅可比矩阵详解](/knowledge/jacobian-matrix/)&#12299;与&#12298;[海森矩阵详解](/knowledge/hessian-matrix/)&#12299;。
+> 本文为教材式总览，ODE 数值方法见&#12298;[常微分方程：状态、初值与动力系统](/knowledge/differential-equations/)&#12299;，PDE 与有限差分离散见&#12298;[偏微分方程：场、边界与空间离散](/knowledge/partial-differential-equations/)&#12299;，数学符号速查见&#12298;[数学符号与 LaTeX 速查](/knowledge/mathematical-notation-reference/)&#12299;。雅可比/海森矩阵的深拆见&#12298;[Jacobian 矩阵与局部线性化](/knowledge/jacobian-matrix/)&#12299;与&#12298;[二阶近似与 Hessian 矩阵](/knowledge/hessian-matrix/)&#12299;。
 
 ---
 
@@ -361,7 +354,7 @@ $$
 
 雅可比行列式描述坐标变换的体积缩放因子。极坐标变换 $x = r\cos\theta, y = r\sin\theta$ 的雅可比行列式为 $r$——这就是极坐标积分乘 $r$ 的原因。
 
-详见&#12298;[雅可比矩阵详解](/knowledge/jacobian-matrix/)&#12299;。
+详见&#12298;[Jacobian 矩阵与局部线性化](/knowledge/jacobian-matrix/)&#12299;。
 
 ### 5.5 海森矩阵
 
@@ -379,7 +372,7 @@ $$
 f(\mathbf{x} + \Delta\mathbf{x}) \approx f(\mathbf{x}) + \nabla f^T \Delta\mathbf{x} + \frac{1}{2}\Delta\mathbf{x}^T H \Delta\mathbf{x}
 $$
 
-详见&#12298;[海森矩阵详解](/knowledge/hessian-matrix/)&#12299;。
+详见&#12298;[二阶近似与 Hessian 矩阵](/knowledge/hessian-matrix/)&#12299;。
 
 ### 5.6 高阶导数与拉普拉斯算子
 
@@ -670,8 +663,8 @@ $$
 
 1. Stewart, J. *Calculus: Early Transcendentals*. ——标准微积分教材。
 2. Strang, G. *Calculus*. MIT OpenCourseWare. ——免费在线教材。
-3. &#12298;[常微分方程与数值方法详解](/knowledge/differential-equations/)&#12299; — ODE 与数值积分方法。
-4. &#12298;[偏微分方程与数值离散详解](/knowledge/partial-differential-equations/)&#12299; — PDE 与有限差分。
-5. &#12298;[高等数学符号速查详解](/knowledge/mathematical-notation-reference/)&#12299; — 数学符号书写规范。
-6. &#12298;[雅可比矩阵详解](/knowledge/jacobian-matrix/)&#12299; — 雅可比矩阵深拆。
-7. &#12298;[海森矩阵详解](/knowledge/hessian-matrix/)&#12299; — 海森矩阵深拆。
+3. &#12298;[常微分方程：状态、初值与动力系统](/knowledge/differential-equations/)&#12299; — ODE 与数值积分方法。
+4. &#12298;[偏微分方程：场、边界与空间离散](/knowledge/partial-differential-equations/)&#12299; — PDE 与有限差分。
+5. &#12298;[数学符号与 LaTeX 速查](/knowledge/mathematical-notation-reference/)&#12299; — 数学符号书写规范。
+6. &#12298;[Jacobian 矩阵与局部线性化](/knowledge/jacobian-matrix/)&#12299; — 雅可比矩阵深拆。
+7. &#12298;[二阶近似与 Hessian 矩阵](/knowledge/hessian-matrix/)&#12299; — 海森矩阵深拆。

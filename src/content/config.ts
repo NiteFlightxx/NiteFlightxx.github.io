@@ -98,7 +98,8 @@ const knowledge = defineCollection({
   type: 'content',
   schema: z
     .object({
-      title: z.string().min(1).regex(/详解\s+—\s+/, 'title must use "[主题]详解 — [副标题]"'),
+      title: z.string().min(1),
+      contentRole: z.enum(['reference', 'lesson']).default('reference'),
       excerpt: z.string().min(1),
       date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'date must use YYYY-MM-DD'),
       category: z.enum(KNOWLEDGE_CATEGORIES),

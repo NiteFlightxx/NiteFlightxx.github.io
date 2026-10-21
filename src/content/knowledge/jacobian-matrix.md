@@ -1,6 +1,6 @@
 ---
-title: "雅可比矩阵详解 — 从导数到机器人、飞控与游戏物理的统一框架"
-excerpt: "从单变量导数出发，积木式地搭建出雅可比矩阵的完整理解，并补齐两份原始笔记缺失的关键知识：IK 的伪逆与阻尼最小二乘、物理引擎约束求解器的 J·M⁻¹·Jᵀ 核心、SVD 与可操作度、反向传播即雅可比链式法则。打通机器人运动学、飞控状态空间线性化与游戏物理约束求解背后同一套数学框架。"
+title: "Jacobian 矩阵与局部线性化"
+excerpt: "用导数矩阵描述输入扰动到输出变化的映射，连接链式法则、IK 与约束。"
 date: "2026-06-25"
 category: "Mathematics"
 subtopic: "LinearAlgebra"
@@ -10,17 +10,10 @@ kind: "theory"
 level: "intermediate"
 prerequisites: ["calculus-foundations", "ue-linear-algebra-guide"]
 nextArticles: ["hessian-matrix", "iterative-linear-solvers", "ue-animation-node-math"]
+aliases: ["雅可比矩阵详解 — 从导数到机器人、飞控与游戏物理的统一框架"]
 ---
 
-## 学习位置
-
-- **难度**：进阶积木（`intermediate`）
-- **本文职责**：建立概念、符号和推导，作为后续算法的共同语言。
-- **前置积木**：[微积分详解 — 从极限到微分、积分与向量微积分](/knowledge/calculus-foundations/)、[UE 线性代数详解 — 坐标系、向量、矩阵、FTransform 与四元数](/knowledge/ue-linear-algebra-guide/)
-- **后续积木**：[海森矩阵详解 — 从二阶导数到曲率、极值判定与牛顿法的统一框架](/knowledge/hessian-matrix/)、[线性方程组迭代求解详解 — 从雅可比、高斯-赛德尔到共轭梯度与约束求解](/knowledge/iterative-linear-solvers/)、[UE 动画节点详解 — IK、混合、骨骼控制与惯性化](/knowledge/ue-animation-node-math/)
-
-> 阅读时先完成前置积木，再阅读本文的概念、算法、源码和工程章节；同一理论只在它的主文章中展开，其他文章只引用结论。
-
+Jacobian 回答的是：输入发生一个小变化，输出在当前位置会怎样变化？先明确输入、输出的维度和单位，再写局部线性化，矩阵才有实际意义。本文拥有这套导数语言；[物理约束](/knowledge/physics_constraints_deep_dive/)与[全身 IK](/knowledge/ue-fullbody-ik-math/)负责具体系统的装配和求解。
 
 ## 一、从导数到雅可比：积木式构建
 

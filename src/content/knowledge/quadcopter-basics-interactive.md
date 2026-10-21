@@ -1,6 +1,6 @@
 ---
-title: "四旋翼无人机基础详解 — 升力、姿态、6DOF 动力学与 PID 控制的交互式 3D 图解"
-excerpt: "写给所有人的无人机入门：一个可以拖拽旋转的 3D 沙盒贯穿全文——亲手体验悬停、倾斜移动、牛顿定律、PID 调参与混控矩阵，每个概念都对应沙盒里的一个页签。"
+title: "四旋翼飞行原理：动力学与交互演示"
+excerpt: "通过 3D 演示观察推力、姿态与平移的关系，再连接 PID 和旋翼分配。"
 date: "2026-09-19"
 category: "Physics"
 subtopic: "FlightController"
@@ -11,23 +11,15 @@ level: "foundation"
 prerequisites: ["classical-mechanics"]
 nextArticles: ["quadcopter-flight-control-math"]
 pageType: "interactive"
-aliases: ["无人机 3D 沙盒", "四旋翼入门", "Drone Sandbox"]
+aliases: ["无人机 3D 沙盒","四旋翼入门","Drone Sandbox","四旋翼无人机基础详解 — 升力、姿态、6DOF 动力学与 PID 控制的交互式 3D 图解"]
 featured: true
 ---
 
-## 学习位置
-
-- **难度**：基础积木（`foundation`）
-- **本文职责**：通过可运行案例验证前置知识，把公式连接到工程结果。
-- **前置积木**：[经典力学三大体系详解 — 牛顿、拉格朗日与哈密顿的等价框架与工程映射](/knowledge/classical-mechanics/)
-- **后续积木**：[AircraftLab 无人机插件技术详解 — 物理、飞控、自动驾驶、Simulation LOD 与网络同步](/knowledge/quadcopter-flight-control-math/)
-
-> 阅读时先完成前置积木，再阅读本文的概念、算法、源码和工程章节；同一理论只在它的主文章中展开，其他文章只引用结论。
-
+四旋翼不能直接朝任意方向施力：旋翼先改变总推力和力矩，姿态改变后，推力才在世界空间中产生水平分量。本文用交互沙盒观察这条因果链，解释悬停、倾斜运动、PID 与混控；实际插件的控制所有权、执行时序和网络边界见[AircraftLab](/knowledge/quadcopter-flight-control-math/)。
 
 > 这是本站无人机系列的**科普入口**：不预设任何控制理论背景，公式只保留最必要的几个。全文只有一个交互沙盒，但它有五个页签，对应下面五章——每一章读到"该动手了"的时候，回到上面的沙盒切换页签操作即可。
 >
-> 想看工程级实现（级联控制链、阻尼伪逆混控、轨迹规划），请继续前往深度文章 [AircraftLab 无人机插件技术详解](/knowledge/quadcopter-flight-control-math/)。
+> 想看工程级实现（级联控制链、阻尼伪逆混控、轨迹规划），请继续前往深度文章 [AircraftLab：动力学、飞控与仿真架构](/knowledge/quadcopter-flight-control-math/)。
 
 <div data-demo="drone-sandbox"></div>
 
@@ -124,6 +116,6 @@ $$
 
 ## 延伸阅读
 
-- [AircraftLab 无人机插件技术详解](/knowledge/quadcopter-flight-control-math/) —— 工程级实现：级联控制链、阻尼伪逆混控、轨迹规划与物理引擎执行；
+- [AircraftLab：动力学、飞控与仿真架构](/knowledge/quadcopter-flight-control-math/) —— 工程级实现：级联控制链、阻尼伪逆混控、轨迹规划与物理引擎执行；
 - [经典力学基础](/knowledge/classical-mechanics/) —— 牛顿/欧拉方程的完整形式；
 - [微分方程](/knowledge/differential-equations/) —— 为什么 PID 调参本质上是调整一个二阶系统的极点。

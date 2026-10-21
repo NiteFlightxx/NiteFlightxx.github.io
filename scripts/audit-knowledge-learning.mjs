@@ -19,7 +19,12 @@ for (const file of files) {
 
   if (!kinds.has(data.kind)) errors.push(`${slug}: invalid kind`);
   if (!Object.hasOwn(levels, data.level)) errors.push(`${slug}: invalid level`);
-  if (!source.includes('## 学习位置')) errors.push(`${slug}: missing learning position block`);
+  const body = matter(source).content.trim();
+  // Scope is expressed in natural prose, not a mandatory course template.
+  const lead = body.split(/^## /m)[0].trim();
+  if (lead.length < 40 || !/[。？！]/.test(lead)) errors.push(`${slug}: missing substantive introductory paragraph`);
+  if (/^## (学习位置|本文模块)$/m.test(body)) errors.push(`${slug}: obsolete course boilerplate`);
+  if (typeof data.title !== 'string' || !data.title.trim() || data.title.length > 48) errors.push(`${slug}: title must be specific and at most 48 characters`);
   for (const relation of ['prerequisites', 'nextArticles']) {
     if (!Array.isArray(data[relation])) errors.push(`${slug}: ${relation} must be an array`);
     for (const target of Array.isArray(data[relation]) ? data[relation] : []) {
@@ -33,6 +38,11 @@ for (const file of files) {
 
 for (const [slug, { data }] of articles) {
   const current = levels[data.level];
+  for (const relation of ['prerequisites', 'nextArticles']) {
+    for (const target of data[relation] ?? []) {
+      if (data.draft !== true && articles.get(target)?.data.draft === true) errors.push(`${slug}: ${relation} points to draft ${target}`);
+    }
+  }
   for (const target of Array.isArray(data.prerequisites) ? data.prerequisites : []) {
     const targetData = articles.get(target)?.data;
     if (targetData && levels[targetData.level] > current) {

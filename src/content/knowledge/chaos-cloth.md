@@ -1,6 +1,6 @@
 ---
-title: "UE Chaos Cloth 详解 — 布料模拟架构、Dataflow 节点与约束系统"
-excerpt: "基于 ChaosClothAssetDataflowNodes 插件源码与 Chaos 物理引擎约束系统，系统解析 Chaos Cloth 的布料物理属性、应用场景、参数推荐值、Dataflow 图节点功能与注意事项，以及全部 Cloth Constraint 约束类型的数学原理与创建条件。覆盖 PBD/XPBD 双求解器、各向同性/各向异性分布、弯曲与屈曲机制、自碰撞与交叉修复，以及从导入到终端的完整工作流。"
+title: "Chaos Cloth：布料求解与 Dataflow"
+excerpt: "连接布料资产、Dataflow、材料约束与碰撞，查阅 Chaos Cloth 的参数与创建条件。"
 date: "2026-07-02"
 category: "Physics"
 subtopic: "ChaosPhysics"
@@ -15,30 +15,14 @@ topics:
     stage: "parallel"
     role: "source"
     order: 20
+aliases: ["UE Chaos Cloth 详解 — 布料模拟架构、Dataflow 节点与约束系统"]
 ---
 
-## 学习位置
-
-- **难度**：高级积木（`advanced`）
-- **本文职责**：把前置理论映射到 Unreal Engine 或项目源码，重点保留源码证据和边界。
-- **前置积木**：[UE Chaos Physics 引擎详解 — 源码架构、约束求解器与并行流水线](/knowledge/ue-chaos-physics-engine/)、[PBD 与 XPBD 详解 — 从位置投影到柔度可控的约束求解](/knowledge/pbd-xpbd-math/)、[物理约束详解 — 从约束函数到实时物理求解器](/knowledge/physics_constraints_deep_dive/)
-- **后续积木**：读完后可按专题或领域路线选择分支。
-
-> 阅读时先完成前置积木，再阅读本文的概念、算法、源码和工程章节；同一理论只在它的主文章中展开，其他文章只引用结论。
-
-## 本文模块
-
-1. **Cloth 资产与 Dataflow 数据流**
-2. **布料约束的物理模型**
-3. **PBD/XPBD 求解与碰撞**
-4. **Chaos 源码映射、参数和调试**
-
-> 模块按从概念到实现再到验证排列；遇到不熟悉的术语时，先回到本文的前置积木，不在当前文章重复展开基础理论。
-
+布料资产的构建、材料参数和运行时求解属于不同阶段。本文沿 Dataflow 与 Cloth 数据流说明它们如何连接，再按约束类型查阅公式、参数和创建条件。通用柔度与位置修正见[PBD 与 XPBD](/knowledge/pbd-xpbd-math/)，不把某份资产的参数经验当作所有布料的默认值。
 
 > Chaos Cloth 是虚幻引擎 5 的现代布料模拟系统，基于 Chaos 物理引擎的 PBD/XPBD 约束求解框架。它以 **ClothCollection** 数据模型为核心，通过 **Dataflow Graph** 组织从网格导入、拓扑编辑、选择绘制、蒙皮绑定到模拟配置的完整流水线，最终由终端节点生成可挂载到 SkeletalMeshComponent 的布料资产。运行时，布料模拟通过一组位置约束（拉伸、弯曲、面积、长程附着、最大距离、后挡板、动画驱动、自碰撞）在 PBD 或力基求解器中迭代求解。
 >
-> 本文基于 `ChaosClothAssetDataflowNodes` 插件源码与 `ChaosCloth` 约束系统源码，完整梳理布料物理属性与推荐值、全部非废弃 Dataflow 节点的功能与参数、以及 Cloth Constraint 的数学原理与创建逻辑。阅读前建议回顾本站&#12298;[PBD 与 XPBD 详解](/knowledge/pbd-xpbd-math/)&#12299;的约束求解框架，以及&#12298;[物理模拟数值积分方法详解](/knowledge/numerical-integration-methods/)&#12299;的半隐式欧拉积分流水线——Chaos Cloth 的求解器循环正是这些方法在布料领域的工程落地。
+> 本文基于 `ChaosClothAssetDataflowNodes` 插件源码与 `ChaosCloth` 约束系统源码，完整梳理布料物理属性与推荐值、全部非废弃 Dataflow 节点的功能与参数、以及 Cloth Constraint 的数学原理与创建逻辑。阅读前建议回顾本站&#12298;[位置约束求解：PBD 与 XPBD](/knowledge/pbd-xpbd-math/)&#12299;的约束求解框架，以及&#12298;[数值积分：方法、误差与稳定性](/knowledge/numerical-integration-methods/)&#12299;的半隐式欧拉积分流水线——Chaos Cloth 的求解器循环正是这些方法在布料领域的工程落地。
 
 ---
 
@@ -809,7 +793,7 @@ Chaos Cloth 支持两种约束求解模式，由 `SimulationStretchConfigNode` �
 | 性能 | 更快 | 略慢（额外乘子状态） |
 | 推荐场景 | 简单布料、性能优先 | 需要物理精确性、帧率一致性 |
 
-关于 PBD/XPBD 的完整数学推导，参见本站&#12298;[PBD 与 XPBD 详解](/knowledge/pbd-xpbd-math/)&#12299;。
+关于 PBD/XPBD 的完整数学推导，参见本站&#12298;[位置约束求解：PBD 与 XPBD](/knowledge/pbd-xpbd-math/)&#12299;。
 
 ### 3.3 Isotropic 与 Anisotropic 分布
 

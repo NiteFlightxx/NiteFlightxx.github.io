@@ -1,6 +1,6 @@
 ---
-title: "JGS2 的数学与物理原理详解 — 从雅可比过冲到 GPU 上的近二阶收敛弹性体求解"
-excerpt: "基于 Lan et al. 2025 (SIGGRAPH) 的 JGS2 论文，像搭积木一样，从 Jacobi/Gauss-Seidel 的并行难题出发，揭示'过冲(overshoot)'这一被忽视的收敛杀手，推导出二阶最优的局部更新公式，再用共旋子空间与 Cubature 采样把它变成可预计算的 GPU 算法。打通'并行性 vs 收敛性'这一对历史矛盾。"
+title: "JGS2：GPU 弹性体迭代求解"
+excerpt: "围绕论文中的过冲、局部更新和 GPU 并行，分析方法假设与预计算边界。"
 date: "2026-07-06"
 category: "Physics"
 subtopic: "ConstraintSolver"
@@ -8,23 +8,16 @@ tags: ["JGS2", "GPU", "弹性体", "数值优化", "迭代求解", "SIGGRAPH"]
 readTime: "阅读约45分钟"
 kind: "source"
 level: "advanced"
-prerequisites: ["vbd-avbd-math", "gpu-physics-plugin"]
+prerequisites: ["vbd-avbd-math", "iterative-linear-solvers"]
 nextArticles: []
+aliases: ["JGS2 的数学与物理原理详解 — 从雅可比过冲到 GPU 上的近二阶收敛弹性体求解"]
 ---
 
-## 学习位置
-
-- **难度**：高级积木（`advanced`）
-- **本文职责**：把前置理论映射到 Unreal Engine 或项目源码，重点保留源码证据和边界。
-- **前置积木**：[VBD 与 AVBD 详解 — 从变分隐式积分到块坐标下降与增广拉格朗日的统一框架](/knowledge/vbd-avbd-math/)、[GPU Physics 插件详解 — 基于 Compute Shader 的 PBD 刚体物理系统](/knowledge/gpu-physics-plugin/)
-- **后续积木**：读完后可按专题或领域路线选择分支。
-
-> 阅读时先完成前置积木，再阅读本文的概念、算法、源码和工程章节；同一理论只在它的主文章中展开，其他文章只引用结论。
-
+JGS2 是论文算法分析，关注弹性体局部更新、并行性与收敛行为，不是 UE 插件已有功能的清单。本文先说明原问题与过冲，再讨论局部模型和预计算；线性迭代背景见[迭代求解](/knowledge/iterative-linear-solvers/)，工程宿主可对照[GPUPhysicsLab](/knowledge/gpu-physics-plugin/)，但二者不能视为已经采用同一算法。
 
 > 本文基于论文 **JGS2: Near Second-order Converging Jacobi/Gauss-Seidel for GPU Elastodynamics**（Lei Lan, Zixuan Lu, Chun Yuan, Weiwei Xu, Hao Su, Huamin Wang, Chenfanfu Jiang, Yin Yang；ACM Transactions on Graphics, 2025；arXiv:2506.06494）整理。该工作是 SIGGRAPH 2025 的 GPU 弹性体求解器，核心贡献是让"像 Jacobi 一样并行"和"像 Newton 一样快收敛"这两个长期矛盾的目标首次同时成立。
 >
-> 阅读前建议先看 [线性方程组迭代求解的数学原理详解](/knowledge/iterative-linear-solvers/)——本文是它的直接延伸：在那篇里我们讲清了 Jacobi、Gauss-Seidel、CG 的收敛性，这里我们把镜头推到 GPU 上，看一个被所有人忽视的收敛杀手，以及如何用二阶最优解消灭它。
+> 阅读前建议先看 [线性系统的迭代求解](/knowledge/iterative-linear-solvers/)——本文是它的直接延伸：在那篇里我们讲清了 Jacobi、Gauss-Seidel、CG 的收敛性，这里我们把镜头推到 GPU 上，看一个被所有人忽视的收敛杀手，以及如何用二阶最优解消灭它。
 
 ---
 
@@ -447,4 +440,4 @@ JGS2 的二阶收敛依赖全局 $E$ 的二次近似质量（即 Newton 近似 E
 - IPC：Li, M., et al. (2020). *Incremental Potential Contact: Intersection-and Inversion-free Large-deformation Dynamics*. ACM TOG (SIGGRAPH).
 - 共旋材料 / Stiffness Warping：Müller, M., et al. (2002). *Stable real-time deformations*. SCA.
 - Stable Neo-Hookean：Smith, B., et al. (2018). *Stable Neo-Hookean Flesh Simulation*. ACM TOG.
-- 迭代求解基础：[本站：线性方程组迭代求解的数学原理详解](/knowledge/iterative-linear-solvers/)
+- 迭代求解基础：[线性系统的迭代求解](/knowledge/iterative-linear-solvers/)

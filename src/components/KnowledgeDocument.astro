@@ -1,0 +1,169 @@
+---
+import { getCollection, render, type CollectionEntry } from 'astro:content';
+import ArticleLayout from '../layouts/ArticleLayout.astro';
+import { readingGroups, readingContext as findReadingContext } from '../lib/readingOrder';
+import { knowledgeCategoryZh, knowledgeSubtopicZh } from '../lib/taxonomy';
+import { getRelatedArticles } from '../lib/relatedArticles';
+import { buildKnowledgeArtifacts } from '../lib/knowledgeArtifacts';
+import type { ContentArticle } from '../types';
+
+interface Props { entry: CollectionEntry<'knowledge'>; indexBody?: boolean; }
+const { entry, indexBody = true } = Astro.props;
+const { Content, headings } = await render(entry);
+
+const baseURL = import.meta.env.BASE_URL;
+
+// Localize the ISO date the same way the SPA loader does (content.ts formatZhDate).
+function formatZhDate(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  return `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日`;
+}
+
+// Build a ContentArticle-shaped object from a collection entry so the
+// relatedness scorer (which reads categoryKey / subtopic / tags) works
+// without re-loading the full HTML body. html/searchText are left empty —
+// they're only needed for the SPA search, not for related-article scoring.
+function toArticleShape(slug: string, data: Record<string, any>): ContentArticle {
+  const categoryKey = String(data.category ?? '');
+  const subtopicKey = data.subtopic ? String(data.subtopic) : '';
+  return {
+    id: slug,
+    slug,
+    title: String(data.title ?? ''),
+    excerpt: String(data.excerpt ?? ''),
+    date: formatZhDate(String(data.date ?? '')),
+    category: knowledgeCategoryZh(categoryKey),
+    categoryKey,
+    subtopic: subtopicKey ? knowledgeSubtopicZh(categoryKey, subtopicKey) : undefined,
+    tags: Array.isArray(data.tags) ? (data.tags as string[]) : [],
+    readTime: data.readTime ? String(data.readTime) : undefined,
+    topics: Array.isArray(data.topics) ? data.topics : [],
+    kind: data.kind,
+    level: data.level,
+    prerequisites: Array.isArray(data.prerequisites) ? data.prerequisites : [],
+    nextArticles: Array.isArray(data.nextArticles) ? data.nextArticles : [],
+    aliases: Array.isArray(data.aliases) ? data.aliases : [],
+    pageType: data.pageType,
+    sources: Array.isArray(data.sources) ? data.sources : [],
+    related: Array.isArray(data.related) ? data.related : [],
+    featured: data.featured === true,
+  };
+}
+
+// Load every published article to score relatedness against the current one.
+const [allEntries, topicEntries] = await Promise.all([
+  getCollection('knowledge', (e) => !e.data.draft),
+  getCollection('topics'),
+]);
+const allArticles: ContentArticle[] = allEntries.map((e) => toArticleShape(e.slug, e.data as Record<string, any>));
+const groups = readingGroups(allArticles);
+const readingContext = findReadingContext(groups, entry.slug);
+const currentArticle = toArticleShape(entry.slug, entry.data as Record<string, any>);
+const relatedArticles = getRelatedArticles(currentArticle, allArticles, 3);
+const artifacts = buildKnowledgeArtifacts(allEntries, topicEntries);
+
+const articleBySlug = new Map(allEntries.map((candidate) => [candidate.slug, candidate]));
+const learningLinks = {
+  prerequisites: entry.data.prerequisites
+    .map((slug) => articleBySlug.get(slug))
+    .filter(Boolean)
+    .map((candidate) => ({ slug: candidate!.slug, title: candidate!.data.title })),
+  nextArticles: entry.data.nextArticles
+    .map((slug) => articleBySlug.get(slug))
+    .filter(Boolean)
+    .map((candidate) => ({ slug: candidate!.slug, title: candidate!.data.title })),
+};
+
+const backlinks = (artifacts.backlinks[entry.slug] ?? [])
+  .map((slug) => articleBySlug.get(slug))
+  .filter(Boolean)
+  .map((candidate) => ({ slug: candidate!.slug, title: candidate!.data.title }));
+const outgoingLinks = (artifacts.outgoing[entry.slug] ?? [])
+  .map((slug) => articleBySlug.get(slug))
+  .filter(Boolean)
+  .map((candidate) => ({ slug: candidate!.slug, title: candidate!.data.title }));
+
+const roleLabels: Record<string, string> = {
+  theory: '理论基础',
+  source: '源码解析',
+  algorithm: '通用算法',
+  comparison: '引擎对比',
+  practice: '工程实践',
+  experiment: '实验验证',
+};
+
+const primaryTopicRef = currentArticle.topics?.[0];
+const primaryTopic = primaryTopicRef
+  ? topicEntries.find((topic) => topic.slug === primaryTopicRef.id)
+  : undefined;
+
+let topicContext: {
+  slug: string;
+  title: string;
+  stageTitle: string;
+  roleLabel: string;
+  previous?: { slug: string; title: string };
+  next?: { slug: string; title: string };
+} | undefined;
+
+if (primaryTopic && primaryTopicRef) {
+  const topicArticles = allEntries
+    .filter((candidate) => candidate.data.topics.some((ref) => ref.id === primaryTopic.slug))
+    .sort((a, b) => {
+      const refA = a.data.topics.find((ref) => ref.id === primaryTopic.slug);
+      const refB = b.data.topics.find((ref) => ref.id === primaryTopic.slug);
+      const stageA = primaryTopic.data.stages.find((stage) => stage.id === refA?.stage)?.order ?? 0;
+      const stageB = primaryTopic.data.stages.find((stage) => stage.id === refB?.stage)?.order ?? 0;
+      return stageA - stageB || (refA?.order ?? 0) - (refB?.order ?? 0);
+    });
+  const topicIndex = topicArticles.findIndex((candidate) => candidate.slug === entry.slug);
+  const previous = topicIndex > 0 ? topicArticles[topicIndex - 1] : undefined;
+  const next = topicIndex >= 0 && topicIndex < topicArticles.length - 1 ? topicArticles[topicIndex + 1] : undefined;
+  const stage = primaryTopic.data.stages.find((candidate) => candidate.id === primaryTopicRef.stage);
+
+  topicContext = {
+    slug: primaryTopic.slug,
+    title: primaryTopic.data.title,
+    stageTitle: stage?.title ?? primaryTopicRef.stage,
+    roleLabel: roleLabels[primaryTopicRef.role] ?? primaryTopicRef.role,
+    previous: previous ? { slug: previous.slug, title: previous.data.title } : undefined,
+    next: next ? { slug: next.slug, title: next.data.title } : undefined,
+  };
+}
+---
+
+<ArticleLayout
+  title={entry.data.title}
+  excerpt={entry.data.excerpt}
+  category={knowledgeCategoryZh(entry.data.category)}
+  subtopic={entry.data.subtopic ? knowledgeSubtopicZh(entry.data.category, entry.data.subtopic) : undefined}
+  difficulty={entry.data.level}
+  pageType={entry.data.pageType}
+  date={formatZhDate(entry.data.date)}
+  readTime={entry.data.readTime}
+  tags={entry.data.tags}
+  headings={headings}
+  indexBody={indexBody}
+  canonicalPath={`${baseURL}knowledge/${entry.slug}/`}
+  readingContext={readingContext}
+  readingGroups={groups}
+  backHref={`${baseURL}knowledge/library/`}
+  backLabel="全部文档"
+  breadcrumbs={[
+    { label: '知识库', href: `${baseURL}knowledge/` },
+    ...(readingContext ? [{ label: readingContext.group.title }, { label: readingContext.section.title }] : []),
+  ]}
+  lang="zh"
+  relatedArticles={relatedArticles}
+  topicContext={topicContext}
+  learningLinks={learningLinks}
+  currentSlug={entry.slug}
+  backlinks={backlinks}
+  outgoingLinks={outgoingLinks}
+  sources={entry.data.sources}
+  historyUrl={`https://github.com/NiteFlightxx/NiteFlightxx.github.io/commits/master/src/content/knowledge/${entry.slug}.md`}
+  rawUrl={`https://github.com/NiteFlightxx/NiteFlightxx.github.io/blob/master/src/content/knowledge/${entry.slug}.md`}
+>
+  <Content />
+</ArticleLayout>

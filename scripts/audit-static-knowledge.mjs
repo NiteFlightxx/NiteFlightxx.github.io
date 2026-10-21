@@ -12,7 +12,7 @@ const warnings = [];
 const records = new Map();
 
 const report = (collection, file, message) => collection.push(`${file}: ${message}`);
-const stripCode = (markdown) => markdown.replace(/```[\s\S]*?```/g, '').replace(/`[^`\n]+`/g, '');
+const stripCode = (markdown) => markdown.replace(/^(`{3,}|~{3,})[^\n]*\n[\s\S]*?^\1\s*$/gm, '').replace(/`[^`\n]+`/g, '');
 const slugifyHeading = (value) => value.trim().toLocaleLowerCase().replace(/<[^>]+>/g, '').replace(/[^\p{L}\p{N}\s-]/gu, '').replace(/\s+/g, '-').replace(/-+/g, '-');
 
 for (const filename of files) {

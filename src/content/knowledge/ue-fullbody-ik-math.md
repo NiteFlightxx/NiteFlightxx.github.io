@@ -1,6 +1,6 @@
 ---
-title: "UE FullBodyIK 插件详解 — 雅可比矩阵与 XPBD 位置动力学的双范式拆解"
-excerpt: "基于 Unreal Engine FullBodyIK 实验性插件源码，系统拆解两种 IK 求解器的数学原理：基于雅可比矩阵（DLS / 转置法）的 FullBodyIK 求解器，与基于位置动力学（XPBD 约束、极分解、Swing-Twist 限位）的 PBIK 求解器，覆盖偏导几何计算、推-转力矩、最佳拟合旋转与关键参数选型。"
+title: "UE 全身 IK：FullBodyIK 与 PBIK"
+excerpt: "区分 Jacobian 型 FullBodyIK 与位置型 PBIK，查阅目标、限位及关键求解参数。"
 date: "2026-06-30"
 category: "Animation"
 subtopic: "ControlRigIK"
@@ -10,17 +10,10 @@ kind: "source"
 level: "advanced"
 prerequisites: ["ue-animation-node-math", "jacobian-matrix", "pbd-xpbd-math"]
 nextArticles: ["ik-retargeter-ops-math"]
+aliases: ["UE FullBodyIK 插件详解 — 雅可比矩阵与 XPBD 位置动力学的双范式拆解"]
 ---
 
-## 学习位置
-
-- **难度**：高级积木（`advanced`）
-- **本文职责**：把前置理论映射到 Unreal Engine 或项目源码，重点保留源码证据和边界。
-- **前置积木**：[UE 动画节点详解 — IK、混合、骨骼控制与惯性化](/knowledge/ue-animation-node-math/)、[雅可比矩阵详解 — 从导数到机器人、飞控与游戏物理的统一框架](/knowledge/jacobian-matrix/)、[PBD 与 XPBD 详解 — 从位置投影到柔度可控的约束求解](/knowledge/pbd-xpbd-math/)
-- **后续积木**：[UE IK Retargeter Op 堆栈详解 — 堆栈架构与逐 Op 公式拆解](/knowledge/ik-retargeter-ops-math/)
-
-> 阅读时先完成前置积木，再阅读本文的概念、算法、源码和工程章节；同一理论只在它的主文章中展开，其他文章只引用结论。
-
+FullBodyIK 和 PBIK 需要分别理解：相似的“全身 IK”用途不意味着相同的更新公式、参数或执行路径。本文对照各自源码解释误差、局部更新与限位；[Jacobian](/knowledge/jacobian-matrix/)和[位置约束](/knowledge/pbd-xpbd-math/)提供数学背景，落脚目标如何产生则见[预测式 Foot IK](/knowledge/predictive-foot-ik/)。
 
 > 源码路径：`Engine/Plugins/Experimental/FullBodyIK`
 >

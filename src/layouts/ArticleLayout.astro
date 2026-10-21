@@ -7,7 +7,8 @@ import '../index.css';
 import ArticleToc from '../components/ArticleToc';
 import RelatedArticles from '../components/RelatedArticles';
 import ArticleEnhancements from '../components/ArticleEnhancements';
-import KnowledgeTree from '../components/KnowledgeTree';
+import DocumentNavigation from '../components/DocumentNavigation';
+import { articleHref, type ReadingContext, type ReadingGroup } from '../lib/readingOrder';
 import ReaderActions from '../components/ReaderActions';
 import DemoMount from '../components/demos/DemoMount';
 import { Calendar, Clock, ArrowLeft } from 'lucide-react';
@@ -20,6 +21,10 @@ interface TocHeading {
 }
 
 interface Props {
+  readingContext?: ReadingContext;
+  readingGroups: ReadingGroup[];
+  canonicalPath?: string;
+  indexBody?: boolean;
   title: string;
   excerpt?: string;
   category: string; // localized label (e.g. "动画")
@@ -48,7 +53,6 @@ interface Props {
     nextArticles: { slug: string; title: string }[];
   };
   currentSlug: string;
-  allArticles: ContentArticle[];
   backlinks?: { slug: string; title: string }[];
   outgoingLinks?: { slug: string; title: string }[];
   sources?: KnowledgeSource[];
@@ -57,6 +61,10 @@ interface Props {
 }
 
 const {
+  readingContext,
+  readingGroups,
+  canonicalPath = Astro.url.pathname,
+  indexBody = true,
   title,
   excerpt,
   category,
@@ -75,7 +83,6 @@ const {
   topicContext,
   learningLinks,
   currentSlug,
-  allArticles,
   backlinks = [],
   outgoingLinks = [],
   sources = [],
@@ -95,7 +102,7 @@ const {
       title={`${title} · ${SITE.shortTitle}`}
       description={excerpt ?? title}
       type="article"
-      canonicalPath={Astro.url.pathname}
+      canonicalPath={canonicalPath}
     />
     <meta data-pagefind-meta="title" content={title} />
     <meta data-pagefind-meta="category" content={category} />
@@ -115,26 +122,25 @@ const {
     <StaticSiteHeader activeTab="knowledge" />
 
     <div class="knowledge-reader-shell">
-      <aside class="hidden xl:block">
-        <div class="sticky top-24"><KnowledgeTree client:load articles={allArticles} currentSlug={currentSlug} /></div>
+      <aside class="document-sidebar">
+        <div class="sticky top-24"><DocumentNavigation groups={readingGroups} current={currentSlug} /></div>
       </aside>
 
       <main id="main-content" class="reader-main min-w-0">
-        <details class="reader-mobile-tools mb-6 xl:hidden rounded-lg border border-border-subtle">
-          <summary class="cursor-pointer px-4 py-3 text-xs text-text-muted">目录与阅读工具</summary>
-          <div class="space-y-3 border-t border-border-subtle p-3">
-            <details class="rounded-lg border border-border-subtle">
-              <summary class="cursor-pointer px-4 py-3 text-xs text-text-muted">本文目录</summary>
+        <div class="document-mobile-bars">
+          <details class="document-mobile-navigation rounded-lg border border-border-subtle">
+            <summary class="cursor-pointer px-4 py-3 text-xs text-text-muted">文档目录</summary>
+            <div class="border-t border-border-subtle p-3"><DocumentNavigation groups={readingGroups} current={currentSlug} /></div>
+          </details>
+          <details class="document-reader-tools rounded-lg border border-border-subtle">
+            <summary class="cursor-pointer px-4 py-3 text-xs text-text-muted">本文目录与阅读设置</summary>
+            <div class="space-y-3 border-t border-border-subtle p-3">
               <ArticleToc client:load headings={headings} lang={lang} />
-            </details>
-            <details class="rounded-lg border border-border-subtle">
-              <summary class="cursor-pointer px-4 py-3 text-xs text-text-muted">浏览知识目录</summary>
-              <KnowledgeTree client:load articles={allArticles} currentSlug={currentSlug} />
-            </details>
-            <ReaderActions client:media="(max-width: 1279px)" slug={currentSlug} title={title} category={category} url={Astro.url.pathname} />
-          </div>
-        </details>
-      <article class="article-body w-full" data-pagefind-body>
+              <ReaderActions client:media="(max-width: 1439px)" slug={currentSlug} title={title} category={category} url={canonicalPath} />
+            </div>
+          </details>
+        </div>
+      <article class="article-body w-full" data-pagefind-body={indexBody ? true : undefined}>
         <a href={backHref} class="inline-flex items-center gap-2 mb-6 text-xs font-mono text-text-muted hover:text-accent-primary transition-colors group"><ArrowLeft className="w-4 h-4 transition-transform group-hover:-translate-x-1" />{backLabel}</a>
         {/* Header metadata */}
         <header class="article-header border-b border-border-subtle pb-8 mb-10">
@@ -182,7 +188,12 @@ const {
         {/* Rendered Markdown + KaTeX from <Content /> */}
         <slot />
 
-        {learningLinks && (learningLinks.prerequisites.length > 0 || learningLinks.nextArticles.length > 0) && (
+        {readingContext && (readingContext.previous || readingContext.next) && <nav class="document-adjacent" aria-label="顺序阅读" data-pagefind-ignore>
+          {readingContext.previous && <a href={articleHref(readingContext.previous.slug)}><span>上一篇</span>{readingContext.previous.title}</a>}
+          {readingContext.next && <a href={articleHref(readingContext.next.slug)}><span>下一篇</span>{readingContext.next.title}</a>}
+        </nav>}
+
+        {!readingContext && learningLinks && (learningLinks.prerequisites.length > 0 || learningLinks.nextArticles.length > 0) && (
           <section class="mt-12 pt-8 border-t border-border-subtle grid grid-cols-1 md:grid-cols-2 gap-6" aria-label="文章学习关系">
             {learningLinks.prerequisites.length > 0 && (
               <div>
@@ -235,7 +246,7 @@ const {
           ))}
         </div>
 
-        {topicContext && (topicContext.previous || topicContext.next) && (
+        {!readingContext && topicContext && (topicContext.previous || topicContext.next) && (
           <nav class="mt-8 grid grid-cols-1 md:grid-cols-2 gap-3" aria-label="专题文章导航">
             {topicContext.previous ? (
               <a href={`${import.meta.env.BASE_URL}knowledge/${topicContext.previous.slug}/`} class="p-4 rounded-xl border border-border-subtle bg-surface-card hover:border-accent-primary/40 transition-colors">
@@ -253,7 +264,7 @@ const {
         )}
 
         {/* Related articles — computed at build time, hydrated for hover states */}
-        {relatedArticles.length > 0 && (
+        {!readingContext && relatedArticles.length > 0 && (
           <RelatedArticles client:load articles={relatedArticles} lang={lang} />
         )}
         {(historyUrl || rawUrl) && (
@@ -265,13 +276,23 @@ const {
       </article>
       </main>
 
-      <aside class="hidden xl:block">
+      <aside class="document-toc-sidebar">
         <div class="sticky top-24 space-y-4">
-          <ReaderActions client:media="(min-width: 1280px)" slug={currentSlug} title={title} category={category} url={Astro.url.pathname} />
+          <ReaderActions client:media="(min-width: 1440px)" slug={currentSlug} title={title} category={category} url={canonicalPath} />
           <ArticleToc client:load headings={headings} lang={lang} />
           <a href={`${import.meta.env.BASE_URL}knowledge/graph/?center=${currentSlug}`} class="block rounded-xl border border-border-subtle bg-surface-card/40 px-4 py-3 text-center font-mono text-[10px] uppercase tracking-wider text-text-muted hover:border-accent-primary/30 hover:text-accent-primary">在知识图谱中查看</a>
         </div>
       </aside>
     </div>
+    <script>
+      // Scroll only the document tree, never the article, to reveal its active entry.
+      for (const nav of document.querySelectorAll<HTMLElement>('.document-sidebar .document-navigation')) {
+        const active = nav.querySelector<HTMLElement>('[aria-current="page"]');
+        if (!active) continue;
+        const navRect = nav.getBoundingClientRect();
+        const activeRect = active.getBoundingClientRect();
+        if (activeRect.bottom > navRect.bottom) nav.scrollTop += activeRect.bottom - navRect.bottom + 12;
+      }
+    </script>
   </body>
 </html>

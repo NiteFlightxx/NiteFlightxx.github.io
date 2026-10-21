@@ -903,4 +903,54 @@ html.light-theme {
   *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
 }
 
+/* Documentation-first reading surfaces. */
+.document-sidebar,.document-toc-sidebar { display: none; min-width: 0; }
+.document-navigation { max-height: calc(100dvh - 115px); overflow-y: auto; scrollbar-width: thin; padding-right: 10px; font-size: 12px; }
+.document-nav-header { display: flex; justify-content: space-between; align-items: center; padding: 2px 0 18px; color: var(--color-text-primary); }
+.document-nav-header a + a { font-size: 10px; color: var(--color-text-muted); }
+.document-navigation details { padding: 14px 0; border-top: 1px solid var(--color-border-subtle); }
+.document-navigation summary { cursor: pointer; font-weight: 500; color: var(--color-text-primary); line-height: 1.8; }
+.document-navigation summary small { float: right; margin-right: 4px; color: var(--color-text-faint); font-weight: 400; font-size: 10px; }
+.document-nav-section { margin-top: 18px; }
+.document-nav-section > span { display: block; margin: 0 0 8px 10px; font-size: 10px; color: var(--color-text-faint); }
+.document-nav-section ol { display: grid; gap: 3px; }
+.document-nav-section a { display: block; padding: 8px 10px; border-radius: 5px; color: var(--color-text-muted); font-size: 12px; line-height: 1.7; overflow-wrap: anywhere; }
+.document-navigation a:hover { color: var(--color-accent-primary); }
+.document-navigation a[aria-current=page] { color: var(--color-accent-primary); background: color-mix(in srgb, var(--color-accent-primary) 7%, transparent); }
+.document-nav-footer { display: block; margin-top: 12px; padding: 14px 0; color: var(--color-text-faint); font-size: 11px; }
+.document-adjacent { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); border-block: 1px solid var(--color-border-subtle); padding: 22px 0; gap: 24px; margin: 36px 0; }
+.document-adjacent a { color: var(--color-text-secondary); font-size: 13px; line-height: 1.8; text-decoration: none !important; }
+.document-adjacent a:hover { color: var(--color-accent-primary); }
+.document-adjacent span { display: block; font-size: 10px; color: var(--color-text-faint); margin-bottom: 6px; }
+.document-mobile-navigation .document-navigation { max-height: 60dvh; padding: 10px; }
+.document-mobile-bars { margin-bottom: 24px; }
+@media (max-width: 1023px) {
+  .document-mobile-bars { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 8px; }
+  .document-mobile-bars details[open] { grid-column: 1 / -1; }
+}
+.lab-button { display: inline-flex; justify-content: center; padding: 11px 16px; border: 1px solid var(--color-border-subtle); border-radius: 7px; background: var(--color-surface-raised); color: var(--color-accent-primary); font-size: 12px; cursor: pointer; }
+.lab-button:hover { border-color: var(--color-accent-primary); }
+.lab-button:disabled { opacity: .5; cursor: default; }
+.lab-actions { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 18px; }
+.course-lab { border: 1px solid var(--color-border-subtle); border-radius: 10px; padding: 22px; margin: 24px 0; background: var(--color-surface-card); }
+.course-lab label { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; font-size: 12px; margin: 12px 0; }
+.course-lab input[type=range] { flex: 1; min-width: 100px; accent-color: var(--color-accent-primary); }
+.course-lab output { font-variant-numeric: tabular-nums; }
+.course-lab svg { width: 100%; height: auto; max-height: 240px; color: var(--color-accent-primary); }
+.course-lab .lab-readout { font-size: 12px; line-height: 1.9; color: var(--color-text-secondary); }
+@media (min-width: 1024px) {
+  .knowledge-reader-shell { grid-template-columns: 240px minmax(0,820px); max-width: 1200px; }
+  .document-sidebar { display: block; padding-right: 20px; border-right: 1px solid var(--color-border-subtle); }
+  .document-mobile-navigation { display: none; }
+}
+@media (min-width: 1440px) {
+  .knowledge-reader-shell { grid-template-columns: 240px minmax(0,820px) 210px; max-width: 1560px; }
+  .document-toc-sidebar { display: block; }
+  .document-reader-tools { display: none; }
+  .document-mobile-bars { display: none; }
+}
+@media (max-width: 639px) {
+  .document-adjacent { grid-template-columns: minmax(0,1fr); gap: 18px; }
+}
+
 

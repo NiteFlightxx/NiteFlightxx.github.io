@@ -1,0 +1,13 @@
+---
+import { getEntry } from 'astro:content';
+import KnowledgeDocument from '../../../components/KnowledgeDocument.astro';
+import order from '../../../data/reading-order.json';
+// Compatibility URLs now render documents, not course landing pages.
+export function getStaticPaths() {
+  return order.slice(0, 3).map(group => ({ params: { course: group.id }, props: { slug: group.sections[0].articles[0] } }));
+}
+const { slug } = Astro.props;
+const entry = await getEntry('knowledge', slug);
+if (!entry || entry.data.draft) throw new Error('Compatibility document must be public.');
+---
+<KnowledgeDocument entry={entry} indexBody={false} />

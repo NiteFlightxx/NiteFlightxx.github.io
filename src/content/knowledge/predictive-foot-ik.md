@@ -1,6 +1,6 @@
 ---
-title: "预测式 Foot IK 详解 — 从接触时间估计到落脚规划与骨盆补偿"
-excerpt: "从普通 IK 与反应式贴地出发，逐步建立脚步相位、未来脚预测、环境候选、接触状态、移动表面锁定和骨盆可达补偿的完整模型。"
+title: "预测式 Foot IK：落脚规划与接触状态"
+excerpt: "将脚步预测、环境候选、接触锁定和骨盆补偿分开，连接规划与最终 IK 求解。"
 date: "2026-09-26"
 category: "Animation"
 subtopic: "ControlRigIK"
@@ -10,14 +10,10 @@ kind: "algorithm"
 level: "intermediate"
 prerequisites: ["ue-linear-algebra-guide", "ue-animation-node-math"]
 nextArticles: ["ue-fullbody-ik-math"]
+aliases: ["预测式 Foot IK 详解 — 从接触时间估计到落脚规划与骨盆补偿"]
 ---
 
-## 学习位置
-
-- **难度**：进阶积木（`intermediate`）
-- **本文职责**：在已有骨骼空间和 IK 基础上，解释如何提前生成、选择并渐进应用脚部接触目标。
-- **前置积木**：[UE 线性代数详解](/knowledge/ue-linear-algebra-guide/)和[UE 动画节点详解](/knowledge/ue-animation-node-math/)。
-- **后续积木**：[UE FullBodyIK 插件详解](/knowledge/ue-fullbody-ik-math/)进一步解释可选的全身姿势求解器；本文的接触规划并不依赖它。
+预测式 Foot IK 不只是把脚吸附到地面：它需要估计接触时间、比较未来落脚候选，并在移动表面上维护接触状态。本文讨论目标规划与状态机，最终姿态求解可接不同 IK 方法；[UE 全身 IK](/knowledge/ue-fullbody-ik-math/)是可选求解器，不是规划链路的替代品。
 
 > 本文整理自指定的《预测 IK 原理》文档，讨论通用模型与公开的 Unreal Engine 接口。示例中的组件关系、执行顺序和参数是设计约定，不代表 NitePredIK 插件当前已有对应实现。
 

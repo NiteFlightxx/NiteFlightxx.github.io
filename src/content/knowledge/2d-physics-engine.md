@@ -1,6 +1,6 @@
 ---
-title: "2D 物理引擎详解 — 向量、刚体、SAT 碰撞与冲量法约束求解"
-excerpt: "从零构建一个 2D 刚体物理引擎：向量数学、刚体动力学与转动惯量、四种数值积分方法（前向/半隐式欧拉、中点、RK4）、圆-圆/多边形-多边形(SAT)/圆-多边形碰撞检测、冲量法碰撞响应与库仑摩擦限位、铰链/固定/弹簧关节、空间哈希加速。修正源码中弹簧力多余因子、摩擦冲量恢复系数误用、RK4 未耦合状态变量等错误。"
+title: "2D 物理引擎：从状态更新到约束求解"
+excerpt: "串联刚体状态、SAT、接触冲量、摩擦与关节，观察一个小型引擎如何完成时间步。"
 date: "2026-09-06"
 category: "Physics"
 subtopic: "RigidBodyDynamics"
@@ -15,21 +15,14 @@ topics:
     stage: "comparison"
     role: "comparison"
     order: 10
+aliases: ["2D 物理引擎详解 — 向量、刚体、SAT 碰撞与冲量法约束求解"]
 ---
 
-## 学习位置
-
-- **难度**：进阶积木（`intermediate`）
-- **本文职责**：通过可运行案例验证前置知识，把公式连接到工程结果。
-- **前置积木**：[经典力学三大体系详解 — 牛顿、拉格朗日与哈密顿的等价框架与工程映射](/knowledge/classical-mechanics/)、[物理模拟数值积分方法详解 — 从欧拉到 RK4 与 XPBD](/knowledge/numerical-integration-methods/)、[凸体碰撞检测详解 — 从 SAT 到 GJK 再到 EPA 的积木式推导](/knowledge/collision-detection-gjk-epa-sat/)
-- **后续积木**：[物理约束详解 — 从约束函数到实时物理求解器](/knowledge/physics_constraints_deep_dive/)
-
-> 阅读时先完成前置积木，再阅读本文的概念、算法、源码和工程章节；同一理论只在它的主文章中展开，其他文章只引用结论。
-
+一个可工作的物理时间步，需要让状态、几何、接触与约束使用一致的数据和时序。本文沿小型 2D 引擎串联这些环节，保留可对照的代码；向量与积分的完整解释分别见[空间数学](/knowledge/ue-linear-algebra-guide/)和[数值积分](/knowledge/numerical-integration-methods/)，碰撞几何见[凸体碰撞检测](/knowledge/collision-detection-gjk-epa-sat/)。
 
 > 本文系统拆解一个基于 JavaScript + HTML5 Canvas 的 2D 刚体物理引擎——从向量数学到碰撞响应的完整链路。与基于位置的约束求解方法不同，本文的引擎采用**基于冲量的速度级求解**（sequential impulse），是 Box2D、PhysX 等工业级引擎的核心范式。
 >
-> 本文修正了原工程文档中的若干错误：弹簧力多余因子（§6.4）、摩擦冲量误用法向恢复系数（§5.3）、RK4 未耦合位置-速度状态（§3.4）、空间网格缺失字段（§7.2）。文末与&#12298;[VBD 与 AVBD 详解](/knowledge/vbd-avbd-math/)&#12299;（位置法 vs 冲量法）、&#12298;[PBD 与 XPBD 详解](/knowledge/pbd-xpbd-math/)&#12299;、&#12298;[凸体碰撞检测的数学原理详解](/knowledge/collision-detection-gjk-epa-sat/)&#12299;、&#12298;[物理模拟数值积分方法详解](/knowledge/numerical-integration-methods/)&#12299;形成交叉引用。
+> 本文修正了原工程文档中的若干错误：弹簧力多余因子（§6.4）、摩擦冲量误用法向恢复系数（§5.3）、RK4 未耦合位置-速度状态（§3.4）、空间网格缺失字段（§7.2）。文末与&#12298;[变分物理求解：VBD 与 AVBD](/knowledge/vbd-avbd-math/)&#12299;（位置法 vs 冲量法）、&#12298;[位置约束求解：PBD 与 XPBD](/knowledge/pbd-xpbd-math/)&#12299;、&#12298;[凸体碰撞检测：SAT、GJK 与 EPA](/knowledge/collision-detection-gjk-epa-sat/)&#12299;、&#12298;[数值积分：方法、误差与稳定性](/knowledge/numerical-integration-methods/)&#12299;形成交叉引用。
 
 ---
 
@@ -347,7 +340,7 @@ computeDerivatives(x, v, th, w) {
 
 四阶精度 $O(\Delta t^4)$，非常准确，但需 4 次力计算，成本较高。对于常力（如重力）RK4 退化为半隐式欧拉；RK4 的优势在力依赖位置的场景（弹簧、柔性体）。
 
-> 数值积分方法的系统分析——辛性、稳定性域、精度阶——见&#12298;[物理模拟数值积分方法详解](/knowledge/numerical-integration-methods/)&#12299;。
+> 数值积分方法的系统分析——辛性、稳定性域、精度阶——见&#12298;[数值积分：方法、误差与稳定性](/knowledge/numerical-integration-methods/)&#12299;。
 
 ### 3.5 积分方法对比
 
@@ -433,7 +426,7 @@ static polygonVsPolygon(a, b) {
 }
 ```
 
-> SAT 是凸体碰撞检测的基础方法。对于更通用的凸体（非多边形表示），GJK + EPA 提供了基于 Minkowski 差的统一框架，详见&#12298;[凸体碰撞检测的数学原理详解](/knowledge/collision-detection-gjk-epa-sat/)&#12299;。
+> SAT 是凸体碰撞检测的基础方法。对于更通用的凸体（非多边形表示），GJK + EPA 提供了基于 Minkowski 差的统一框架，详见&#12298;[凸体碰撞检测：SAT、GJK 与 EPA](/knowledge/collision-detection-gjk-epa-sat/)&#12299;。
 
 ### 4.3 圆-多边形碰撞
 
@@ -624,7 +617,7 @@ for (let iter = 0; iter < 5; iter++) {
 }
 ```
 
-> 顺序冲量法是 Box2D、PhysX 的核心范式——每次迭代求解一个约束的冲量，多次迭代逼近全局解。这与基于位置的 PBD/XPBD 的约束投影形成对比，后者直接修正位置。两者的统一框架见&#12298;[PBD 与 XPBD 详解](/knowledge/pbd-xpbd-math/)&#12299;与&#12298;[物理模拟数值积分方法详解](/knowledge/numerical-integration-methods/)&#12299;。
+> 顺序冲量法是 Box2D、PhysX 的核心范式——每次迭代求解一个约束的冲量，多次迭代逼近全局解。这与基于位置的 PBD/XPBD 的约束投影形成对比，后者直接修正位置。两者的统一框架见&#12298;[位置约束求解：PBD 与 XPBD](/knowledge/pbd-xpbd-math/)&#12299;与&#12298;[数值积分：方法、误差与稳定性](/knowledge/numerical-integration-methods/)&#12299;。
 
 ---
 
@@ -899,7 +892,7 @@ disableBetween(a, b) { CollisionMatrix[a] &= ~b; CollisionMatrix[b] &= ~a; }
 | 实现复杂度 | 简单 | 复杂 |
 | 适用场景 | 游戏、实时模拟 | 高精度模拟 |
 
-冲量法在速度层面求解约束，然后积分位置；位置法直接修正位置满足约束。VBD/AVBD 的变分隐式积分与块坐标下降的完整推导见&#12298;[VBD 与 AVBD 详解](/knowledge/vbd-avbd-math/)&#12299;，PBD/XPBD 的约束投影框架见&#12298;[PBD 与 XPBD 详解](/knowledge/pbd-xpbd-math/)&#12299;。
+冲量法在速度层面求解约束，然后积分位置；位置法直接修正位置满足约束。VBD/AVBD 的变分隐式积分与块坐标下降的完整推导见&#12298;[变分物理求解：VBD 与 AVBD](/knowledge/vbd-avbd-math/)&#12299;，PBD/XPBD 的约束投影框架见&#12298;[位置约束求解：PBD 与 XPBD](/knowledge/pbd-xpbd-math/)&#12299;。
 
 ---
 

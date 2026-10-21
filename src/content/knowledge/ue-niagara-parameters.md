@@ -1,6 +1,6 @@
 ---
-title: "UE Niagara 基础参数详解 — 系统/发射器/空间/属性与自定义模块"
-excerpt: "系统梳理虚幻引擎 Niagara 粒子系统的参数体系：系统级、发射器、空间与坐标系、粒子属性、执行上下文、渲染器、模块、数据接口、事件、用户参数，以及自定义模块开发（C++ 数据接口、类型注册标志位 ENiagaraTypeRegistryFlags、Compute Shader）。将原工程文档中埋藏在二级章节下的类型注册标志体系提升为独立章节，补全 Compute Shader 管线与 .usf 注册流程。"
+title: "Niagara：参数、模块与 GPU 数据接口"
+excerpt: "按层级、命名空间与执行阶段查阅参数，连接模块、数据接口和 GPU 交互。"
 date: "2026-09-06"
 category: "Engine"
 subtopic: "VFXSystem"
@@ -10,30 +10,14 @@ kind: "source"
 level: "intermediate"
 prerequisites: []
 nextArticles: []
+aliases: ["UE Niagara 基础参数详解 — 系统/发射器/空间/属性与自定义模块"]
 ---
 
-## 学习位置
-
-- **难度**：进阶积木（`intermediate`）
-- **本文职责**：把前置理论映射到 Unreal Engine 或项目源码，重点保留源码证据和边界。
-- **前置积木**：无（这是本路线的起点）
-- **后续积木**：读完后可按专题或领域路线选择分支。
-
-> 阅读时先完成前置积木，再阅读本文的概念、算法、源码和工程章节；同一理论只在它的主文章中展开，其他文章只引用结论。
-
-## 本文模块
-
-1. **系统、发射器与粒子层级**
-2. **参数命名空间和数据接口**
-3. **模块读写与执行顺序**
-4. **自定义模块和调试边界**
-
-> 模块按从概念到实现再到验证排列；遇到不熟悉的术语时，先回到本文的前置积木，不在当前文章重复展开基础理论。
-
+Niagara 的参数含义离不开所在层级、命名空间和执行阶段。本文作为工程参考，从系统、发射器与粒子属性进入模块和数据接口，再查阅 C++ 与 Compute Shader 扩展；它不是物理或动画文档的统一前置，具体渲染与宿主交互应按对应实现核对。
 
 > **Niagara** 是虚幻引擎 4.26+ 引入的新一代粒子系统，采用模块化、数据驱动的设计，支持 GPU 计算与自定义扩展。相比传统 Cascade，它提供了更灵活的节点式编辑器和可编程模型，使复杂视觉特效（VFX）的开发从美术配置到程序员扩展形成完整闭环。
 >
-> 本文系统梳理 Niagara 的参数体系与自定义模块开发，覆盖从系统配置到 C++ 扩展的完整链路。GPU 粒子模拟常作为流体/物理效果的计算载体——与&#12298;[SPH 流体模拟详解](/knowledge/sph-fluid-simulation/)&#12299;、&#12298;[PBF 流体模拟详解](/knowledge/pbf-fluid-simulation/)&#12299;形成交叉引用。
+> 本文系统梳理 Niagara 的参数体系与自定义模块开发，覆盖从系统配置到 C++ 扩展的完整链路。GPU 粒子模拟常作为流体/物理效果的计算载体——与&#12298;[SPH 流体：核插值、压力与边界](/knowledge/sph-fluid-simulation/)&#12299;、&#12298;[PBF 流体：密度约束与位置修正](/knowledge/pbf-fluid-simulation/)&#12299;形成交叉引用。
 
 ---
 
@@ -1124,5 +1108,5 @@ CPU 端                          GPU 端
 2. Epic Games. *Niagara Data Interface API*. `UNiagaraDataInterface`, `FNiagaraTypeRegistry`, `ENiagaraTypeRegistryFlags`. ——类型注册与数据接口的引擎源码。
 3. Epic Games. *Compute Shader Development Guide*. `FGlobalShader`, `FComputeShaderUtils`, RHI. ——GPU 计算着色器开发指南。
 4. Project PhysicsInteraction. `FNSPBDParticle`, `FPBDConstraint` 示例. ——PhysicsInteraction 插件中的自定义类型注册实践。
-5. &#12298;[SPH 流体模拟详解](/knowledge/sph-fluid-simulation/)&#12299; — Niagara GPU 粒子常作为流体模拟的计算载体。
-6. &#12298;[PBF 流体模拟详解](/knowledge/pbf-fluid-simulation/)&#12299; — PBF 流体在 Niagara 中的 GPU 实现视角。
+5. &#12298;[SPH 流体：核插值、压力与边界](/knowledge/sph-fluid-simulation/)&#12299; — Niagara GPU 粒子常作为流体模拟的计算载体。
+6. &#12298;[PBF 流体：密度约束与位置修正](/knowledge/pbf-fluid-simulation/)&#12299; — PBF 流体在 Niagara 中的 GPU 实现视角。

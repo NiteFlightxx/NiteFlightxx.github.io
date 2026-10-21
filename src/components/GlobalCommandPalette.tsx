@@ -86,16 +86,17 @@ export default function GlobalCommandPalette() {
       const entry = manifestBySlug.get(recent.slug);
       return {
         id: recent.slug,
-        title: recent.title,
+        title: entry?.title ?? recent.title,
         excerpt: entry?.summary ?? '最近阅读的知识页面',
-        url: recent.url,
+        url: entry?.url ?? recent.url,
         meta: `最近阅读 · ${recent.category ?? entry?.categoryLabel ?? '知识库'}`,
       };
     });
   }, [entries, open]);
 
   const quickLinks = useMemo<PaletteResult[]>(() => [
-    { id: 'knowledge', title: '浏览全部知识', excerpt: '按领域、子主题、收藏与最近阅读筛选', url: `${BASE_URL}knowledge/`, meta: '常用入口' },
+    { id: 'knowledge', title: '知识库', excerpt: '按阅读顺序浏览数学、物理与动画文档', url: `${BASE_URL}knowledge/`, meta: '常用入口' },
+    { id: 'library', title: '全部文档', excerpt: '搜索、筛选、收藏与最近阅读', url: `${BASE_URL}knowledge/library/`, meta: '常用入口' },
     { id: 'graph', title: '打开知识图谱', excerpt: '查看文章、专题与知识关系', url: `${BASE_URL}knowledge/graph/`, meta: '常用入口' },
     ...entries.filter((entry) => entry.featured).slice(0, 4).map((entry) => ({ id: entry.slug, title: entry.title, excerpt: entry.summary, url: entry.url, meta: `精选 · ${entry.categoryLabel}` })),
   ], [entries]);
@@ -104,7 +105,7 @@ export default function GlobalCommandPalette() {
     const normalized = query.trim();
     setActive(0);
     if (!normalized) {
-      setResults(defaultResults.length > 0 ? defaultResults : quickLinks);
+      setResults(defaultResults.length > 0 ? [...quickLinks.slice(0, 3), ...defaultResults] : quickLinks);
       return;
     }
     let cancelled = false;
@@ -114,13 +115,15 @@ export default function GlobalCommandPalette() {
         const search = await pagefind.search(normalized);
         const loaded = await Promise.all(search.results.slice(0, 12).map((result: { data: () => Promise<any> }) => result.data()));
         if (!cancelled) {
-          setResults(loaded.map((item: any, index: number) => ({
+          // Renamed articles keep previous titles as manifest aliases. Pagefind
+          // indexes rendered content, so use aliases when full-text has no hits.
+          setResults(loaded.length ? loaded.map((item: any, index: number) => ({
             id: item.url || String(index),
             title: item.meta?.title || item.sub_results?.[0]?.title || '未命名页面',
             excerpt: item.excerpt || '',
             url: item.url,
             meta: item.meta?.category || '全文搜索',
-          })));
+          })) : fallbackSearch(entries, normalized));
         }
       } catch {
         if (!cancelled) setResults(fallbackSearch(entries, normalized));
@@ -175,7 +178,7 @@ export default function GlobalCommandPalette() {
         <div className="max-h-[62vh] overflow-y-auto p-3">
           {!query && (
             <div className="mb-2 flex items-center gap-2 px-3 py-2 font-mono text-[10px] uppercase tracking-widest text-text-faint">
-              <Clock3 className="h-3.5 w-3.5" />{defaultResults.length > 0 ? '最近阅读' : '常用入口'}
+              <Clock3 className="h-3.5 w-3.5" />{defaultResults.length > 0 ? '常用入口与最近阅读' : '常用入口'}
             </div>
           )}
           {results.length > 0 ? results.map((result, index) => (

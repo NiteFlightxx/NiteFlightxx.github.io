@@ -1,17 +1,13 @@
 ---
-import Layout from '../../layouts/Layout.astro';
-import StaticSiteHeader from '../../components/StaticSiteHeader.astro';
-import KnowledgeView from '../../components/KnowledgeView';
-import Footer from '../../components/Footer';
-import { loadKnowledge } from '../../lib/content';
-
-const articles = await loadKnowledge();
+import { getEntry } from 'astro:content';
+import KnowledgeDocument from '../../components/KnowledgeDocument.astro';
+const entry = await getEntry('knowledge', 'course-math-points-vectors');
+if (!entry || entry.data.draft) throw new Error('Default knowledge document must be public.');
 ---
-
-<Layout title="知识库 · NITE">
-  <div class="min-h-screen bg-surface-base text-text-primary">
-    <StaticSiteHeader activeTab="knowledge" />
-    <main id="main-content"><KnowledgeView client:load articles={articles} lang="zh" /></main>
-    <Footer lang="zh" />
-  </div>
-</Layout>
+<KnowledgeDocument entry={entry} indexBody={false} />
+<script>
+  const scope = new URLSearchParams(location.search).get('scope');
+  if (scope === 'favorites' || scope === 'recents') {
+    location.replace(`${import.meta.env.BASE_URL}knowledge/library/?scope=${scope}`);
+  }
+</script>

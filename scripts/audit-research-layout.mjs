@@ -10,7 +10,42 @@ const read = (file) => fs.readFileSync(path.join(dist, file), 'utf8');
 const manifest = JSON.parse(read('knowledge-manifest.json'));
 const publicSlugs = new Set(manifest.map((entry) => entry.slug));
 const home = read('index.html');
-const knowledge = read('knowledge/index.html');
+const knowledge = read('knowledge/library/index.html');
+const documentHome = read('knowledge/index.html');
+const order = JSON.parse(fs.readFileSync(path.join(root, 'src/data/reading-order.json'), 'utf8'));
+const forbidden = /学完能做什么|练习与验收|手动完成|我已完成本课|查看课程|课程目录|课节完成与导航|规划中/;
+assert.match(documentHome, /class="article-body /);
+assert.match(documentHome, /知识库文档目录/);
+assert.doesNotMatch(documentHome, forbidden);
+assert.doesNotMatch(documentHome, /data-pagefind-body/);
+const navigation = documentHome.match(/<nav class="document-navigation"[\s\S]*?<\/nav>/)?.[0];
+assert.ok(navigation, 'Ordered document navigation must be server rendered');
+let previousPosition = -1;
+for (const group of order) {
+  for (const section of group.sections) for (const slug of section.articles) {
+    assert.ok(publicSlugs.has(slug), 'Only public documents may enter navigation');
+    const position = navigation.indexOf('href="/knowledge/' + slug + '/"');
+    assert.ok(position > previousPosition, 'Reading order mismatch: ' + slug);
+    previousPosition = position;
+  }
+}
+for (const group of order.slice(0, 3)) {
+  const slug = group.sections[0].articles[0];
+  const canonical = read('knowledge/' + slug + '/index.html');
+  assert.match(canonical, /data-pagefind-body/);
+  assert.match(canonical, /data-demo="course-/);
+  assert.match(canonical, /class="katex/);
+  assert.match(canonical, /顺序阅读/);
+  assert.doesNotMatch(canonical, forbidden);
+  for (const alias of ['knowledge/courses/' + group.id + '/', 'knowledge/domain/' + group.domain + '/']) {
+    const html = read(alias + 'index.html');
+    assert.match(html, /class="article-body /);
+    assert.match(html, /知识库文档目录/);
+    assert.doesNotMatch(html, /data-pagefind-body/);
+    assert.doesNotMatch(html, forbidden);
+    assert.ok(html.includes('href="https://niteflightxx.github.io/knowledge/' + slug + '/"'), 'Alias must use the canonical article URL');
+  }
+}
 assert.match(home, /研究概览/);
 assert.match(home, /研究专题/);
 assert.match(home, /workspace-shell/);

@@ -11,7 +11,6 @@ import Header from "./components/Header";
 import Footer from "./components/Footer";
 import HomeView from "./components/HomeView";
 import ProjectsView from "./components/ProjectsView";
-import KnowledgeView from "./components/KnowledgeView";
 import ArchiveView from "./components/ArchiveView";
 import ProjectDetailModal from "./components/ProjectDetailModal";
 import GlobalCommandPalette from "./components/GlobalCommandPalette";
@@ -37,6 +36,7 @@ export default function App({ knowledgeArticles = [], knowledgeDomains = [] }: A
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
 
   const navigateToTab = useCallback((tab: string) => {
+    if (tab === 'knowledge') { location.assign(`${import.meta.env.BASE_URL}knowledge/`); return; }
     if (!VALID_TABS.includes(tab)) return;
     setActiveTab(tab);
     const nextHash = tab === "home" ? "" : `#${tab}`;
@@ -63,6 +63,7 @@ export default function App({ knowledgeArticles = [], knowledgeDomains = [] }: A
   useEffect(() => {
     const syncFromUrl = () => {
       const tab = window.location.hash.replace(/^#/, "");
+      if (tab === 'knowledge') { location.replace(`${import.meta.env.BASE_URL}knowledge/${location.search}`); return; }
       if (tab === 'main-content') return;
       setActiveTab(VALID_TABS.includes(tab) ? tab : "home");
     };
@@ -96,10 +97,7 @@ export default function App({ knowledgeArticles = [], knowledgeDomains = [] }: A
         );
       case "knowledge":
         return (
-          <KnowledgeView
-            articles={knowledge}
-            lang={lang}
-          />
+          null
         );
       case "projects":
         return (

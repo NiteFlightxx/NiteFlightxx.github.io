@@ -1,6 +1,6 @@
 ---
-title: "线性方程组迭代求解详解 — 从雅可比、高斯-赛德尔到共轭梯度与约束求解"
-excerpt: "像搭积木一样，从最基础的方程、未知数、矩阵开始，一步步搭出雅可比迭代与高斯-赛德尔迭代，再延伸到 SOR、共轭梯度（CG）、预条件共轭梯度（PCG）、GMRES、BiCGSTAB、多重网格，以及收敛性的谱半径判据与条件数收敛率。最后落到物理引擎：PBD 约束求解就是高斯-赛德尔、PGS 用投影处理不等约束、Sequential Impulse 即冲量形式的 PGS、有效质量就是 J·M⁻¹·Jᵀ 的对角、XPBD 用 compliance 把刚度与迭代次数解耦。打通数值线性代数与游戏物理约束求解背后同一套迭代思想。"
+title: "线性系统的迭代求解"
+excerpt: "从残差与收敛条件理解 Jacobi、Gauss–Seidel、CG 和预条件，再连接物理约束。"
 date: "2026-06-26"
 category: "Mathematics"
 subtopic: "LinearAlgebra"
@@ -15,26 +15,10 @@ topics:
     stage: "foundation"
     role: "theory"
     order: 60
+aliases: ["线性方程组迭代求解详解 — 从雅可比、高斯-赛德尔到共轭梯度与约束求解"]
 ---
 
-## 学习位置
-
-- **难度**：进阶积木（`intermediate`）
-- **本文职责**：把理论收敛为可实现的算法，重点说明输入、步骤、稳定性和代价。
-- **前置积木**：[UE 线性代数详解 — 坐标系、向量、矩阵、FTransform 与四元数](/knowledge/ue-linear-algebra-guide/)、[雅可比矩阵详解 — 从导数到机器人、飞控与游戏物理的统一框架](/knowledge/jacobian-matrix/)
-- **后续积木**：[PBD 与 XPBD 详解 — 从位置投影到柔度可控的约束求解](/knowledge/pbd-xpbd-math/)、[UE Chaos Physics 引擎详解 — 源码架构、约束求解器与并行流水线](/knowledge/ue-chaos-physics-engine/)
-
-> 阅读时先完成前置积木，再阅读本文的概念、算法、源码和工程章节；同一理论只在它的主文章中展开，其他文章只引用结论。
-
-## 本文模块
-
-1. **线性系统与误差度量**
-2. **Jacobi、Gauss-Seidel 与阻尼**
-3. **共轭梯度和约束系统**
-4. **稀疏结构、并行化和选型**
-
-> 模块按从概念到实现再到验证排列；遇到不熟悉的术语时，先回到本文的前置积木，不在当前文章重复展开基础理论。
-
+迭代求解不是把同一个循环多执行几次就一定更准确：矩阵性质、更新顺序、预条件和停止判据共同决定结果。本文以线性系统为主线，讨论残差、收敛与计算代价；[约束求解](/knowledge/physics_constraints_deep_dive/)中的投影、非线性重线性化和接触状态还需要额外处理，不能与线性 Gauss–Seidel 直接画等号。
 
 ## 一、积木式入门：从方程到迭代
 
@@ -1172,4 +1156,4 @@ void DiagnoseConvergence(const FSparseMatrix& A)
 
 理解了谱半径与条件数，就理解了它们为什么收敛、为什么快或慢；理解了 PGS 的投影与 XPBD 的柔度，就理解了它们为什么能处理接触与控制刚度。下次在代码里看到 `NumIterations`、`SolverIterationCount`、`PGS`、`SequentialImpulse`、`effectiveMass`、`compliance`、`PCG`、`Multigrid`，它们背后都是同一件事：在 $\mathbf{A}\mathbf{x}=\mathbf{b}$ 上反复修正、逼近真解。
 
-想继续追溯约束雅可比 $\mathbf{J}$ 与有效质量 $\mathbf{J}\mathbf{M}^{-1}\mathbf{J}^{\mathsf T}$ 的来源，见&#12298;[雅可比矩阵详解](/knowledge/jacobian-matrix/)&#12299;；想看 XPBD 的 predict-correct 流程如何与数值积分串联，见&#12298;[物理模拟数值积分方法详解](/knowledge/numerical-integration-methods/)&#12299;。
+想继续追溯约束雅可比 $\mathbf{J}$ 与有效质量 $\mathbf{J}\mathbf{M}^{-1}\mathbf{J}^{\mathsf T}$ 的来源，见&#12298;[Jacobian 矩阵与局部线性化](/knowledge/jacobian-matrix/)&#12299;；想看 XPBD 的 predict-correct 流程如何与数值积分串联，见&#12298;[数值积分：方法、误差与稳定性](/knowledge/numerical-integration-methods/)&#12299;。

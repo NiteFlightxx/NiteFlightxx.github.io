@@ -1,6 +1,6 @@
 ---
-title: "海森矩阵详解 — 从二阶导数到曲率、极值判定与牛顿法的统一框架"
-excerpt: "从单变量二阶导数出发，积木式地搭建出海森矩阵的完整理解：二阶泰勒近似与曲率、Schwarz 对称性、极值判定的正定/负定/不定、海森即梯度的雅可比、牛顿法的 H⁻¹∇f 与线性求解的关系、势能曲面与刚度矩阵、凸性与海森半正定。打通最优化、物理稳定性与机器学习背后同一套二阶导数框架。"
+title: "二阶近似与 Hessian 矩阵"
+excerpt: "通过局部二次模型理解曲率、正定性与 Newton 步，以及线性求解的作用。"
 date: "2026-06-29"
 category: "Mathematics"
 subtopic: "Calculus"
@@ -10,17 +10,10 @@ kind: "theory"
 level: "intermediate"
 prerequisites: ["calculus-foundations", "jacobian-matrix"]
 nextArticles: ["iterative-linear-solvers"]
+aliases: ["海森矩阵详解 — 从二阶导数到曲率、极值判定与牛顿法的统一框架"]
 ---
 
-## 学习位置
-
-- **难度**：进阶积木（`intermediate`）
-- **本文职责**：建立概念、符号和推导，作为后续算法的共同语言。
-- **前置积木**：[微积分详解 — 从极限到微分、积分与向量微积分](/knowledge/calculus-foundations/)、[雅可比矩阵详解 — 从导数到机器人、飞控与游戏物理的统一框架](/knowledge/jacobian-matrix/)
-- **后续积木**：[线性方程组迭代求解详解 — 从雅可比、高斯-赛德尔到共轭梯度与约束求解](/knowledge/iterative-linear-solvers/)
-
-> 阅读时先完成前置积木，再阅读本文的概念、算法、源码和工程章节；同一理论只在它的主文章中展开，其他文章只引用结论。
-
+梯度给出一阶变化方向，Hessian 描述梯度如何继续变化。本文从二阶近似出发解释曲率、极值判定和 Newton 更新，重点区分“写出局部二次模型”与“可靠地求解它”。材料能量和局部物理块的装配见[VBD 与 AVBD](/knowledge/vbd-avbd-math/)，不在这里重复完整求解链。
 
 ## 一、从二阶导数到海森：积木式构建
 
@@ -78,7 +71,7 @@ $$
 \frac{\partial f}{\partial x}, \qquad \frac{\partial f}{\partial y}
 $$
 
-把偏导收成向量就是**梯度**（详见本站&#12298;[雅可比矩阵详解](/knowledge/jacobian-matrix/)&#12299;§1.4）：
+把偏导收成向量就是**梯度**（详见本站&#12298;[Jacobian 矩阵与局部线性化](/knowledge/jacobian-matrix/)&#12299;§1.4）：
 
 $$
 \nabla f = \begin{bmatrix} \dfrac{\partial f}{\partial x} \\[4pt] \dfrac{\partial f}{\partial y} \end{bmatrix}
@@ -202,7 +195,7 @@ $$
 
 ### 3.2 海森矩阵 = 梯度的雅可比
 
-这是海森与雅可比之间最深刻的联系。梯度 $\nabla f$ 是一个从 $\mathbb{R}^n$ 到 $\mathbb{R}^n$ 的向量值函数（进来 $\mathbf{x}$，出去 $\nabla f$）。对它求雅可比矩阵（详见本站&#12298;[雅可比矩阵详解](/knowledge/jacobian-matrix/)&#12299;§1.6）：
+这是海森与雅可比之间最深刻的联系。梯度 $\nabla f$ 是一个从 $\mathbb{R}^n$ 到 $\mathbb{R}^n$ 的向量值函数（进来 $\mathbf{x}$，出去 $\nabla f$）。对它求雅可比矩阵（详见本站&#12298;[Jacobian 矩阵与局部线性化](/knowledge/jacobian-matrix/)&#12299;§1.6）：
 
 $$
 \mathbf{J}_{\nabla f} = \frac{\partial(\nabla f)}{\partial \mathbf{x}} = \begin{bmatrix}
@@ -274,7 +267,7 @@ $$
 - $\kappa = 1$：各方向曲率相同，等值面是球（各向同性）；
 - $\kappa \gg 1$：某方向极陡、某方向极缓，等值面是狭长椭球——**病态**（ill-conditioned）。
 
-> 这与迭代法里的条件数是**同一个概念**（详见本站&#12298;[线性方程组迭代求解详解](/knowledge/iterative-linear-solvers/)&#12299;§9）：牛顿法在驻点附近要解 $\mathbf{H}\,\Delta\mathbf{x} = -\nabla f$，如果 $\mathbf{H}$ 病态（$\kappa$ 大），求解就慢——共轭梯度的收敛速度正取决于这个 $\kappa$。海森的条件数，直接决定了优化算法在此处的收敛快慢。
+> 这与迭代法里的条件数是**同一个概念**（详见本站&#12298;[线性系统的迭代求解](/knowledge/iterative-linear-solvers/)&#12299;§9）：牛顿法在驻点附近要解 $\mathbf{H}\,\Delta\mathbf{x} = -\nabla f$，如果 $\mathbf{H}$ 病态（$\kappa$ 大），求解就慢——共轭梯度的收敛速度正取决于这个 $\kappa$。海森的条件数，直接决定了优化算法在此处的收敛快慢。
 
 ---
 
@@ -401,7 +394,7 @@ $$
 \mathbf{H}\,\Delta\mathbf{x} = -\nabla f
 $$
 
-**每一步牛顿迭代，都要解一次以海森为系数矩阵的线性系统。** 这直接连接到迭代求解法（详见本站&#12298;[线性方程组迭代求解详解](/knowledge/iterative-linear-solvers/)&#12299;）：
+**每一步牛顿迭代，都要解一次以海森为系数矩阵的线性系统。** 这直接连接到迭代求解法（详见本站&#12298;[线性系统的迭代求解](/knowledge/iterative-linear-solvers/)&#12299;）：
 
 - $\mathbf{H}$ 对称正定（在极小值附近）→ 可用**共轭梯度（CG）**，不必显式求逆；
 - $\mathbf{H}$ 病态（$\kappa$ 大）→ CG 收敛慢，需要**预条件（PCG）**；
@@ -482,7 +475,7 @@ $$
 0 < \eta < \frac{2}{\lambda_{\max}}
 $$
 
-最大学习率被最大特征值 $\lambda_{\max}$ 限制——曲率最陡的方向决定了你能迈多大步。而收敛速度由条件数 $\kappa = \lambda_{\max}/\lambda_{\min}$ 决定：$\kappa$ 越大，各方向曲率越不均，梯度下降越慢（详见本站&#12298;[线性方程组迭代求解详解](/knowledge/iterative-linear-solvers/)&#12299;§9 关于条件数与 CG 收敛率的讨论，同一套数学）。
+最大学习率被最大特征值 $\lambda_{\max}$ 限制——曲率最陡的方向决定了你能迈多大步。而收敛速度由条件数 $\kappa = \lambda_{\max}/\lambda_{\min}$ 决定：$\kappa$ 越大，各方向曲率越不均，梯度下降越慢（详见本站&#12298;[线性系统的迭代求解](/knowledge/iterative-linear-solvers/)&#12299;§9 关于条件数与 CG 收敛率的讨论，同一套数学）。
 
 ### 9.3 为什么深度学习不用真牛顿法
 
@@ -498,7 +491,7 @@ $$
 
 ## 十、数值海森 vs 解析海森（补充）
 
-和雅可比一样（详见本站&#12298;[雅可比矩阵详解](/knowledge/jacobian-matrix/)&#12299;§十），海森也有解析与数值两条路：
+和雅可比一样（详见本站&#12298;[Jacobian 矩阵与局部线性化](/knowledge/jacobian-matrix/)&#12299;§十），海森也有解析与数值两条路：
 
 | 方法 | 做法 | 优点 | 缺点 |
 |:---|:---|:---|:---|

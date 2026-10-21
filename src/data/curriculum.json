@@ -1,0 +1,849 @@
+[
+  {
+    "id": "engineering-math",
+    "domain": "mathematics",
+    "number": "01",
+    "title": "游戏开发中的工程数学",
+    "summary": "用空间、变化率与数值求解理解游戏算法。",
+    "entry": [
+      "会阅读基础代码和简单函数",
+      "不要求提前掌握微积分或线性代数"
+    ],
+    "outcomes": [
+      "区分点、方向、空间与单位",
+      "建立变换、变化率和局部近似模型",
+      "根据误差与问题条件选择求解工具"
+    ],
+    "boundaries": "不以完整数学教材为目标；其他课程只引用所需课节，不要求先学完本课。",
+    "modules": [
+      {
+        "id": "quantities",
+        "title": "数量、单位与向量",
+        "description": "先回答数据代表什么，再讨论计算。",
+        "lessons": [
+          {
+            "id": "math-space",
+            "title": "点、方向与位移：同样三个数，为什么不能混用？",
+            "goal": "能区分位置、位移、方向，并用平移检验它们的语义。",
+            "exercise": "给出两个位置，计算位移，再平移坐标原点，检查哪些量应保持不变。",
+            "requires": [],
+            "status": "published",
+            "articleSlug": "course-math-points-vectors"
+          },
+          {
+            "id": "math-units",
+            "title": "单位与尺度：如何发现数值正确的错误？",
+            "goal": "能为距离、速度和时间标注单位，检查表达式是否自洽。",
+            "exercise": "把厘米输入误当米输入，找出错误首次出现的位置。",
+            "requires": [
+              "math-space"
+            ],
+            "status": "planned"
+          }
+        ],
+        "materials": [
+          "mathematical-notation-reference",
+          "ue-linear-algebra-guide"
+        ]
+      },
+      {
+        "id": "spaces",
+        "title": "空间、基与变换",
+        "description": "从投影到局部与世界空间。",
+        "lessons": [
+          {
+            "id": "math-projection",
+            "title": "点积与投影：速度有多少沿着目标方向？",
+            "goal": "能从几何图解释点积、投影及归一化条件。",
+            "exercise": "分解一个速度的法向与切向分量，并验证重建。",
+            "requires": [
+              "math-space"
+            ],
+            "status": "planned"
+          },
+          {
+            "id": "math-transform",
+            "title": "基与矩阵：局部坐标怎样变成世界坐标？",
+            "goal": "能写出换基和仿射变换，说明组合顺序。",
+            "exercise": "为一个平移后旋转的对象手算一个点与一个方向。",
+            "requires": [
+              "math-projection",
+              "math-units"
+            ],
+            "status": "planned"
+          }
+        ],
+        "materials": [
+          "ue-linear-algebra-guide"
+        ]
+      },
+      {
+        "id": "rotation",
+        "title": "旋转与姿态",
+        "description": "先建立旋转语义，再比较表示方法。",
+        "lessons": [
+          {
+            "id": "math-rotation",
+            "title": "旋转顺序：为什么先转再移不是先移再转？",
+            "goal": "能用二维例子发现变换不交换。",
+            "exercise": "交换两次变换，画出两条不同路径。",
+            "requires": [
+              "math-transform"
+            ],
+            "status": "planned"
+          },
+          {
+            "id": "math-quaternion",
+            "title": "四元数与插值：姿态怎样连续变化？",
+            "goal": "能区分方向与完整姿态，解释插值的路径选择。",
+            "exercise": "比较两组端点表示，观察相同姿态的不同参数表达。",
+            "requires": [
+              "math-rotation"
+            ],
+            "status": "planned"
+          }
+        ],
+        "materials": [
+          "ue-linear-algebra-guide"
+        ]
+      },
+      {
+        "id": "change",
+        "title": "变化与累积",
+        "description": "导数和积分从可测量现象进入。",
+        "lessons": [
+          {
+            "id": "math-derivative",
+            "title": "导数：瞬时变化率怎样从采样得到？",
+            "goal": "能解释割线、切线及有限差分。",
+            "exercise": "改变采样间隔并比较速度估计。",
+            "requires": [
+              "math-units"
+            ],
+            "status": "planned"
+          },
+          {
+            "id": "math-integral",
+            "title": "积分：许多小变化怎样累积成位移？",
+            "goal": "能从速度时间图解释面积和数值累积。",
+            "exercise": "对分段恒定速度手算位移并用代码核对。",
+            "requires": [
+              "math-derivative"
+            ],
+            "status": "planned"
+          }
+        ],
+        "materials": [
+          "calculus-foundations"
+        ]
+      },
+      {
+        "id": "discrete",
+        "title": "离散与误差",
+        "description": "区别连续模型、数值方法和步长。",
+        "lessons": [
+          {
+            "id": "math-integration",
+            "title": "数值积分：更新顺序改变了什么？",
+            "goal": "能推导并比较最小欧拉更新。",
+            "exercise": "在同一模型与初值下只改变积分方法。",
+            "requires": [
+              "math-integral"
+            ],
+            "status": "planned"
+          },
+          {
+            "id": "math-error",
+            "title": "误差与稳定性：结果接近是否代表可靠？",
+            "goal": "能分开讨论误差、稳定性和收敛观察。",
+            "exercise": "固定模型缩小步长，记录误差而不只观察画面。",
+            "requires": [
+              "math-integration"
+            ],
+            "status": "planned"
+          }
+        ],
+        "materials": [
+          "differential-equations",
+          "numerical-integration-methods"
+        ]
+      },
+      {
+        "id": "systems",
+        "title": "多变量与线性系统",
+        "description": "把局部变化转换成可求解的问题。",
+        "lessons": [
+          {
+            "id": "math-jacobian",
+            "title": "Jacobian：多个输入怎样影响多个输出？",
+            "goal": "能解释矩阵每列的局部变化含义。",
+            "exercise": "对二维映射分别改变两个输入并检验线性近似。",
+            "requires": [
+              "math-derivative",
+              "math-transform"
+            ],
+            "status": "planned"
+          },
+          {
+            "id": "math-linear-solve",
+            "title": "线性求解：为什么不总是直接求逆？",
+            "goal": "能识别残差、病态与迭代预算。",
+            "exercise": "比较同一系统的直接求解和迭代残差。",
+            "requires": [
+              "math-jacobian"
+            ],
+            "status": "planned"
+          }
+        ],
+        "materials": [
+          "jacobian-matrix",
+          "iterative-linear-solvers"
+        ]
+      },
+      {
+        "id": "optimization",
+        "title": "优化与约束",
+        "description": "理解目标、曲率和更新，而非背诵缩写。",
+        "lessons": [
+          {
+            "id": "math-hessian",
+            "title": "二阶信息：曲率如何影响更新？",
+            "goal": "能解释一维二次近似再推广到 Hessian。",
+            "exercise": "对两个不同曲率的目标比较同样的更新步长。",
+            "requires": [
+              "math-jacobian"
+            ],
+            "status": "planned"
+          },
+          {
+            "id": "math-optimization",
+            "title": "约束优化：可行不等于最优",
+            "goal": "能区分目标、约束与求解停止条件。",
+            "exercise": "在一个有边界的最小化问题中检查可行性和残差。",
+            "requires": [
+              "math-hessian",
+              "math-linear-solve"
+            ],
+            "status": "planned"
+          }
+        ],
+        "materials": [
+          "hessian-matrix"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "rigid-body-physics",
+    "domain": "physics",
+    "number": "02",
+    "title": "实时刚体物理",
+    "summary": "从运动状态逐步建立碰撞、接触和约束求解链。",
+    "entry": [
+      "能阅读循环、数组与简单函数",
+      "数学工具在首次使用前按需补充"
+    ],
+    "outcomes": [
+      "手算并实现一次受控的物理更新",
+      "区分几何检测、接触响应与约束求解",
+      "沿统一模型理解真实引擎的组织和失败边界"
+    ],
+    "boundaries": "先讲清刚体；GPU、可变形体和流体作为后续专项，不塞进基础主线。",
+    "modules": [
+      {
+        "id": "time",
+        "title": "运动与时间",
+        "description": "把连续运动写成离散状态更新。",
+        "lessons": [
+          {
+            "id": "physics-step",
+            "title": "把运动写成一次时间步：位置为什么要乘以时间？",
+            "goal": "能从速度单位推导位置更新，区分渲染帧和模拟步。",
+            "exercise": "以两种步长推进匀速运动，检查同一时刻的位置。",
+            "requires": [],
+            "status": "published",
+            "articleSlug": "course-physics-state-timestep"
+          },
+          {
+            "id": "physics-clock",
+            "title": "固定步长：一帧到底推进几次模拟？",
+            "goal": "能区分帧间隔、模拟间隔和剩余时间。",
+            "exercise": "手算一串不同帧间隔对应的固定步数量。",
+            "requires": [
+              "physics-step"
+            ],
+            "status": "planned"
+          }
+        ],
+        "materials": [
+          "numerical-integration-methods"
+        ]
+      },
+      {
+        "id": "forces",
+        "title": "力与时间推进",
+        "description": "从力进入加速度和积分。",
+        "lessons": [
+          {
+            "id": "physics-force",
+            "title": "质量与外力：从加速度更新速度",
+            "goal": "能按单位写出力到状态的更新。",
+            "exercise": "固定外力改变质量，并解释速度变化。",
+            "requires": [
+              "physics-step",
+              "math-units"
+            ],
+            "status": "planned"
+          },
+          {
+            "id": "physics-integrator",
+            "title": "积分器：同一个模型为什么得到不同轨迹？",
+            "goal": "能区分模型误差与离散误差。",
+            "exercise": "固定初值、步长和外力比较两种更新顺序。",
+            "requires": [
+              "physics-force",
+              "math-integration"
+            ],
+            "status": "planned"
+          }
+        ],
+        "materials": [
+          "classical-mechanics",
+          "differential-equations",
+          "numerical-integration-methods"
+        ]
+      },
+      {
+        "id": "rigid-rotation",
+        "title": "刚体旋转",
+        "description": "平动与转动共享状态思路，但不是同一组参数。",
+        "lessons": [
+          {
+            "id": "physics-inertia",
+            "title": "质心、力矩与惯性：推哪里为什么重要？",
+            "goal": "能分开判断平动力和绕质心的力矩。",
+            "exercise": "在质心和偏离质心处施加相同力，画出力臂。",
+            "requires": [
+              "physics-force",
+              "math-transform"
+            ],
+            "status": "planned"
+          },
+          {
+            "id": "physics-angular",
+            "title": "角速度与姿态：旋转状态怎样推进？",
+            "goal": "能区分姿态表示与角速度。",
+            "exercise": "给定角速度与时间间隔，检验小步姿态更新。",
+            "requires": [
+              "physics-inertia",
+              "math-quaternion"
+            ],
+            "status": "planned"
+          }
+        ],
+        "materials": [
+          "classical-mechanics"
+        ]
+      },
+      {
+        "id": "collision",
+        "title": "接触几何",
+        "description": "先确定几何事实，不提前混入响应。",
+        "lessons": [
+          {
+            "id": "physics-broadphase",
+            "title": "宽相：怎样排除不可能碰撞的物体？",
+            "goal": "能解释候选对与真实接触的区别。",
+            "exercise": "为一组包围盒手算候选对，再检查误报。",
+            "requires": [
+              "physics-step",
+              "math-space"
+            ],
+            "status": "planned"
+          },
+          {
+            "id": "physics-contact",
+            "title": "窄相与流形：求解器究竟需要哪些几何量？",
+            "goal": "能统一法线、接触点和有符号距离约定。",
+            "exercise": "交换两个物体的顺序并检查接触数据变化。",
+            "requires": [
+              "physics-broadphase",
+              "math-projection"
+            ],
+            "status": "planned"
+          }
+        ],
+        "materials": [
+          "collision-detection-gjk-epa-sat",
+          "gjk-collision-detection"
+        ]
+      },
+      {
+        "id": "response",
+        "title": "接触响应",
+        "description": "从几何进入速度与动量。",
+        "lessons": [
+          {
+            "id": "physics-impulse",
+            "title": "冲量与恢复：碰撞前后的速度怎样关联？",
+            "goal": "能区分冲量和持续作用的力。",
+            "exercise": "手算两个质点的一维接触响应并检查动量。",
+            "requires": [
+              "physics-contact",
+              "physics-force"
+            ],
+            "status": "planned"
+          },
+          {
+            "id": "physics-friction",
+            "title": "摩擦与堆叠：为什么需要持续接触？",
+            "goal": "能解释切向运动和支撑的不同要求。",
+            "exercise": "固定场景改变接触历史，记录滑动和支撑行为。",
+            "requires": [
+              "physics-impulse"
+            ],
+            "status": "planned"
+          }
+        ],
+        "materials": [
+          "2d-physics-engine",
+          "physics_constraints_deep_dive"
+        ]
+      },
+      {
+        "id": "constraints",
+        "title": "约束建模",
+        "description": "从一个关节理解统一约束语言。",
+        "lessons": [
+          {
+            "id": "physics-constraint-model",
+            "title": "距离与关节：约束函数如何表达限制？",
+            "goal": "能写出简单约束、误差和 Jacobian。",
+            "exercise": "给一根定长连杆计算约束误差与局部变化。",
+            "requires": [
+              "physics-angular",
+              "math-jacobian"
+            ],
+            "status": "planned"
+          },
+          {
+            "id": "physics-effective-mass",
+            "title": "质量与耦合：同样的误差该由谁修正？",
+            "goal": "能解释逆质量、旋转自由度与耦合。",
+            "exercise": "改变两物体质量并比较约束修正的分配。",
+            "requires": [
+              "physics-constraint-model",
+              "math-linear-solve"
+            ],
+            "status": "planned"
+          }
+        ],
+        "materials": [
+          "jacobian-matrix",
+          "physics_constraints_deep_dive"
+        ]
+      },
+      {
+        "id": "solving",
+        "title": "求解方法",
+        "description": "每一种方法都从它要解决的问题引入。",
+        "lessons": [
+          {
+            "id": "physics-projection",
+            "title": "迭代、投影与柔度：误差怎样逐步减少？",
+            "goal": "能区分步长、迭代次数与柔度。",
+            "exercise": "固定其余条件分别改变三者并记录误差。",
+            "requires": [
+              "physics-effective-mass"
+            ],
+            "status": "planned"
+          },
+          {
+            "id": "physics-variational",
+            "title": "从方程到优化：位置更新还能怎样理解？",
+            "goal": "能把惯性、势能和约束放进同一个局部问题。",
+            "exercise": "对一个简单弹簧比较方程与能量描述。",
+            "requires": [
+              "physics-projection",
+              "math-optimization"
+            ],
+            "status": "planned"
+          }
+        ],
+        "materials": [
+          "pbd-xpbd-math",
+          "vbd-avbd-math"
+        ]
+      },
+      {
+        "id": "architecture",
+        "title": "引擎组织",
+        "description": "让接触、状态和调度拥有清晰的生命周期。",
+        "lessons": [
+          {
+            "id": "physics-history",
+            "title": "接触历史：热启动到底复用了什么？",
+            "goal": "能区分几何恢复与数值历史继承。",
+            "exercise": "在两帧之间追踪一个接触的身份和状态。",
+            "requires": [
+              "physics-friction",
+              "physics-projection"
+            ],
+            "status": "planned"
+          },
+          {
+            "id": "physics-islands",
+            "title": "Island 与并行：哪些更新可以同时发生？",
+            "goal": "能识别约束图中的共享写入和独立分组。",
+            "exercise": "对一个小约束图划分独立岛并标出冲突。",
+            "requires": [
+              "physics-history"
+            ],
+            "status": "planned"
+          }
+        ],
+        "materials": [
+          "avbd-demo3d-implementation",
+          "three-avbd-gpu-solver"
+        ]
+      },
+      {
+        "id": "engine-source",
+        "title": "Unreal Engine 对照",
+        "description": "先有模型，再核对特定版本源码。",
+        "lessons": [
+          {
+            "id": "physics-chaos",
+            "title": "追踪一次 Chaos 物理步",
+            "goal": "能为实际源码中的状态、碰撞与求解建立对应关系。",
+            "exercise": "固定源码提交，画出调用链并给每个阶段标明所有权。",
+            "requires": [
+              "physics-islands"
+            ],
+            "status": "planned"
+          },
+          {
+            "id": "physics-debug",
+            "title": "从失稳现象回到可区分的假设",
+            "goal": "能设计分离模型、几何、求解和同步问题的检查。",
+            "exercise": "为一个堆叠异常提出三种能互相区分的验证。",
+            "requires": [
+              "physics-chaos"
+            ],
+            "status": "planned"
+          }
+        ],
+        "materials": [
+          "ue-chaos-physics-engine",
+          "chaos-kinematic-sync",
+          "gpu-physics-plugin"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "character-animation",
+    "domain": "animation",
+    "number": "03",
+    "title": "角色动画系统",
+    "summary": "理解姿态如何表示、采样、组合、选择和约束。",
+    "entry": [
+      "会阅读数组和父子层级",
+      "需要的空间变换工具有对应基础课与参考资料"
+    ],
+    "outcomes": [
+      "从父子空间解释骨骼姿态",
+      "建立从动画资产到最终姿态的完整链路",
+      "区分动作选择、姿态混合、运动与环境约束"
+    ],
+    "boundaries": "不要求先学完全部物理；IK 和 Motion Matching 各有必要前置，不互相设置人工门槛。",
+    "modules": [
+      {
+        "id": "pose",
+        "title": "骨骼与姿态",
+        "description": "从一个三节点骨架认识父子空间。",
+        "lessons": [
+          {
+            "id": "animation-pose",
+            "title": "骨骼姿态与父子空间：移动父骨骼会改变什么？",
+            "goal": "能从局部变换重建组件空间姿态，并区分坐标与视觉结果。",
+            "exercise": "平移父节点，计算子节点组件位置，检查局部位置是否改变。",
+            "requires": [
+              "math-space"
+            ],
+            "status": "published",
+            "articleSlug": "course-animation-pose-spaces"
+          },
+          {
+            "id": "animation-skeleton",
+            "title": "骨架、绑定姿态和动画姿态不是同一件事",
+            "goal": "能区分拓扑、参考状态和当前状态。",
+            "exercise": "给一个最小骨架分别记录三类数据。",
+            "requires": [
+              "animation-pose"
+            ],
+            "status": "planned"
+          }
+        ],
+        "materials": [
+          "ue-linear-algebra-guide",
+          "ue-animation-node-math"
+        ]
+      },
+      {
+        "id": "sampling",
+        "title": "动画与时间",
+        "description": "资产不是一帧图像，而是随时间采样的数据。",
+        "lessons": [
+          {
+            "id": "animation-sample",
+            "title": "关键帧与采样：任意时刻的姿态从哪里来？",
+            "goal": "能区分轨道、关键帧、播放时间与采样结果。",
+            "exercise": "在两个关键帧间手算平移采样。",
+            "requires": [
+              "animation-pose"
+            ],
+            "status": "planned"
+          },
+          {
+            "id": "animation-loop",
+            "title": "循环与曲线：时间映射如何影响运动？",
+            "goal": "能解释循环边界与曲线驱动的数据。",
+            "exercise": "检查一个循环动作首尾的姿态和速度连续性。",
+            "requires": [
+              "animation-sample",
+              "math-derivative"
+            ],
+            "status": "planned"
+          }
+        ],
+        "materials": [
+          "ue-animation-node-math"
+        ]
+      },
+      {
+        "id": "blending",
+        "title": "姿态组合",
+        "description": "混合必须在约定一致的数据上进行。",
+        "lessons": [
+          {
+            "id": "animation-blend",
+            "title": "权重与空间：两个姿态怎样混合？",
+            "goal": "能分别解释平移、旋转与逐骨骼权重。",
+            "exercise": "混合两个三节点姿态并检查父子关系。",
+            "requires": [
+              "animation-sample",
+              "math-quaternion"
+            ],
+            "status": "planned"
+          },
+          {
+            "id": "animation-additive",
+            "title": "Additive 与过渡：差量相对谁定义？",
+            "goal": "能区分绝对姿态、差量和时间连续性。",
+            "exercise": "给一个参考姿态定义差量并重建结果。",
+            "requires": [
+              "animation-blend"
+            ],
+            "status": "planned"
+          }
+        ],
+        "materials": [
+          "ue-animation-node-math"
+        ]
+      },
+      {
+        "id": "locomotion",
+        "title": "角色运动",
+        "description": "运动意图、位移与动画表现需要清晰分工。",
+        "lessons": [
+          {
+            "id": "animation-motion",
+            "title": "速度、步态与朝向：输入怎样进入动画系统？",
+            "goal": "能区分意图、移动结果和动画参数。",
+            "exercise": "为转向和后退各画一条数据流。",
+            "requires": [
+              "animation-pose",
+              "physics-step"
+            ],
+            "status": "planned"
+          },
+          {
+            "id": "animation-root-motion",
+            "title": "Root Motion：谁提取，谁消费，谁处理碰撞？",
+            "goal": "能分清动画位移和角色移动的职责。",
+            "exercise": "为一个带根运动的动作标出提取与消费边界。",
+            "requires": [
+              "animation-motion",
+              "animation-blend"
+            ],
+            "status": "planned"
+          }
+        ],
+        "materials": [
+          "ue-animation-node-math"
+        ]
+      },
+      {
+        "id": "selection",
+        "title": "动作组织",
+        "description": "先明确选择目标，再比较系统工具。",
+        "lessons": [
+          {
+            "id": "animation-state",
+            "title": "状态机与 Blend Space：离散状态和连续参数",
+            "goal": "能判断切换规则与连续混合的适用条件。",
+            "exercise": "为走跑停设计最小状态与参数图。",
+            "requires": [
+              "animation-motion",
+              "animation-blend"
+            ],
+            "status": "planned"
+          },
+          {
+            "id": "animation-montage",
+            "title": "Montage 与动作覆盖：局部动作怎样进入整体？",
+            "goal": "能解释动作覆盖与基础运动的关系。",
+            "exercise": "给上半身动作设计不破坏下半身运动的边界。",
+            "requires": [
+              "animation-state",
+              "animation-additive"
+            ],
+            "status": "planned"
+          }
+        ],
+        "materials": [
+          "ue-animation-node-math"
+        ]
+      },
+      {
+        "id": "ik",
+        "title": "IK 与环境约束",
+        "description": "把目标、规划和求解分开。",
+        "lessons": [
+          {
+            "id": "animation-ik",
+            "title": "逆运动学：目标可达吗，自由度够吗？",
+            "goal": "能解释目标、误差、可达性和局部求解。",
+            "exercise": "给两节连杆画出可达区域并测试边界。",
+            "requires": [
+              "animation-pose",
+              "math-jacobian"
+            ],
+            "status": "planned"
+          },
+          {
+            "id": "animation-foot",
+            "title": "脚接触：何时落脚与怎样求姿态是两个问题",
+            "goal": "能分开接触规划、锁定与身体补偿。",
+            "exercise": "逐帧记录一次落脚的目标、接触状态和求解输入。",
+            "requires": [
+              "animation-ik",
+              "animation-motion"
+            ],
+            "status": "planned"
+          }
+        ],
+        "materials": [
+          "ue-fullbody-ik-math",
+          "predictive-foot-ik"
+        ]
+      },
+      {
+        "id": "retarget",
+        "title": "重定向",
+        "description": "映射运动意图，不是逐数值复制。",
+        "lessons": [
+          {
+            "id": "animation-retarget",
+            "title": "比例与参考姿态：为什么复制角度仍然不对？",
+            "goal": "能解释骨架比例和参考姿态差异。",
+            "exercise": "比较两种臂长下相同局部角度的末端位置。",
+            "requires": [
+              "animation-ik",
+              "animation-skeleton"
+            ],
+            "status": "planned"
+          },
+          {
+            "id": "animation-retarget-pipeline",
+            "title": "链与目标：重定向管线如何分阶段？",
+            "goal": "能标明映射、目标与后续约束的职责。",
+            "exercise": "为一条腿记录各阶段的空间与输入输出。",
+            "requires": [
+              "animation-retarget"
+            ],
+            "status": "planned"
+          }
+        ],
+        "materials": [
+          "ik-retargeter-ops-math"
+        ]
+      },
+      {
+        "id": "motion-search",
+        "title": "数据驱动动作选择",
+        "description": "不把 IK 当作 Motion Matching 的必修主线。",
+        "lessons": [
+          {
+            "id": "animation-features",
+            "title": "姿态特征与轨迹：怎样描述想要的运动？",
+            "goal": "能区分历史状态、未来意图和数据库特征。",
+            "exercise": "为一次起步选出最小特征并解释其作用。",
+            "requires": [
+              "animation-sample",
+              "animation-motion"
+            ],
+            "status": "planned"
+          },
+          {
+            "id": "animation-search-blend",
+            "title": "搜索与混合：找到姿态为什么还没结束？",
+            "goal": "能区分评分、继续播放、切换与过渡。",
+            "exercise": "对一组候选解释选择与切换策略的差别。",
+            "requires": [
+              "animation-features",
+              "animation-blend"
+            ],
+            "status": "planned"
+          }
+        ],
+        "materials": [
+          "motion-matching-pose-search-source-guide"
+        ]
+      },
+      {
+        "id": "animation-source",
+        "title": "Unreal Engine 对照",
+        "description": "以实际节点链路核对概念和边界。",
+        "lessons": [
+          {
+            "id": "animation-runtime",
+            "title": "从更新到输出姿态：沿真实执行链路读源码",
+            "goal": "能标记节点输入、线程、缓存与最终输出。",
+            "exercise": "固定源码版本，追踪一个最小动画图。",
+            "requires": [
+              "animation-state"
+            ],
+            "status": "planned"
+          },
+          {
+            "id": "animation-debug",
+            "title": "调试与性能：问题发生在选择、混合还是约束？",
+            "goal": "能提出可区分的诊断步骤。",
+            "exercise": "针对一次姿态跳变分别检验三种假设。",
+            "requires": [
+              "animation-runtime",
+              "animation-search-blend"
+            ],
+            "status": "planned"
+          }
+        ],
+        "materials": [
+          "ue-animation-node-math",
+          "motion-matching-pose-search-source-guide"
+        ]
+      }
+    ]
+  }
+]

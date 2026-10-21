@@ -1,6 +1,6 @@
 ---
-title: "UE Motion Matching 源码详解 — Pose Search、Query、Cost 与 Blend Stack"
-excerpt: "基于当前 Unreal Engine 源码，追踪 Motion Matching 从 Pose History、Trajectory、Schema、Database、Cost Search 到 Anim Node 与 Blend Stack 的完整运行链路。"
+title: "UE Motion Matching：姿态搜索与混合"
+excerpt: "沿历史姿态、轨迹、特征、数据库和评分，追踪姿态选择与 Blend Stack 输出。"
 date: "2026-09-23"
 category: "Animation"
 subtopic: "MotionMatching"
@@ -11,19 +11,11 @@ level: "advanced"
 prerequisites: ["ue-animation-node-math"]
 nextArticles: []
 pageType: "source-analysis"
-aliases: ["Pose Search", "FAnimNode_MotionMatching", "运动匹配"]
+aliases: ["Pose Search","FAnimNode_MotionMatching","运动匹配","UE Motion Matching 源码详解 — Pose Search、Query、Cost 与 Blend Stack"]
 featured: true
 ---
 
-## 学习位置
-
-- **难度**：高级积木（`advanced`）
-- **本文职责**：把前置理论映射到 Unreal Engine 或项目源码，重点保留源码证据和边界。
-- **前置积木**：[UE 动画节点详解 — IK、混合、骨骼控制与惯性化](/knowledge/ue-animation-node-math/)
-- **后续积木**：读完后可按专题或领域路线选择分支。
-
-> 阅读时先完成前置积木，再阅读本文的概念、算法、源码和工程章节；同一理论只在它的主文章中展开，其他文章只引用结论。
-
+Motion Matching 的问题不只是“哪条动画最像”，还包括何时继续、何时搜索、如何切换，以及混合后的姿态怎样输出。本文以 Pose Search 运行链路为主线，将数据构建、查询、评分与播放控制分开。基础空间见[骨骼姿态](/knowledge/course-animation-pose-spaces/)，相关传统节点可按需查[动画节点参考](/knowledge/ue-animation-node-math/)。
 
 > 本文以 `E:\UnrealEngine\UnrealEngine_Source` 的当前 `ue5-main` 快照为事实边界。Graphify/GitNexus 只用于定位关系，最终结论以源码路径和行号为准。文中标签含义为：**源码事实**＝当前文件直接可见；**工程经验**＝可落地但需结合项目验证；**推测/需要验证**＝源码没有提供足够证据。
 

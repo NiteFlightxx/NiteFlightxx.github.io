@@ -30,7 +30,7 @@ export default function ProjectsView({ projects, articles, domains, onSelectProj
         <header className="page-heading"><div><span className="eyebrow">Research index</span><h1>研究专题</h1><p>按研究问题组织原理、源码与实践。</p></div></header>
         <div className="research-index">
           {areas.map((area) => <section className="research-index-section" key={area.id} id={area.id}>
-            <div className="research-index-intro"><span className="eyebrow">{area.number} / {area.label}</span><h2>{area.title}</h2><p>{area.description}</p><ResearchDiagram kind={area.id} />{area.domain && <a className="quiet-link" href={BASE + 'knowledge/domain/' + area.domain.id + '/'}>领域与阅读路径<ArrowRight size={14} /></a>}</div>
+            <div className="research-index-intro"><span className="eyebrow">{area.number} / {area.label}</span><h2>{area.title}</h2><p>{area.description}</p><ResearchDiagram kind={area.id} />{area.domain && <a className="quiet-link" href={BASE + 'knowledge/domain/' + area.domain.id + '/'}>阅读相关文档<ArrowRight size={14} /></a>}</div>
             <div className="research-index-articles">{area.articles.map((article, index) => <a key={article.slug} href={BASE + 'knowledge/' + article.slug + '/'}><span className="note-number">{String(index + 1).padStart(2, '0')}</span><div><h3>{compactTitle(article.title)}</h3><p>{article.excerpt}</p></div><ArrowUpRight size={16} /></a>)}</div>
           </section>)}
         </div>

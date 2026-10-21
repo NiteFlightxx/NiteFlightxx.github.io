@@ -1,6 +1,6 @@
 ---
-title: "高等数学符号速查详解 — 集合、逻辑、微积分、线代与 LaTeX 书写"
-excerpt: "按领域归类的数学符号速查表：基本运算、集合论、逻辑、微积分（极限/导数/积分/级数）、线性代数（向量/矩阵/范数/分解）、概率统计、数论、特殊函数、希腊字母，并附常用数学常数与 LaTeX 公式书写规范。可作为本站所有数学/物理文章的符号对照参考。"
+title: "数学符号与 LaTeX 速查"
+excerpt: "按运算、集合、微积分与线性代数查阅常用符号，并对照 LaTeX 写法。"
 date: "2026-09-06"
 category: "Mathematics"
 subtopic: "Calculus"
@@ -15,19 +15,12 @@ kind: "theory"
 level: "foundation"
 prerequisites: []
 nextArticles: ["calculus-foundations", "ue-linear-algebra-guide"]
+aliases: ["高等数学符号速查详解 — 集合、逻辑、微积分、线代与 LaTeX 书写"]
 ---
 
-## 学习位置
+这是一份按需查阅的符号表，不是阅读其他文章之前必须完成的章节。同一符号在不同领域可能有不同含义，正文中的局部定义优先；公式推导分别见[微积分](/knowledge/calculus-foundations/)与[空间数学](/knowledge/ue-linear-algebra-guide/)。
 
-- **难度**：基础积木（`foundation`）
-- **本文职责**：建立概念、符号和推导，作为后续算法的共同语言。
-- **前置积木**：无（这是本路线的起点）
-- **后续积木**：[微积分详解 — 从极限到微分、积分与向量微积分](/knowledge/calculus-foundations/)、[UE 线性代数详解 — 坐标系、向量、矩阵、FTransform 与四元数](/knowledge/ue-linear-algebra-guide/)
-
-> 阅读时先完成前置积木，再阅读本文的概念、算法、源码和工程章节；同一理论只在它的主文章中展开，其他文章只引用结论。
-
-
-> 数学符号是技术写作的"字母表"。本文按领域归类高等数学中最常用的符号及其 LaTeX 代码，统一使用 `$...$` 与 `$$...$$` 语法（本站 KaTeX 渲染管线同样依赖这两种分隔符）。阅读本站&#12298;[微积分详解](/knowledge/calculus-foundations/)&#12299;、&#12298;[UE 线性代数详解](/knowledge/ue-linear-algebra-guide/)&#12299;、&#12298;[常微分方程与数值方法详解](/knowledge/differential-equations/)&#12299; 等文章时遇到不熟悉的记号，可随时回到本篇对照。
+> 数学符号是技术写作的"字母表"。本文按领域归类高等数学中最常用的符号及其 LaTeX 代码，统一使用 `$...$` 与 `$$...$$` 语法（本站 KaTeX 渲染管线同样依赖这两种分隔符）。阅读本站&#12298;[工程微积分：变化率、累积与局部近似](/knowledge/calculus-foundations/)&#12299;、&#12298;[UE 空间数学：向量、矩阵与变换](/knowledge/ue-linear-algebra-guide/)&#12299;、&#12298;[常微分方程：状态、初值与动力系统](/knowledge/differential-equations/)&#12299; 等文章时遇到不熟悉的记号，可随时回到本篇对照。
 
 ---
 

@@ -1,6 +1,6 @@
 ---
-title: "SPH 流体模拟详解 — 从核函数插值到 Navier-Stokes 离散与不可压缩变体"
-excerpt: "系统剖析光滑粒子流体动力学（SPH）：从拉格朗日插值原理与 Navier-Stokes 方程离散，到 Poly6/Spiky/Viscosity/Cubic Spline 核函数及其梯度与拉普拉斯的完整推导与实现、对称压力力的动量守恒推导、表面张力 color-field 方法、CFL 稳定性条件，以及 PCISPH/IISPH/DFSPH 不可压缩变体的压力 Poisson 方程要点。"
+title: "SPH 流体：核插值、压力与边界"
+excerpt: "从粒子核插值建立密度与压力离散，比较边界处理和不可压缩变体。"
 date: "2026-09-06"
 category: "Physics"
 subtopic: "Fluid"
@@ -10,30 +10,14 @@ kind: "algorithm"
 level: "advanced"
 prerequisites: ["partial-differential-equations"]
 nextArticles: ["pbf-fluid-simulation"]
+aliases: ["SPH 流体模拟详解 — 从核函数插值到 Navier-Stokes 离散与不可压缩变体"]
 ---
 
-## 学习位置
-
-- **难度**：高级积木（`advanced`）
-- **本文职责**：把理论收敛为可实现的算法，重点说明输入、步骤、稳定性和代价。
-- **前置积木**：[偏微分方程与数值离散详解 — 热传导、波动、Navier-Stokes 与有限差分](/knowledge/partial-differential-equations/)
-- **后续积木**：[PBF 流体模拟详解 — 位置基不可压缩约束、XSPH 粘度与涡度增强](/knowledge/pbf-fluid-simulation/)
-
-> 阅读时先完成前置积木，再阅读本文的概念、算法、源码和工程章节；同一理论只在它的主文章中展开，其他文章只引用结论。
-
-## 本文模块
-
-1. **连续介质和 SPH 离散**
-2. **核函数、邻域搜索和密度**
-3. **压力、粘性与边界处理**
-4. **稳定性、性能和参数调试**
-
-> 模块按从概念到实现再到验证排列；遇到不熟悉的术语时，先回到本文的前置积木，不在当前文章重复展开基础理论。
-
+SPH 的共同基础是用粒子邻域近似连续场；密度、压力和边界如何离散，则决定具体模拟的行为。本文维护核函数、邻域与压力离散的主线，连续方程见[PDE](/knowledge/partial-differential-equations/)，用密度约束直接修正位置的另一条路线见[PBF](/knowledge/pbf-fluid-simulation/)。
 
 > **光滑粒子流体动力学（Smoothed Particle Hydrodynamics, SPH）** 是一种无网格拉格朗日粒子方法，由 Lucy (1977) 与 Gingold & Monaghan (1977) 为天体物理模拟独立提出，后经 Müller 等人 (2003) 引入计算机图形学。它将连续流体场离散为携带物理属性的粒子，通过核函数插值近似连续场，再把 Navier-Stokes 方程中的微分算子转化为粒子求和。
 >
-> 本文系统推导 SPH 的理论内核——核函数插值、微分算子离散、对称压力力的动量守恒推导、表面张力 color-field 方法，并补全原工程文档中缺失的 `LaplacianWpoly6` 与 Cubic Spline 核的代码实现。不可压缩变体（PCISPH/IISPH/DFSPH）部分补充了压力 Poisson 方程的关键要点。文末与&#12298;[PBF 流体模拟详解](/knowledge/pbf-fluid-simulation/)&#12299;（位置基约束视角）、&#12298;[物理模拟数值积分方法详解](/knowledge/numerical-integration-methods/)&#12299;（时间积分与 XPBD）形成交叉引用。
+> 本文系统推导 SPH 的理论内核——核函数插值、微分算子离散、对称压力力的动量守恒推导、表面张力 color-field 方法，并补全原工程文档中缺失的 `LaplacianWpoly6` 与 Cubic Spline 核的代码实现。不可压缩变体（PCISPH/IISPH/DFSPH）部分补充了压力 Poisson 方程的关键要点。文末与&#12298;[PBF 流体：密度约束与位置修正](/knowledge/pbf-fluid-simulation/)&#12299;（位置基约束视角）、&#12298;[数值积分：方法、误差与稳定性](/knowledge/numerical-integration-methods/)&#12299;（时间积分与 XPBD）形成交叉引用。
 
 ---
 
@@ -650,7 +634,7 @@ void Integrate()
 }
 ```
 
-> 对积分器精度与稳定性的系统分析——显式/隐式/半隐式欧拉、Verlet、RK4 的稳定性域与精度阶——见&#12298;[物理模拟数值积分方法详解](/knowledge/numerical-integration-methods/)&#12299;。SPH 因 CFL 条件限制（见 §8.1）通常采用半隐式欧拉或 leapfrog；对于碰撞/约束耦合场景，可结合 XPBD 的 predict-correct 流水线。
+> 对积分器精度与稳定性的系统分析——显式/隐式/半隐式欧拉、Verlet、RK4 的稳定性域与精度阶——见&#12298;[数值积分：方法、误差与稳定性](/knowledge/numerical-integration-methods/)&#12299;。SPH 因 CFL 条件限制（见 §8.1）通常采用半隐式欧拉或 leapfrog；对于碰撞/约束耦合场景，可结合 XPBD 的 predict-correct 流水线。
 
 ### 6.3 完整模拟步骤
 
@@ -1060,7 +1044,7 @@ void ComputeDensity(uint3 id : SV_DispatchThreadID)
 }
 ```
 
-> Niagara GPU 粒子系统常承载此类 GPU 流体模拟。Niagara 的参数体系与 Compute Shader 管线见&#12298;[UE Niagara 基础参数详解](/knowledge/ue-niagara-parameters/)&#12299;。
+> Niagara GPU 粒子系统常承载此类 GPU 流体模拟。Niagara 的参数体系与 Compute Shader 管线见&#12298;[Niagara：参数、模块与 GPU 数据接口](/knowledge/ue-niagara-parameters/)&#12299;。
 
 ### 10.5 子步长（Sub-stepping）
 
@@ -1178,7 +1162,7 @@ $$
 \mathbf{v}_i = \frac{\mathbf{x}_i^* - \mathbf{x}_i}{\Delta t}, \quad \mathbf{x}_i = \mathbf{x}_i^*
 $$
 
-PBF 继承了 PBD（Position-Based Dynamics）的约束投影框架——将物理定律表达为位置约束 $C(\mathbf{x}) = 0$ 并迭代求解位置修正，而非通过力积分。这使其无条件稳定、可使用大步长。PBD/XPBD 的约束求解原理与刚度控制见&#12298;[物理模拟数值积分方法详解](/knowledge/numerical-integration-methods/)&#12299;的 XPBD 章节，PBF 的完整推导见&#12298;[PBF 流体模拟详解](/knowledge/pbf-fluid-simulation/)&#12299;。
+PBF 继承了 PBD（Position-Based Dynamics）的约束投影框架——将物理定律表达为位置约束 $C(\mathbf{x}) = 0$ 并迭代求解位置修正，而非通过力积分。这使其无条件稳定、可使用大步长。PBD/XPBD 的约束求解原理与刚度控制见&#12298;[数值积分：方法、误差与稳定性](/knowledge/numerical-integration-methods/)&#12299;的 XPBD 章节，PBF 的完整推导见&#12298;[PBF 流体：密度约束与位置修正](/knowledge/pbf-fluid-simulation/)&#12299;。
 
 **选择建议**：
 

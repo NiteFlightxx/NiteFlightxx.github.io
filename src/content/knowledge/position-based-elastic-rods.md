@@ -1,6 +1,6 @@
 ---
-title: "基于位置的弹性杆详解 — Kirchhoff 杆、Darboux 向量与 PBD 约束求解"
-excerpt: "系统推导 Position-Based Elastic Rods (PBER)：从 Kirchhoff 杆理论与弹性能量出发，到幽灵点材料坐标系、离散 Darboux 向量的正确迹形式、材料坐标系导数、Darboux 梯度的闭式展开、3×3 系统矩阵求解，以及三种实现方法（PBER/Cosserat/Direct Solver）的对比。修正 Darboux 分母矩阵加法、能量梯度扭转项刚度系数、符号选择公式归属等问题。"
+title: "弹性杆：材料标架与位置约束"
+excerpt: "从中心线与材料标架理解弯曲和扭转，再推导离散 Darboux 向量与约束求解。"
 date: "2026-09-06"
 category: "Physics"
 subtopic: "ConstraintSolver"
@@ -15,21 +15,14 @@ kind: "algorithm"
 level: "advanced"
 prerequisites: ["pbd-xpbd-math", "vbd-avbd-math"]
 nextArticles: []
+aliases: ["基于位置的弹性杆详解 — Kirchhoff 杆、Darboux 向量与 PBD 约束求解"]
 ---
 
-## 学习位置
-
-- **难度**：高级积木（`advanced`）
-- **本文职责**：把理论收敛为可实现的算法，重点说明输入、步骤、稳定性和代价。
-- **前置积木**：[PBD 与 XPBD 详解 — 从位置投影到柔度可控的约束求解](/knowledge/pbd-xpbd-math/)、[VBD 与 AVBD 详解 — 从变分隐式积分到块坐标下降与增广拉格朗日的统一框架](/knowledge/vbd-avbd-math/)
-- **后续积木**：读完后可按专题或领域路线选择分支。
-
-> 阅读时先完成前置积木，再阅读本文的概念、算法、源码和工程章节；同一理论只在它的主文章中展开，其他文章只引用结论。
-
+细长物体不仅有中心线弯曲，还会绕自身轴扭转，因此仅保存一串位置不足以表达完整材料状态。本文从材料标架进入离散 Darboux 向量和位置约束，并区分不同杆模型的自由度与求解方式。投影基础见[PBD 与 XPBD](/knowledge/pbd-xpbd-math/)，不把绳索、Kirchhoff 杆与 Cosserat 杆视为同一个模型。
 
 > **Position-Based Elastic Rods (PBER)** 由 Umetani、Schmidt 与 Stam (2014) 提出，是 Position-Based Dynamics 框架在细长弹性物体（头发、绳索、电缆、植物茎干）模拟中的应用。它通过幽灵点隐式定义材料坐标系，用离散 Darboux 向量捕捉弯曲与扭转，以 PBD 约束投影求解——无条件稳定、适合实时应用。
 >
-> 本文系统推导 PBER 的数学内核，并修正原工程文档中的若干错误：Darboux 向量分母的矩阵加法（应为迹形式）、能量梯度扭转项的刚度系数（应为 $GJ$ 而非 $EI$）、符号选择公式的归属（幽灵点符号歧义而非四元数双重覆盖）。与&#12298;[PBD 与 XPBD 详解](/knowledge/pbd-xpbd-math/)&#12299;、&#12298;[VBD 与 AVBD 详解](/knowledge/vbd-avbd-math/)&#12299;、&#12298;[物理模拟数值积分方法详解](/knowledge/numerical-integration-methods/)&#12299;形成交叉引用。
+> 本文系统推导 PBER 的数学内核，并修正原工程文档中的若干错误：Darboux 向量分母的矩阵加法（应为迹形式）、能量梯度扭转项的刚度系数（应为 $GJ$ 而非 $EI$）、符号选择公式的归属（幽灵点符号歧义而非四元数双重覆盖）。与&#12298;[位置约束求解：PBD 与 XPBD](/knowledge/pbd-xpbd-math/)&#12299;、&#12298;[变分物理求解：VBD 与 AVBD](/knowledge/vbd-avbd-math/)&#12299;、&#12298;[数值积分：方法、误差与稳定性](/knowledge/numerical-integration-methods/)&#12299;形成交叉引用。
 
 ---
 
@@ -512,7 +505,7 @@ class UElasticRodComponent : public UActorComponent
 
 ### 8.3 与 XPBD 的衔接
 
-PBER 使用标准 PBD 约束（刚度系数 $k$ 直接控制，但与时间步长/迭代次数耦合）。若需更可控的刚度行为，可升级为 XPBD——引入柔度参数 $\alpha = 1/(k\,\Delta t^2)$，使刚度与迭代次数解耦。XPBD 的约束求解框架见&#12298;[PBD 与 XPBD 详解](/knowledge/pbd-xpbd-math/)&#12299;。
+PBER 使用标准 PBD 约束（刚度系数 $k$ 直接控制，但与时间步长/迭代次数耦合）。若需更可控的刚度行为，可升级为 XPBD——引入柔度参数 $\alpha = 1/(k\,\Delta t^2)$，使刚度与迭代次数解耦。XPBD 的约束求解框架见&#12298;[位置约束求解：PBD 与 XPBD](/knowledge/pbd-xpbd-math/)&#12299;。
 
 ---
 

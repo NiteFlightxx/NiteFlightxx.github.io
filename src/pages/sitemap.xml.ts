@@ -19,6 +19,9 @@ export const GET: APIRoute = async () => {
   for (const e of knowledge) {
     urls.push({ loc: `${SITE.url}/knowledge/${e.slug}/`, lastmod: e.data.date });
   }
+  for (const route of ['knowledge/', 'knowledge/library/']) {
+    urls.push({ loc: `${SITE.url}/${route}`, lastmod: today });
+  }
   for (const e of topics) {
     urls.push({ loc: `${SITE.url}/projects/${e.slug}/`, lastmod: today });
   }

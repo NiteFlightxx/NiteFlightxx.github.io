@@ -1,6 +1,6 @@
 ---
-title: "VBD 与 AVBD 详解 — 从变分隐式积分到块坐标下降与增广拉格朗日的统一框架"
-excerpt: "从隐式欧拉积分的变分重构出发，系统拆解 Vertex Block Descent (VBD) 如何将物理时间步进转化为能量最小化问题，并以块坐标下降（BCD）求解；进而剖析 Augmented VBD (AVBD) 的真正增强来源——增广拉格朗日法（ALM）而非动量加速——如何化解硬约束的数值刚性。覆盖惯性势能、距离/弯曲/体积约束的梯度推导、牛顿步与海森近似、图染色并行化、与 PBD/XPBD 的同源关系，并对照 UE Chaos 工程实现。"
+title: "变分物理求解：VBD 与 AVBD"
+excerpt: "从离散时间步的优化目标理解分块下降，再分析增广拉格朗日与原对偶更新。"
 date: "2026-06-30"
 category: "Physics"
 subtopic: "ConstraintSolver"
@@ -15,23 +15,16 @@ kind: "algorithm"
 level: "advanced"
 prerequisites: ["pbd-xpbd-math", "physics_constraints_deep_dive", "iterative-linear-solvers"]
 nextArticles: ["avbd-demo3d-implementation", "position-based-elastic-rods"]
+aliases: ["VBD 与 AVBD 详解 — 从变分隐式积分到块坐标下降与增广拉格朗日的统一框架"]
 ---
 
-## 学习位置
-
-- **难度**：高级积木（`advanced`）
-- **本文职责**：把理论收敛为可实现的算法，重点说明输入、步骤、稳定性和代价。
-- **前置积木**：[PBD 与 XPBD 详解 — 从位置投影到柔度可控的约束求解](/knowledge/pbd-xpbd-math/)、[物理约束详解 — 从约束函数到实时物理求解器](/knowledge/physics_constraints_deep_dive/)、[线性方程组迭代求解详解 — 从雅可比、高斯-赛德尔到共轭梯度与约束求解](/knowledge/iterative-linear-solvers/)
-- **后续积木**：[AVBD 工程实现详解 — 从变分原理到刚体增广拉格朗日求解器（avbd-demo3d 源码精读）](/knowledge/avbd-demo3d-implementation/)、[基于位置的弹性杆详解 — Kirchhoff 杆、Darboux 向量与 PBD 约束求解](/knowledge/position-based-elastic-rods/)
-
-> 阅读时先完成前置积木，再阅读本文的概念、算法、源码和工程章节；同一理论只在它的主文章中展开，其他文章只引用结论。
-
+VBD 与 AVBD 需要同时从时间离散、优化目标和求解迭代三个层次理解。本文维护理论推导，区分顶点块、刚体块、能量项和约束项；具体数据结构与执行排程分别见[原生刚体实现](/knowledge/avbd-demo3d-implementation/)、[WebGPU 实现](/knowledge/three-avbd-gpu-solver/)和[UE 移植](/knowledge/gpu-physics-plugin/)，不把不同实现的行为互相代替。
 
 > 物理模拟的核心难点不在"积分"本身，而在**约束求解**：布料不可拉伸、刚体关节不可分离、软体体积不可压缩。传统隐式积分需要求解全局线性方程组 $\mathbf{A}\mathbf{x}=\mathbf{b}$，维度随粒子数爆炸且难以并行。**Vertex Block Descent (VBD)** 把隐式欧拉重构为一个**能量最小化**问题，再用**块坐标下降（BCD）**把全局求解切成无数个局部小问题迭代逼近，天然可并行、有收敛保证。
 >
 > 本文从变分原理出发搭建 VBD 的完整理解，并澄清一个常见误解：**AVBD 的 "A" 指的是增广拉格朗日（Augmented Lagrangian），不是动量加速**。部分资料把 AVBD 归为 Nesterov 动量法，这是把两条不同的加速路线（一阶动量 vs 对偶乘子）混淆了。两者都能加速收敛，但数学根源、适用场景、稳定性保证完全不同——本文会讲清为什么 ALM 才是 AVBD 的正解。
 >
-> 阅读前建议回顾本站&#12298;[物理模拟数值积分方法详解](/knowledge/numerical-integration-methods/)&#12299;的隐式欧拉与 XPBD 部分，以及&#12298;[雅可比矩阵详解](/knowledge/jacobian-matrix/)&#12299;的约束求解器内核 $\mathbf{J}\mathbf{M}^{-1}\mathbf{J}^{\mathsf T}$——VBD 与它们同源。
+> 阅读前建议回顾本站&#12298;[数值积分：方法、误差与稳定性](/knowledge/numerical-integration-methods/)&#12299;的隐式欧拉与 XPBD 部分，以及&#12298;[Jacobian 矩阵与局部线性化](/knowledge/jacobian-matrix/)&#12299;的约束求解器内核 $\mathbf{J}\mathbf{M}^{-1}\mathbf{J}^{\mathsf T}$——VBD 与它们同源。
 
 ---
 
@@ -73,7 +66,7 @@ $$
 \left(\frac{\mathbf{M}}{h^2} + \mathbf{H}_W\right)\mathbf{x} = \frac{\mathbf{M}}{h^2}\mathbf{y} + \mathbf{b}
 $$
 
-其中 $\mathbf{H}_W = \nabla^2 W$ 是势能的海森矩阵（参见本站&#12298;[海森矩阵详解](/knowledge/hessian-matrix/)&#12299;）。直接求解需要 $\mathbf{L}\mathbf{U}$ 分解，对 $N$ 个粒子是 $O(N^3)$，且海森稀疏结构不规则、难并行。这正是隐式积分"稳定但昂贵"的根源。
+其中 $\mathbf{H}_W = \nabla^2 W$ 是势能的海森矩阵（参见本站&#12298;[二阶近似与 Hessian 矩阵](/knowledge/hessian-matrix/)&#12299;）。直接求解需要 $\mathbf{L}\mathbf{U}$ 分解，对 $N$ 个粒子是 $O(N^3)$，且海森稀疏结构不规则、难并行。这正是隐式积分"稳定但昂贵"的根源。
 
 **VBD 的选择**：不解全局系统，而是把能量拆成若干**局部块**，对每个块单独做一次下降步，迭代收敛——即**块坐标下降（Block Coordinate Descent, BCD）**。
 
@@ -127,7 +120,7 @@ $$
 2. 固定其他顶点，只对当前块的顶点做一步能量下降（局部牛顿步）。
 3. 遍历所有块为一轮迭代，多轮迭代直至收敛。
 
-这与高斯-赛德尔迭代（参见本站&#12298;[线性方程组迭代求解详解](/knowledge/iterative-linear-solvers/)&#12299;同源——逐变量更新，用最新值。区别在于 PBD 的"局部步"是逐**约束**的位置投影（标量 $\Delta\lambda$ 沿约束方向），而 VBD 的局部步是逐**顶点**的含惯性项牛顿步（$3\times3$ 向量步）：
+这与高斯-赛德尔迭代（参见本站&#12298;[线性系统的迭代求解](/knowledge/iterative-linear-solvers/)&#12299;同源——逐变量更新，用最新值。区别在于 PBD 的"局部步"是逐**约束**的位置投影（标量 $\Delta\lambda$ 沿约束方向），而 VBD 的局部步是逐**顶点**的含惯性项牛顿步（$3\times3$ 向量步）：
 
 $$
 \Delta\mathbf{x}_{i} = -\mathbf{H}_{i}^{-1}\,\nabla_i E
@@ -557,7 +550,7 @@ $$
 
 物理模拟流水线分两层，不应混为一谈：
 
-1. **积分层（Integration）**——把连续运动方程 $\mathbf{F}=m\mathbf{a}$ 离散为时间步进。属于这层的方法有：显式 Euler、半隐式 Euler、隐式 Euler、RK4、辛积分器等（详见本站&#12298;[物理模拟数值积分方法详解](/knowledge/numerical-integration-methods/)&#12299;）。
+1. **积分层（Integration）**——把连续运动方程 $\mathbf{F}=m\mathbf{a}$ 离散为时间步进。属于这层的方法有：显式 Euler、半隐式 Euler、隐式 Euler、RK4、辛积分器等（详见本站&#12298;[数值积分：方法、误差与稳定性](/knowledge/numerical-integration-methods/)&#12299;）。
 2. **约束求解层（Constraint Solving）**——在积分预测后，修正位置使其满足约束（距离、弯曲、体积、碰撞等）。属于这层的方法有：PBD、XPBD、VBD、AVBD、sequential impulse 等。
 
 两者的关系是 **predict → correct**：先用积分方法预测下一时刻位置（预测步），再用约束求解器把违反约束的位置拉回可行域（修正步）。

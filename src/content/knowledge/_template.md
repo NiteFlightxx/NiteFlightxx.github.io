@@ -1,53 +1,38 @@
 ---
-title: "知识主题详解 — 副标题待填"
-excerpt: "摘要待填充。用一两句话说明这篇知识沉淀的核心内容。"
-date: "2026-01-01"
-category: "Engine"
-subtopic: "SourceArchitecture"
-tags: ["UE5", "C++", "待分类"]
-readTime: "阅读约5分钟"
+title: "技术主题：明确范围"
+excerpt: "一句话说明这篇文档要解释的问题与独特范围。"
+date: "2026-10-21"
+category: "Physics"
+subtopic: "ConstraintSolver"
+tags: ["约束", "数值方法", "刚体"]
+readTime: "阅读约15分钟"
 draft: true
-kind: "theory"
-level: "foundation"
+kind: "algorithm"
+level: "intermediate"
+pageType: "guide"
+aliases: []
 prerequisites: []
 nextArticles: []
+related: []
+sources: []
 ---
 
-## 概述
+先说明具体问题、采用的模型与本文边界。必要的前置概念用短摘要和站内链接承接，不写课程目标、练习验收或重复的学习位置模板。
 
-正文待填充。知识库定位为知识沉淀、技术分析、经验总结与教学内容，核心目标是**解释和理解技术**。
+## 问题与约定
 
-## 正文小节
+定义输入、输出、单位和符号。若为源码文章，在这里给出代码根目录、快照、文件与行号，并区分源码事实和一般数学模型。
 
-支持标准 Markdown 语法。
+## 核心过程
 
-### 三级标题
+解释步骤之间的因果关系；已有主题只留理解当前上下文所需的摘要与链接。
 
-正文段落。
-
-#### 四级标题
-
-- 列表项
-- 列表项
-
-## 数学公式
-
-行内公式 $E = mc^2$ 与块级公式：
+行内公式示例 $E=\frac12mv^2$。块级公式用独占行的分隔符：
 
 $$
-\nabla^2 p = \frac{\rho}{\Delta t} \nabla \cdot \mathbf{u}^*
+\mathbf v_{n+1}=\mathbf v_n+h\mathbf a_n.
 $$
 
-## 代码
+## 边界与继续阅读
 
-```cpp
-void ExampleFunction() {
-    // 代码块支持语法高亮
-}
-```
-
-```hlsl
-float4 PS_Main(VSOut input) : SV_Target {
-    return float4(1, 0, 0, 1);
-}
-```
+说明假设、退化情况、数值代价和仍需验证的内容，链接到具体文章。完成正文后按文档内容调整章节名，不必保留此模板结构。

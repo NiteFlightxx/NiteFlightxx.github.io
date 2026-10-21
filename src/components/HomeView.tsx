@@ -1,6 +1,7 @@
 import { ArrowRight, ArrowUpRight, BookOpen, Search } from 'lucide-react';
 import type { Project, ContentArticle, KnowledgeDomain } from '../types';
-import { compactTitle, getResearchAreas, researchDomains } from '../lib/research';
+import { compactTitle, getResearchAreas } from '../lib/research';
+import { readingGroups, articleHref } from '../lib/readingOrder';
 import { useReaderState } from '../lib/useReaderState';
 import ResearchSidebar from './ResearchSidebar';
 import ResearchDiagram from './ResearchDiagram';
@@ -18,12 +19,10 @@ interface HomeViewProps {
 
 export default function HomeView({ projects, knowledgeArticles, knowledgeDomains, onSelectProject }: HomeViewProps) {
   const areas = getResearchAreas(knowledgeArticles, knowledgeDomains);
+  const groups = readingGroups(knowledgeArticles);
   const reader = useReaderState();
   const bySlug = new Map(knowledgeArticles.map((article) => [article.slug, article]));
   const recents = reader.recents.filter((entry) => bySlug.has(entry.slug)).slice(0, 3);
-  const paths = researchDomains(knowledgeDomains).flatMap((domain) =>
-    domain.learningPaths.slice(0, 1).map((path) => ({ ...path, domainId: domain.id }))
-  );
 
   return (
     <div className="workspace-shell" id="home-view-container">
@@ -53,7 +52,7 @@ export default function HomeView({ projects, knowledgeArticles, knowledgeDomains
 
         <div className="home-reading-grid">
           <section aria-labelledby="notes-heading" className="home-section">
-            <div className="section-heading"><h2 id="notes-heading">最近收录</h2><a className="quiet-link" href={BASE + 'knowledge/'}>全部文章<ArrowRight size={14} /></a></div>
+            <div className="section-heading"><h2 id="notes-heading">最近收录</h2><a className="quiet-link" href={BASE + 'knowledge/library/'}>全部文章<ArrowRight size={14} /></a></div>
             <div className="note-list">
               {knowledgeArticles.slice(0, 6).map((article, index) => (
                 <a key={article.slug} className="note-row" href={BASE + 'knowledge/' + article.slug + '/'}>
@@ -67,17 +66,17 @@ export default function HomeView({ projects, knowledgeArticles, knowledgeDomains
 
           <aside className="home-context">
             {recents.length > 0 && <section className="context-section" aria-labelledby="continue-heading">
-              <div className="section-heading"><h2 id="continue-heading">继续阅读</h2><a className="quiet-link" href={BASE + 'knowledge/?scope=recents'}>历史<ArrowRight size={13} /></a></div>
+              <div className="section-heading"><h2 id="continue-heading">继续阅读</h2><a className="quiet-link" href={BASE + 'knowledge/library/?scope=recents'}>历史<ArrowRight size={13} /></a></div>
               {recents.map((entry) => {
                 const article = bySlug.get(entry.slug)!;
                 const progress = Math.round(Math.max(0, Math.min(100, reader.progress[entry.slug] ?? 0)));
                 return <a className="continue-entry" key={entry.slug} href={BASE + 'knowledge/' + article.slug + '/'}><span>{compactTitle(article.title)}</span><div className="continue-progress"><div style={{ width: progress + '%' }} /></div><small>已读 {progress}%</small></a>;
               })}
             </section>}
-            {paths.length > 0 && <section className="context-section" aria-labelledby="paths-heading">
-              <div className="section-heading"><h2 id="paths-heading">阅读路径</h2><BookOpen size={15} /></div>
-              {paths.map((path) => <a className="path-link" key={path.id} href={BASE + 'knowledge/domain/' + path.domainId + '/#' + path.id}><div><h3>{path.title}</h3><span>{path.articles.length} 篇关联文章</span></div><ArrowUpRight size={14} /></a>)}
-            </section>}
+            <section className="context-section" aria-labelledby="paths-heading">
+              <div className="section-heading"><h2 id="paths-heading">顺序阅读</h2><BookOpen size={15} /></div>
+              {groups.slice(0, 3).map(group => <a className="path-link" key={group.id} href={articleHref(group.sections[0].articles[0].slug)}><div><h3>{group.title}</h3><span>{group.sections.reduce((n, section) => n + section.articles.length, 0)} 篇文档</span></div><ArrowUpRight size={14} /></a>)}
+            </section>
             {projects.length > 0 && <section className="context-section" aria-labelledby="projects-heading">
               <div className="section-heading"><h2 id="projects-heading">项目与实验</h2></div>
               {projects.map((project) => <button type="button" className="path-link" key={project.id} onClick={() => onSelectProject(project)}><div><h3>{project.title}</h3><span>{project.tech.slice(0, 2).join(' / ')}</span></div><ArrowUpRight size={14} /></button>)}

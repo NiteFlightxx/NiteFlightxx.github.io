@@ -1,6 +1,6 @@
 ---
-title: "three-avbd GPU 求解器详解 — 从碰撞、图染色到 AVBD 原对偶迭代与 WebGPU 优化"
-excerpt: "沿 World.step 与 GpuSolver3D.step 追踪一次完整物理步：两级空间哈希、SAT 接触流形、持久化热启动、CSR 邻接、Jones–Plassmann 染色、逐刚体 6×6 原问题、摩擦锥与对偶更新，并分析显存布局、间接调度、多线程协作、容量自适应和实验性优化的边界。"
+title: "three-avbd：WebGPU 刚体求解流水线"
+excerpt: "沿 GPU 时间步追踪碰撞、CSR、染色、原对偶迭代和速度更新，分析排程与容量边界。"
 date: "2026-10-18"
 category: "Physics"
 subtopic: "ConstraintSolver"
@@ -9,7 +9,7 @@ readTime: "阅读约65分钟"
 kind: "source"
 level: "advanced"
 pageType: "source-analysis"
-aliases: ["GpuSolver3D", "three-avbd GPU", "WebGPU AVBD"]
+aliases: ["GpuSolver3D","three-avbd GPU","WebGPU AVBD","three-avbd GPU 求解器详解 — 从碰撞、图染色到 AVBD 原对偶迭代与 WebGPU 优化"]
 prerequisites: ["vbd-avbd-math", "avbd-demo3d-implementation", "iterative-linear-solvers"]
 nextArticles: ["gpu-physics-plugin"]
 related: ["collision-detection-gjk-epa-sat", "jacobian-matrix", "numerical-integration-methods", "gpu-physics-plugin"]
@@ -28,12 +28,7 @@ sources:
 featured: false
 ---
 
-## 学习位置
-
-- **难度**：高级。
-- **本文职责**：沿真实 GPU 执行链说明算法落点、数据契约、优化收益与风险，不重复通用 AVBD 推导。
-- **前置阅读**：[VBD 与 AVBD 理论](/knowledge/vbd-avbd-math/)、[CPU 刚体 AVBD 实现](/knowledge/avbd-demo3d-implementation/)、[迭代线性求解器](/knowledge/iterative-linear-solvers/)。
-- **延伸阅读**：[GPUPhysicsLab 工程](/knowledge/gpu-physics-plugin/)。它是另一份实现，不能将其算法或验证结果直接归入 three-avbd。
+本文解释 three-avbd 的真实 GPU 执行链，关注各阶段读写什么、依赖怎样建立，以及哪些优化改变排程或数值行为。理论见[VBD 与 AVBD](/knowledge/vbd-avbd-math/)，原生参考见[avbd-demo3d](/knowledge/avbd-demo3d-implementation/)。[GPUPhysicsLab](/knowledge/gpu-physics-plugin/)是独立移植实现，不能直接继承这里的验证结论。
 
 ## 一、先给结论：它究竟在 GPU 上求什么
 

@@ -1,6 +1,6 @@
 ---
-title: "UE 动画节点详解 — IK、混合、骨骼控制与惯性化"
-excerpt: "基于 UE 5.9 源码，系统梳理 IK、混合、骨骼控制、动力学、惯性化等常用动画节点的数学原理、核心公式与实现代码。"
+title: "UE 动画节点：数据流与算法参考"
+excerpt: "按需查阅姿态混合、骨骼控制、IK、动力学与惯性化节点的输入和实现。"
 date: "2026-06-25"
 category: "Animation"
 subtopic: "AnimationNode"
@@ -10,26 +10,10 @@ kind: "source"
 level: "intermediate"
 prerequisites: ["jacobian-matrix", "ue-linear-algebra-guide"]
 nextArticles: ["predictive-foot-ik", "ue-fullbody-ik-math", "ik-retargeter-ops-math"]
+aliases: ["UE 动画节点详解 — IK、混合、骨骼控制与惯性化"]
 ---
 
-## 学习位置
-
-- **难度**：进阶积木（`intermediate`）
-- **本文职责**：把前置理论映射到 Unreal Engine 或项目源码，重点保留源码证据和边界。
-- **前置积木**：[雅可比矩阵详解 — 从导数到机器人、飞控与游戏物理的统一框架](/knowledge/jacobian-matrix/)、[UE 线性代数详解 — 坐标系、向量、矩阵、FTransform 与四元数](/knowledge/ue-linear-algebra-guide/)
-- **后续积木**：[预测式 Foot IK 详解 — 从接触时间估计到落脚规划与骨盆补偿](/knowledge/predictive-foot-ik/)、[UE FullBodyIK 插件详解 — 雅可比矩阵与 XPBD 位置动力学的双范式拆解](/knowledge/ue-fullbody-ik-math/)、[UE IK Retargeter Op 堆栈详解 — 堆栈架构与逐 Op 公式拆解](/knowledge/ik-retargeter-ops-math/)
-
-> 阅读时先完成前置积木，再阅读本文的概念、算法、源码和工程章节；同一理论只在它的主文章中展开，其他文章只引用结论。
-
-## 本文模块
-
-1. **空间与变换基础**
-2. **Jacobian、IK 与约束数学**
-3. **动画节点数据流与源码实现**
-4. **数值稳定性与工程检查**
-
-> 模块按从概念到实现再到验证排列；遇到不熟悉的术语时，先回到本文的前置积木，不在当前文章重复展开基础理论。
-
+这是一份节点参考，不需要从第一项读到最后一项才开始使用动画系统。先确认输入姿态、更新阶段、求解空间和输出方式，再进入相应节点的公式与源码。空间基础见[骨骼姿态与父子空间](/knowledge/course-animation-pose-spaces/)，完整的姿态搜索链路见[Motion Matching](/knowledge/motion-matching-pose-search-source-guide/)。
 
 > 本文档基于 `Engine\Source\Editor\AnimGraph\Public` 下的编辑器节点定义，并深入到运行时实现（`AnimGraphRuntime`、`Engine\Private\Animation`、`AnimationCore` 纯算法模块）梳理常用动画节点的数学原理、公式与核心代码。
 > 源码版本：UE 5.9。

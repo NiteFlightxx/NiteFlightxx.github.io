@@ -1,6 +1,6 @@
 ---
-title: "物理约束详解 — 从约束函数到实时物理求解器"
-excerpt: "系统梳理实时物理约束求解器的完整知识链：从约束函数 C(q)、Jacobian、Lagrange 乘子 λ 与有效质量 JM⁻¹Jᵀ 出发，逐一回答等式与不等式约束、互补条件、LCP/NCP/KKT、速度级与位置级约束、Baumgarte 稳定化、Impulse/Sequential Impulse 求解、Jacobi 与 Gauss-Seidel 迭代、求解器迭代与刚度的关系、PBD/XPBD 推导与柔度、约束电机、自由度锁定、Maximal 与 Generalized Coordinates、旋转约束、摩擦统一、方程与优化两种视角、XPBD/VBD/AVBD 思想差异、高刚度数值病态与 Warm Starting，最后给出工业级 Constraint Solver 的完整求解链与统一理解框架。面向已具备 Unreal Engine / Chaos / PBD / XPBD / 刚体动力学基础的工程师。"
+title: "物理约束：建模、有效质量与迭代求解"
+excerpt: "从约束函数与 Jacobian 推进到有效质量、冲量、接触摩擦和迭代生命周期。"
 date: "2026-09-06"
 category: "Physics"
 subtopic: "ConstraintSolver"
@@ -8,33 +8,17 @@ tags: ["物理", "约束求解", "Constraint Solver", "PBD", "XPBD", "Jacobian"]
 readTime: "阅读约50分钟"
 kind: "theory"
 level: "intermediate"
-prerequisites: ["pbd-xpbd-math", "iterative-linear-solvers"]
+prerequisites: ["jacobian-matrix", "iterative-linear-solvers"]
 nextArticles: ["vbd-avbd-math", "position-based-elastic-rods"]
 topics:
   - id: "ue-chaos-physics"
     stage: "constraint"
     role: "theory"
     order: 20
+aliases: ["物理约束详解 — 从约束函数到实时物理求解器"]
 ---
 
-## 学习位置
-
-- **难度**：进阶积木（`intermediate`）
-- **本文职责**：建立概念、符号和推导，作为后续算法的共同语言。
-- **前置积木**：[PBD 与 XPBD 详解 — 从位置投影到柔度可控的约束求解](/knowledge/pbd-xpbd-math/)、[线性方程组迭代求解详解 — 从雅可比、高斯-赛德尔到共轭梯度与约束求解](/knowledge/iterative-linear-solvers/)
-- **后续积木**：[VBD 与 AVBD 详解 — 从变分隐式积分到块坐标下降与增广拉格朗日的统一框架](/knowledge/vbd-avbd-math/)、[基于位置的弹性杆详解 — Kirchhoff 杆、Darboux 向量与 PBD 约束求解](/knowledge/position-based-elastic-rods/)
-
-> 阅读时先完成前置积木，再阅读本文的概念、算法、源码和工程章节；同一理论只在它的主文章中展开，其他文章只引用结论。
-
-## 本文模块
-
-1. **约束问题与统一符号**
-2. **Jacobian、有效质量和拉格朗日乘子**
-3. **接触、Joint 与投影求解**
-4. **稳定性、并行化和工程诊断**
-
-> 模块按从概念到实现再到验证排列；遇到不熟悉的术语时，先回到本文的前置积木，不在当前文章重复展开基础理论。
-
+距离、关节和接触看起来不同，却都需要先定义允许的运动，再计算满足条件的修正。本文负责约束函数、Jacobian、有效质量以及速度级和位置级求解的共同语言；[PBD 与 XPBD](/knowledge/pbd-xpbd-math/)和[VBD 与 AVBD](/knowledge/vbd-avbd-math/)分别展开具体算法，不作为理解约束概念的先修要求。
 
 > 面向已经具备 Unreal Engine / Chaos / PBD / XPBD / 刚体动力学基础，希望进一步理解工业级 Constraint Solver 的工程师。
 
@@ -1176,7 +1160,7 @@ $$
 \Delta q=-M^{-1}\nabla C\frac{C(q)}{\nabla C^{\mathsf T}M^{-1}\nabla C}
 $$
 
-这里保留统一形式，完整的距离、体积、碰撞和弯曲约束推导见 [PBD 与 XPBD 详解](/knowledge/pbd-xpbd-math/) 第 2、4 章。本文后续只讨论它在通用约束 Solver 中的接口位置。
+这里保留统一形式，完整的距离、体积、碰撞和弯曲约束推导见 [位置约束求解：PBD 与 XPBD](/knowledge/pbd-xpbd-math/) 第 2、4 章。本文后续只讨论它在通用约束 Solver 中的接口位置。
 
 ---
 
@@ -1188,7 +1172,7 @@ $$
 \Delta\lambda=\frac{-C(q)-\tilde\alpha\lambda}{\nabla C^{\mathsf T}M^{-1}\nabla C+\tilde\alpha},\qquad \tilde\alpha=\frac{\alpha}{h^2}
 $$
 
-因此刚度不再直接随迭代次数变化，但有限迭代、强耦合和质量比仍会影响误差。参数含义与完整算法见 [PBD 与 XPBD 详解](/knowledge/pbd-xpbd-math/) 第 3、9 章。
+因此刚度不再直接随迭代次数变化，但有限迭代、强耦合和质量比仍会影响误差。参数含义与完整算法见 [位置约束求解：PBD 与 XPBD](/knowledge/pbd-xpbd-math/) 第 3、9 章。
 
 ---
 
@@ -1200,7 +1184,7 @@ $$
 \lambda^{k+1}=\lambda^k+\Delta\lambda
 $$
 
-它不能与跨时间步复用的 warm start 混为一谈。前者属于 XPBD 离散推导，后者是求解器的初值策略；两者在工程实现中可以同时存在。详细边界见 [PBD 与 XPBD 详解](/knowledge/pbd-xpbd-math/)。
+它不能与跨时间步复用的 warm start 混为一谈。前者属于 XPBD 离散推导，后者是求解器的初值策略；两者在工程实现中可以同时存在。详细边界见 [位置约束求解：PBD 与 XPBD](/knowledge/pbd-xpbd-math/)。
 
 ---
 
@@ -1212,7 +1196,7 @@ $$
 \left(JM^{-1}J^{\mathsf T}+\epsilon I\right)\lambda=b
 $$
 
-这里的 $\epsilon$ 既改善病态条件，也允许约束保留有限误差。本文只保留这一接口关系，具体 softness 参数比较放在 [PBD 与 XPBD 详解](/knowledge/pbd-xpbd-math/) 与 [线性方程组迭代求解详解](/knowledge/iterative-linear-solvers/) 中。
+这里的 $\epsilon$ 既改善病态条件，也允许约束保留有限误差。本文只保留这一接口关系，具体 softness 参数比较放在 [位置约束求解：PBD 与 XPBD](/knowledge/pbd-xpbd-math/) 与 [线性系统的迭代求解](/knowledge/iterative-linear-solvers/) 中。
 
 ---
 

@@ -1,11 +1,11 @@
 ---
-title: "常微分方程与数值方法详解 — 从牛顿运动方程到欧拉、Verlet 与龙格-库塔"
-excerpt: "系统讲解常微分方程（ODE）在游戏物理中的应用：ODE 定义与分类、牛顿运动方程的二阶 ODE 转化、解析解与数值解的对比、四种数值积分方法（显式欧拉、半隐式欧拉、Verlet、龙格-库塔 RK4）的原理与精度对比、有限差分与 CFL 稳定性条件，以及 UE 实战（弹簧阻尼系统、指数衰减平滑、PID 控制器）。"
+title: "常微分方程：状态、初值与动力系统"
+excerpt: "把受力、衰减和弹簧写成状态方程，区分物理模型、初始条件与数值推进。"
 date: "2026-09-06"
 category: "Mathematics"
 subtopic: "DifferentialEquations"
 tags: ["ODE", "数值积分", "欧拉法", "Verlet", "RK4", "C++"]
-readTime: "阅读约30分钟"
+readTime: "阅读约25分钟"
 topics:
   - id: "ue-chaos-physics"
     stage: "foundation"
@@ -15,457 +15,247 @@ kind: "theory"
 level: "foundation"
 prerequisites: ["calculus-foundations"]
 nextArticles: ["numerical-integration-methods", "partial-differential-equations"]
+aliases: ["常微分方程与数值方法详解 — 从牛顿运动方程到欧拉、Verlet 与龙格-库塔"]
+sources: [{"title":"MIT ES.1803：ODE 与初值","url":"https://ocw.mit.edu/courses/es-1803-differential-equations-spring-2024/mites_1803_s24_topic_full.pdf"}]
 ---
 
-## 学习位置
+给定位置还不能预测运动：同一位置上的物体可能静止，也可能高速穿过。常微分方程负责描述状态如何连续变化，初始条件选定其中一条轨迹；数值积分只是推进这条轨迹的离散方法。把这三件事分开，才能判断问题来自模型、输入还是计算。
 
-- **难度**：基础积木（`foundation`）
-- **本文职责**：建立概念、符号和推导，作为后续算法的共同语言。
-- **前置积木**：[微积分详解 — 从极限到微分、积分与向量微积分](/knowledge/calculus-foundations/)
-- **后续积木**：[物理模拟数值积分方法详解 — 从欧拉到 RK4 与 XPBD](/knowledge/numerical-integration-methods/)、[偏微分方程与数值离散详解 — 热传导、波动、Navier-Stokes 与有限差分](/knowledge/partial-differential-equations/)
+本文只维护模型与初值的解释。Euler、Verlet 和 Runge–Kutta 的完整更新及稳定性比较见[数值积分](/knowledge/numerical-integration-methods/)，空间差分与 CFL 条件见[PDE](/knowledge/partial-differential-equations/)。
 
-> 阅读时先完成前置积木，再阅读本文的概念、算法、源码和工程章节；同一理论只在它的主文章中展开，其他文章只引用结论。
+<span id="学习位置" aria-hidden="true"></span>
+<span id="一微分方程基础" aria-hidden="true"></span>
+<span id="11-什么是微分方程" aria-hidden="true"></span>
+<span id="12-分类" aria-hidden="true"></span>
+<span id="13-游戏中的例子" aria-hidden="true"></span>
 
+## 1. 状态方程描述什么
 
-> 常微分方程（ODE）是游戏物理模拟的核心数学工具：所有运动、力学、动画系统都基于 ODE。从自由落体到弹簧系统，从粒子模拟到刚体动力学，ODE 无处不在。
->
-> 本文为教材式总览，微积分基础见&#12298;[微积分详解](/knowledge/calculus-foundations/)&#12299;，PDE 与有限差分离散见&#12298;[偏微分方程与数值离散详解](/knowledge/partial-differential-equations/)&#12299;。本站另有&#12298;[物理模拟数值积分方法详解](/knowledge/numerical-integration-methods/)&#12299;提供数值积分的深拆视角，两文互补。
-
----
-
-## 一、微分方程基础
-
-### 1.1 什么是微分方程
-
-微分方程是包含**未知函数及其导数**的方程，描述函数如何随时间（或其他变量）变化。
-
-**一阶 ODE**：
+一般的一阶初值问题写成：
 
 $$
-\frac{dy}{dt} = f(t, y)
+\dot{\mathbf y}(t)=\mathbf f(t,\mathbf y(t);\boldsymbol\theta,\mathbf u(t)),
+\qquad \mathbf y(t_0)=\mathbf y_0.
 $$
 
-**二阶 ODE**：
+这里的量不能混用：
+
+- $\mathbf y$ 是状态：继续计算所需的当前信息，例如位置和速度。
+- $\mathbf u$ 是外部输入：例如给定的推力或控制命令。
+- $\boldsymbol\theta$ 是模型参数：例如质量、弹簧刚度和阻尼。
+- $\mathbf f$ 是变化率，不是下一帧状态。
+- $\mathbf y_0$ 是初始条件，不是目标值。
+- $t_0$ 是起始时间；离散步长不属于连续方程本身。
+
+“状态足够完整”以模型假设为前提。若力还取决于未记录的执行器转速、温度或迟滞历史，就需要把它们纳入状态，或明确采用简化模型。不要用更高阶积分器掩盖缺少状态的问题。
+
+线性系统可以写为：
 
 $$
-\frac{d^2y}{dt^2} = f\left(t, y, \frac{dy}{dt}\right)
+\dot{\mathbf y}=\mathbf A(t)\mathbf y+\mathbf b(t).
 $$
 
-### 1.2 分类
+当 $\mathbf A$ 不依赖时间时称为常系数线性系统；当 $\mathbf f$ 不显含时间时称为自治系统。线性、自治、一阶是不同维度的分类，不是同一个概念。
 
-| 类型 | 定义 | 例子 |
-|------|------|------|
-| 线性 | 未知函数及导数均为一次 | $\frac{dy}{dt} + ay = 0$ |
-| 非线性 | 含高次项或复杂函数 | $\frac{dy}{dt} = y^2$ |
-| 齐次 | 方程右侧为 0 | $\frac{d^2y}{dt^2} + y = 0$ |
-| 非齐次 | 方程右侧不为 0 | $\frac{d^2y}{dt^2} + y = \sin t$ |
+<span id="二牛顿运动方程" aria-hidden="true"></span>
+<span id="21-微分形式" aria-hidden="true"></span>
+<span id="22-转化为一阶-ode-组" aria-hidden="true"></span>
 
-### 1.3 游戏中的例子
+## 2. 从受力方程变成一阶系统
 
-| 力类型 | ODE | 游戏应用 |
-|--------|-----|---------|
-| 重力 | $\frac{d^2\mathbf{s}}{dt^2} = \mathbf{g}$ | 自由落体、抛物线 |
-| 摩擦 | $\frac{dv}{dt} = -kv$ | 指数衰减 |
-| 弹簧 | $m\frac{d^2x}{dt^2} = -kx$ | 弹性碰撞、弹簧动画 |
-| 阻尼 | $m\frac{d^2x}{dt^2} = -kx - c\frac{dx}{dt}$ | 弹簧-阻尼系统 |
-
----
-
-## 二、牛顿运动方程
-
-### 2.1 微分形式
-
-物理学中最重要的微分方程——牛顿第二定律：
+对质量恒定且大于零的质点，牛顿方程是：
 
 $$
-m\frac{d^2\mathbf{s}}{dt^2} = \mathbf{F}(\mathbf{s}, \mathbf{v}, t)
+m\ddot{\mathbf x}=\mathbf F(t,\mathbf x,\dot{\mathbf x}).
 $$
 
-其中 $\mathbf{s}$ 为位置，$\mathbf{v} = d\mathbf{s}/dt$ 为速度，$\mathbf{a} = d\mathbf{v}/dt$ 为加速度，$\mathbf{F}$ 为力，$m$ 为质量。
-
-### 2.2 转化为一阶 ODE 组
-
-二阶 ODE 太复杂，数值求解时转化为两个一阶 ODE：
+定义速度并拼接状态：
 
 $$
-\begin{cases}
-\frac{d\mathbf{s}}{dt} = \mathbf{v} \\
-\frac{d\mathbf{v}}{dt} = \frac{\mathbf{F}(\mathbf{s}, \mathbf{v}, t)}{m}
-\end{cases}
+\mathbf v=\dot{\mathbf x},\qquad
+\mathbf y=
+\begin{bmatrix}\mathbf x\\\mathbf v\end{bmatrix},
+\qquad
+\dot{\mathbf y}=
+\begin{bmatrix}
+\mathbf v\\
+m^{-1}\mathbf F(t,\mathbf x,\mathbf v)
+\end{bmatrix}.
 $$
 
-这是**所有游戏物理引擎**的数学基础。状态向量为 $(\mathbf{s}, \mathbf{v})$，力函数决定状态如何演化。
+这不是降低物理复杂度，而是把二阶方程改写成统一的一阶形式。位置与速度都必须有初值。三维质点有六个状态分量；完整刚体还需要旋转和角运动状态，不能把这个质点模型直接当作刚体求解器。
 
----
-
-## 三、解析解与数值解
-
-### 3.1 解析解
-
-能写出精确公式的解。例如自由落体 $\frac{d^2y}{dt^2} = -g$ 的解析解：
+量纲也提供了直接检查：
 
 $$
-y(t) = y_0 + v_0 t - \frac{1}{2}gt^2
+[\mathbf x]=\mathrm m,\quad
+[\mathbf v]=\mathrm{m\,s^{-1}},\quad
+[\mathbf F/m]=\mathrm{m\,s^{-2}}.
 $$
 
-```cpp
-FVector FreeFallPosition(FVector InitialPos, FVector InitialVel, float Time, float Gravity = 980.0f)
-{
-    FVector Result = InitialPos + InitialVel * Time;
-    Result.Z -= 0.5f * Gravity * Time * Time;
-    return Result;
-}
-```
+若工程中使用厘米，长度、速度、加速度及派生参数必须一致转换，而不是只把重力常数改成另一个数字。UE 的具体单位/API 用法需要对照相应实现，本文公式采用 SI 单位。
 
-### 3.2 数值解
+<span id="三解析解与数值解" aria-hidden="true"></span>
+<span id="31-解析解" aria-hidden="true"></span>
+<span id="32-数值解" aria-hidden="true"></span>
+<span id="九ue-实战应用" aria-hidden="true"></span>
+<span id="91-弹簧-阻尼系统" aria-hidden="true"></span>
+<span id="92-指数衰减平滑" aria-hidden="true"></span>
+<span id="93-pid-控制器" aria-hidden="true"></span>
+<span id="94-碰撞冲量" aria-hidden="true"></span>
 
-大多数微分方程（特别是非线性方程）没有解析解，需要数值方法逐步计算。游戏物理模拟几乎全部依赖数值方法。
+## 3. 三个可以直接核对的模型
 
----
+### 3.1 恒定加速度：初值决定轨迹
 
-## 四、欧拉法
-
-### 4.1 显式欧拉
-
-最简单的数值积分方法：
+取起始时刻为零：
 
 $$
-y_{n+1} = y_n + h \cdot f(t_n, y_n)
+\dot{\mathbf x}=\mathbf v,\qquad \dot{\mathbf v}=\mathbf a,
 $$
 
-对于物理系统：
+连续解为：
 
 $$
-\begin{cases}
-\mathbf{s}_{n+1} = \mathbf{s}_n + \Delta t \cdot \mathbf{v}_n \\
-\mathbf{v}_{n+1} = \mathbf{v}_n + \Delta t \cdot \mathbf{a}_n
-\end{cases}
+\mathbf v(t)=\mathbf v_0+\mathbf a t,\qquad
+\mathbf x(t)=\mathbf x_0+\mathbf v_0t+\frac12\mathbf a t^2.
 $$
 
-```cpp
-struct PhysicsState { FVector Position; FVector Velocity; };
+当 $\mathbf x_0=\mathbf 0$、$\mathbf v_0=\mathbf 0$、$\mathbf a=(0,0,-9.81)\,\mathrm{m\,s^{-2}}$ 时，一秒后速度为 $(0,0,-9.81)\,\mathrm{m\,s^{-1}}$，位置为 $(0,0,-4.905)\,\mathrm m$。
 
-PhysicsState EulerStep(const PhysicsState& State, float DeltaTime, FVector Acceleration)
-{
-    PhysicsState NewState;
-    NewState.Position = State.Position + State.Velocity * DeltaTime;
-    NewState.Velocity = State.Velocity + Acceleration * DeltaTime;
-    return NewState;
-}
-```
+这个解适合检查积分误差和单位，不代表带阻力、碰撞或变化推力的轨迹也能使用同一公式。
 
-**缺点**：数值不稳定（能量会增加）、需要很小的时间步长、误差累积快。不推荐用于游戏物理。
+### 3.2 指数衰减：参数、时间常数与半衰期
 
-### 4.2 半隐式欧拉
-
-**游戏物理引擎的标准选择**。也称 Symplectic Euler 或 Euler-Cromer 方法。
-
-核心区别：用**新速度**更新位置，而非旧速度：
+对固定目标 $r$：
 
 $$
-\begin{cases}
-\mathbf{v}_{n+1} = \mathbf{v}_n + \Delta t \cdot \mathbf{a}_n \\
-\mathbf{s}_{n+1} = \mathbf{s}_n + \Delta t \cdot \mathbf{v}_{n+1}
-\end{cases}
+\dot{x}=-\lambda(x-r),\qquad \lambda>0.
 $$
 
-```cpp
-PhysicsState SemiImplicitEuler(const PhysicsState& State, float DeltaTime, FVector Acceleration)
-{
-    PhysicsState NewState;
-    NewState.Velocity = State.Velocity + Acceleration * DeltaTime;
-    NewState.Position = State.Position + NewState.Velocity * DeltaTime;
-    return NewState;
-}
-```
-
-| 特性 | 显式欧拉 | 半隐式欧拉 |
-|------|---------|-----------|
-| 能量守恒 | 能量增加 | 能量守恒 |
-| 稳定性 | 不稳定 | 稳定 |
-| 精度 | $O(h)$ | $O(h)$ |
-| 适用场景 | 不推荐 | 游戏物理标准 |
-
-**为什么游戏都用半隐式欧拉**：简单（只需改变几行代码）、快速（每帧只计算一次）、稳定（不会爆炸）、精度对游戏物理足够。
-
----
-
-## 五、Verlet 积分
-
-用于粒子系统、布料、绳索模拟，不需要显式存储速度。
-
-### 5.1 标准 Verlet
+令误差 $e=x-r$，则：
 
 $$
-\mathbf{x}_{n+1} = 2\mathbf{x}_n - \mathbf{x}_{n-1} + \mathbf{a}_n \Delta t^2
+e(t)=e_0e^{-\lambda t},\qquad
+\tau=\lambda^{-1},\qquad
+t_{1/2}=\frac{\ln 2}{\lambda}.
 $$
 
-速度隐含在位置差中：$\mathbf{v} \approx (\mathbf{x}_n - \mathbf{x}_{n-1}) / \Delta t$。
-
-### 5.2 速度 Verlet
+因此，固定目标在一步中的精确更新是：
 
 $$
-\begin{cases}
-\mathbf{x}_{n+1} = \mathbf{x}_n + \mathbf{v}_n \Delta t + \frac{1}{2}\mathbf{a}_n \Delta t^2 \\
-\mathbf{v}_{n+1} = \mathbf{v}_n + \frac{\mathbf{a}_n + \mathbf{a}_{n+1}}{2}\Delta t
-\end{cases}
+x(t+h)=r+(x(t)-r)e^{-\lambda h}.
 $$
 
-```cpp
-struct VerletParticle { FVector Position; FVector OldPosition; };
+同一固定目标下，分两步与合成一步得到相同结果，因为指数因子相乘。若目标在步内变化，这个公式只对“该步内把目标冻结”的近似问题精确；不能笼统称为任何移动目标下都帧率无关。
 
-void UpdateVerletParticle(VerletParticle& P, FVector Acceleration, float DeltaTime)
-{
-    FVector Temp = P.Position;
-    FVector Velocity = P.Position - P.OldPosition;
-    P.Position = P.Position + Velocity + Acceleration * DeltaTime * DeltaTime;
-    P.OldPosition = Temp;
-}
-```
+### 3.3 弹簧阻尼：平衡点与时间尺度
 
----
-
-## 六、龙格-库塔法
-
-高精度数值积分方法，通过多次函数评估提高精度。
-
-### 6.1 RK2（中点法）
+一维固定平衡点 $r$ 的模型为：
 
 $$
-\begin{cases}
-k_1 = f(t_n, y_n) \\
-k_2 = f(t_n + \frac{h}{2}, y_n + \frac{h}{2}k_1) \\
-y_{n+1} = y_n + h \cdot k_2
-\end{cases}
+m\ddot{x}+c\dot{x}+k(x-r)=0,\qquad m>0,\ k>0,\ c\geq0.
 $$
 
-### 6.2 RK4（四阶龙格-库塔）
-
-最常用的高精度方法：
+令 $q=x-r$、$v=\dot x$：
 
 $$
-\begin{cases}
-k_1 = f(t_n, y_n) \\
-k_2 = f(t_n + \frac{h}{2}, y_n + \frac{h}{2}k_1) \\
-k_3 = f(t_n + \frac{h}{2}, y_n + \frac{h}{2}k_2) \\
-k_4 = f(t_n + h, y_n + hk_3) \\
-y_{n+1} = y_n + \frac{h}{6}(k_1 + 2k_2 + 2k_3 + k_4)
-\end{cases}
+\frac{d}{dt}
+\begin{bmatrix}q\\v\end{bmatrix}
+=
+\begin{bmatrix}
+0&1\\-k/m&-c/m
+\end{bmatrix}
+\begin{bmatrix}q\\v\end{bmatrix}.
 $$
 
-```cpp
-PhysicsState RK4Step(const PhysicsState& State, float DeltaTime,
-                     TFunction<FVector(const PhysicsState&)> AccelFunc)
-{
-    FVector a1 = AccelFunc(State);
-    FVector v1 = State.Velocity;
-
-    PhysicsState S2;
-    S2.Position = State.Position + v1 * (DeltaTime * 0.5f);
-    S2.Velocity = State.Velocity + a1 * (DeltaTime * 0.5f);
-    FVector a2 = AccelFunc(S2);
-    FVector v2 = S2.Velocity;
-
-    PhysicsState S3;
-    S3.Position = State.Position + v2 * (DeltaTime * 0.5f);
-    S3.Velocity = State.Velocity + a2 * (DeltaTime * 0.5f);
-    FVector a3 = AccelFunc(S3);
-    FVector v3 = S3.Velocity;
-
-    PhysicsState S4;
-    S4.Position = State.Position + v3 * DeltaTime;
-    S4.Velocity = State.Velocity + a3 * DeltaTime;
-    FVector a4 = AccelFunc(S4);
-    FVector v4 = S4.Velocity;
-
-    PhysicsState NewState;
-    NewState.Velocity = State.Velocity + (DeltaTime / 6.0f) * (a1 + 2*a2 + 2*a3 + a4);
-    NewState.Position = State.Position + (DeltaTime / 6.0f) * (v1 + 2*v2 + 2*v3 + v4);
-    return NewState;
-}
-```
-
-### 6.3 精度对比
-
-| 方法 | 局部误差 | 全局误差 | 适用场景 |
-|------|---------|---------|---------|
-| 显式欧拉 | $O(h^2)$ | $O(h)$ | 不推荐 |
-| 半隐式欧拉 | $O(h^2)$ | $O(h)$ | 游戏物理 |
-| Verlet | $O(h^4)$ | $O(h^2)$ | 粒子/布料 |
-| RK4 | $O(h^5)$ | $O(h^4)$ | 高精度模拟 |
-
-> 更多数值积分方法的对比分析（包括稳定性区域、辛积分器、隐式方法等），见&#12298;[物理模拟数值积分方法详解](/knowledge/numerical-integration-methods/)&#12299;。
-
----
-
-## 七、有限差分
-
-用差分近似导数：
-
-**一阶导数**（中心差分）：
+自然频率、阻尼比与特征根分别为：
 
 $$
-\frac{\partial u}{\partial x} \approx \frac{u(x+h) - u(x-h)}{2h}
+\omega_0=\sqrt{k/m},\qquad
+\zeta=\frac{c}{2\sqrt{km}},\qquad
+s_{\pm}=-\zeta\omega_0\pm\omega_0\sqrt{\zeta^2-1}.
 $$
 
-**二阶导数**：
+无阻尼时，初值解是：
 
 $$
-\frac{\partial^2 u}{\partial x^2} \approx \frac{u(x+h) - 2u(x) + u(x-h)}{h^2}
+q(t)=q_0\cos(\omega_0t)+\frac{v_0}{\omega_0}\sin(\omega_0t).
 $$
 
-```cpp
-FVector2D ComputeGradient(TArray<TArray<float>>& Field, int x, int y, float dx)
-{
-    float dfdx = (Field[x+1][y] - Field[x-1][y]) / (2.0f * dx);
-    float dfdy = (Field[x][y+1] - Field[x][y-1]) / (2.0f * dx);
-    return FVector2D(dfdx, dfdy);
-}
-```
+临界阻尼对应 $\zeta=1$，但“最快且无超调”必须限定初始条件、响应指标及这个线性模型；任意初速度仍可能越过目标。目标移动时还要说明阻尼相对世界速度还是目标相对速度，两种模型并不相同。
 
----
+## 4. 解存在，不代表永远存在或容易计算
 
-## 八、CFL 稳定性条件
+对 $\dot{\mathbf y}=\mathbf f(t,\mathbf y)$，连续性与关于状态的局部 Lipschitz 条件是常用的局部存在唯一性充分条件。这是局部结论，不保证轨迹永远有界，也不保证闭式解。
 
-**Courant-Friedrichs-Lewy 条件**是显式时间积分的稳定性要求：
+例如：
 
 $$
-\Delta t \leq \frac{\Delta x}{c}
+\dot y=y^2,\qquad y(0)=1
+\quad\Longrightarrow\quad
+y(t)=\frac1{1-t}.
 $$
 
-其中 $c$ 是波/信息传播速度。违反 CFL 条件会导致数值不稳定（解发散）。
+它在 $t=1$ 发散。此时结果变大可能来自模型本身，不一定是积分器失稳。相反，一个稳定衰减的连续模型也可能因错误步长而数值发散。局部存在与唯一性的条件可查 [MIT ODE notes §10.5](https://ocw.mit.edu/courses/es-1803-differential-equations-spring-2024/mites_1803_s24_topic_full.pdf)。
 
-```cpp
-float CalculateStableTimeStep(float dx, float MaxVelocity)
-{
-    float CFLNumber = 0.5f; // 安全系数（通常 < 1）
-    return CFLNumber * dx / MaxVelocity;
-}
+## 5. 解析解、数值解与刚性不是一回事
 
-void AdaptiveTimeStep(float dx, float MaxVel, float& DeltaTime)
-{
-    float StableDT = CalculateStableTimeStep(dx, MaxVel);
-    DeltaTime = FMath::Min(DeltaTime, StableDT);
-}
-```
-
----
-
-## 九、UE 实战应用
-
-### 9.1 弹簧-阻尼系统
-
-弹簧阻尼系统的 ODE：
+解析解给出连续时间的表达式；数值解在离散时刻近似状态：
 
 $$
-m\frac{d^2x}{dt^2} = -kx - c\frac{dx}{dt}
+\mathbf y_{n+1}=\Phi_h(t_n,\mathbf y_n).
 $$
 
-```cpp
-void UpdateSpring(float DeltaTime)
-{
-    FVector Displacement = CurrentPosition - TargetPosition;
-    FVector SpringForce = -SpringConstant * Displacement;
-    FVector DampingForce = -DampingCoefficient * CurrentVelocity;
-    FVector Acceleration = (SpringForce + DampingForce) / Mass;
+$\Phi_h$ 来自选定的方法。更换它不会改变连续模型参数，却会改变误差、稳定性和计算代价。
 
-    // 半隐式欧拉
-    CurrentVelocity += Acceleration * DeltaTime;
-    CurrentPosition += CurrentVelocity * DeltaTime;
-}
-
-// 临界阻尼：最快无超调响应
-float GetCriticalDamping(float SpringConstant, float Mass)
-{
-    return 2.0f * FMath::Sqrt(SpringConstant * Mass); // c = 2√(km)
-}
-```
-
-### 9.2 指数衰减平滑
-
-ODE $\frac{dx}{dt} = -\lambda x$ 的解析解 $x(t) = x_0 e^{-\lambda t}$，用于帧率无关的平滑插值：
-
-```cpp
-FVector VExponentialDecay(FVector Current, FVector Target, float Lambda, float DeltaTime)
-{
-    FVector Difference = Current - Target;
-    return Target + Difference * FMath::Exp(-Lambda * DeltaTime);
-}
-```
-
-### 9.3 PID 控制器
-
-PID 控制器综合了比例、积分、微分三种控制：
+以多时间尺度系统为例：
 
 $$
-u(t) = K_p e(t) + K_i \int_0^t e(\tau)\,d\tau + K_d \frac{de(t)}{dt}
+\dot y_1=-y_1,\qquad \dot y_2=-1000y_2.
 $$
 
-```cpp
-class FPIDController
-{
-public:
-    float Kp = 1.0f, Ki = 0.1f, Kd = 0.5f;
-private:
-    float IntegralError = 0.0f, PreviousError = 0.0f;
-public:
-    float Update(float Current, float Target, float DeltaTime)
-    {
-        float Error = Target - Current;
-        IntegralError += Error * DeltaTime;
-        float ErrorDerivative = (Error - PreviousError) / DeltaTime;
-        PreviousError = Error;
-        return Kp * Error + Ki * IntegralError + Kd * ErrorDerivative;
-    }
-};
-```
+即使主要关注缓慢变化的第一分量，快速衰减分量也可能强迫某些显式方法使用很小步长。这体现了刚性问题的典型困难，但“刚性”不能简单等同于弹簧参数很大：还要看时间尺度、观察区间和离散方法。隐式方法为何可能有用，见[稳定性分析](/knowledge/numerical-integration-methods/#7-用测试方程比较稳定域)。
 
-### 9.4 碰撞冲量
+<span id="七有限差分" aria-hidden="true"></span>
+<span id="八cfl-稳定性条件" aria-hidden="true"></span>
 
-线性冲量 $J = \int F\,dt = m\Delta v$：
+## 6. 碰撞、约束和控制如何接到模型上
 
-```cpp
-void ApplyCollisionImpulse(UPrimitiveComponent* C1, UPrimitiveComponent* C2,
-                           FVector HitNormal, FVector RelativeVelocity)
-{
-    float Mass1 = C1->GetMass(), Mass2 = C2->GetMass();
-    float Restitution = 0.5f;
-    float VelAlongNormal = FVector::DotProduct(RelativeVelocity, HitNormal);
-    if (VelAlongNormal > 0) return; // 正在分离
+光滑 ODE 不是所有模拟现象的完整描述。
 
-    float J = -(1.0f + Restitution) * VelAlongNormal / (1.0f/Mass1 + 1.0f/Mass2);
-    FVector Impulse = J * HitNormal;
-    C1->AddImpulse(-Impulse);
-    C2->AddImpulse(Impulse);
-}
-```
+接触冲量可在一个事件时刻造成速度跃变：
 
----
+$$
+\mathbf v^+=\mathbf v^-+\mathbf M^{-1}\mathbf J^{\mathsf T}\boldsymbol\Lambda.
+$$
 
-## 十、方法选择指南
+这里 $\mathbf J$ 是约束 Jacobian，$\boldsymbol\Lambda$ 是冲量乘子。它不能简单当成有限大小的平滑力，再假定高阶 RK 会自动准确处理。事件、约束修正和速度回算见[物理约束](/knowledge/physics_constraints_deep_dive/)。
 
-| 场景 | 推荐方法 | 理由 |
-|------|---------|------|
-| 游戏物理（刚体） | 半隐式欧拉 | 快速、稳定、足够精确 |
-| 粒子/布料 | Verlet | 不需存储速度、约束求解友好 |
-| 高精度模拟 | RK4 | 误差小但计算量大 |
-| 实时性能 | 自适应步长 + 简单方法 | 平衡精度与性能 |
+闭环控制把输入变成状态或误差的函数；PID 中的积分状态、执行器限幅和离散更新也有自己的状态与时序。实际串级飞控、预测跟踪与局部避障如何组合，见[AircraftLab](/knowledge/quadcopter-flight-control-math/)，这里不再维护一份缺少抗饱和和异常步长处理的“通用 PID”。
 
-**保证数值稳定性的要点**：
+当未知量是空间场时，问题转入[PDE 与空间离散](/knowledge/partial-differential-equations/)。CFL 限制属于特定方程、网格和格式的分析，不是所有 ODE 的统一步长公式。
 
-1. 使用半隐式方法而非显式方法
-2. 遵守 CFL 条件限制时间步长
-3. 添加适当的阻尼
-4. 使用约束求解（如 Verlet + PBD）
+<span id="四欧拉法" aria-hidden="true"></span>
+<span id="41-显式欧拉" aria-hidden="true"></span>
+<span id="42-半隐式欧拉" aria-hidden="true"></span>
+<span id="五verlet-积分" aria-hidden="true"></span>
+<span id="51-标准-verlet" aria-hidden="true"></span>
+<span id="52-速度-verlet" aria-hidden="true"></span>
+<span id="六龙格-库塔法" aria-hidden="true"></span>
+<span id="61-rk2中点法" aria-hidden="true"></span>
+<span id="62-rk4四阶龙格-库塔" aria-hidden="true"></span>
+<span id="63-精度对比" aria-hidden="true"></span>
+<span id="十方法选择指南" aria-hidden="true"></span>
+<span id="十一参考文献" aria-hidden="true"></span>
 
----
+## 7. 从模型继续到实现
 
-## 十一、参考文献
+先确定状态、单位、输入和初值，再选离散方法。若结果不符，先比较一个具有解析解的简化情形，分别检查模型误差、时间离散误差与求解残差，不用额外阻尼把三者一起盖住。
 
-1. Hairer, E., Nørsett, S. P., & Wanner, G. *Solving Ordinary Differential Equations I*. ——ODE 数值方法权威教材。
-2. Millington, I. *Game Physics Engine Development*. ——游戏物理引擎开发。
-3. &#12298;[微积分详解](/knowledge/calculus-foundations/)&#12299; — 导数与积分的理论基础。
-4. &#12298;[偏微分方程与数值离散详解](/knowledge/partial-differential-equations/)&#12299; — PDE 与有限差分。
-5. &#12298;[物理模拟数值积分方法详解](/knowledge/numerical-integration-methods/)&#12299; — 数值积分深拆（稳定性区域、辛积分器等）。
-6. &#12298;[2D 物理引擎详解](/knowledge/2d-physics-engine/)&#12299; — RK4 在 2D 刚体中的应用。
-7. &#12298;[PBF 流体模拟详解](/knowledge/pbf-fluid-simulation/)&#12299; — Verlet/XSPH 在流体中的应用。
+- 时间步、误差、Euler/Verlet/RK：见[数值积分](/knowledge/numerical-integration-methods/)。
+- 力、能量与广义坐标：见[经典力学](/knowledge/classical-mechanics/)。
+- 约束修正与接触：见[物理约束](/knowledge/physics_constraints_deep_dive/)。
+- 场量、边界与空间差分：见[PDE](/knowledge/partial-differential-equations/)。
+
+本文给出一般数学模型和独立推导，不声称某一 UE 模块正在按上述简化系统运行。

@@ -1,6 +1,6 @@
 ---
-title: "UE Chaos 运动学同步详解 — P.Chaos.SyncKinematicOnGameThread 的三态控制与双路径镜像"
-excerpt: "从 Chaos 多线程架构出发，拆解 P.Chaos.SyncKinematicOnGameThread 的三态语义（0=即时更新、1=结果回写、-1=逐对象决策）及三个镜像判定函数如何在 SetKinematicTarget 与 PullFromPhysicsState 两条路径间维持恰一更新不变式。覆盖速度始终复制规则、dirty particle 收集优化、UpdateKinematicFromSimulation 标志默认值与 PhysicalAnimationComponent 覆盖行为。"
+title: "Chaos 运动学同步：线程与状态镜像"
+excerpt: "围绕 SyncKinematicOnGameThread 的三态配置，追踪目标设置与物理结果回写。"
 date: "2026-07-02"
 category: "Physics"
 subtopic: "ChaosPhysics"
@@ -15,17 +15,10 @@ topics:
     stage: "runtime"
     role: "source"
     order: 10
+aliases: ["UE Chaos 运动学同步详解 — P.Chaos.SyncKinematicOnGameThread 的三态控制与双路径镜像"]
 ---
 
-## 学习位置
-
-- **难度**：高级积木（`advanced`）
-- **本文职责**：把前置理论映射到 Unreal Engine 或项目源码，重点保留源码证据和边界。
-- **前置积木**：[UE Chaos Physics 引擎详解 — 源码架构、约束求解器与并行流水线](/knowledge/ue-chaos-physics-engine/)
-- **后续积木**：读完后可按专题或领域路线选择分支。
-
-> 阅读时先完成前置积木，再阅读本文的概念、算法、源码和工程章节；同一理论只在它的主文章中展开，其他文章只引用结论。
-
+本专题只追踪运动学状态在游戏侧与物理侧之间的镜像，不重讲整个刚体求解器。重点是同一变换由哪条路径更新、逐对象标记如何参与决策，以及目标设置与结果回写的关系。总体数据流可先查[Chaos 架构](/knowledge/ue-chaos-physics-engine/)的同步部分。
 
 > Chaos 物理引擎运行在独立于游戏线程的**物理线程**（internal thread）上。刚体分**动态**（Dynamic）与**运动学**（Kinematic）两种：动态体的位置由求解器积分得出，自然需要从物理结果回写到游戏线程；运动学体的位置则由游戏线程代码（如 `SetKinematicTarget`）驱动，求解器只负责将其移动到目标位置并计算衍生速度。
 >

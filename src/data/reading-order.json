@@ -1,0 +1,30 @@
+[
+  {"id":"engineering-math","domain":"mathematics","title":"工程数学","sections":[
+    {"title":"数学语言与空间","articles":["course-math-points-vectors","mathematical-notation-reference","ue-linear-algebra-guide"]},
+    {"title":"变化与数值方法","articles":["calculus-foundations","differential-equations","jacobian-matrix","iterative-linear-solvers","hessian-matrix","partial-differential-equations"]}
+  ]},
+  {"id":"rigid-body-physics","domain":"physics","title":"实时刚体物理","sections":[
+    {"title":"运动与时间推进","articles":["course-physics-state-timestep","classical-mechanics","numerical-integration-methods"]},
+    {"title":"碰撞与接触","articles":["collision-detection-gjk-epa-sat","gjk-collision-detection"]},
+    {"title":"构建引擎与约束求解","articles":["2d-physics-engine","physics_constraints_deep_dive","pbd-xpbd-math"]},
+    {"title":"变分求解与 GPU 实现","articles":["vbd-avbd-math","avbd-demo3d-implementation","three-avbd-gpu-solver","gpu-physics-plugin"]},
+    {"title":"Chaos 引擎实现","articles":["ue-chaos-physics-engine","chaos-kinematic-sync"]}
+  ]},
+  {"id":"character-animation","domain":"animation","title":"角色动画系统","sections":[
+    {"title":"骨骼、空间与姿态","articles":["course-animation-pose-spaces","ue-animation-node-math"]},
+    {"title":"IK 与重定向","articles":["ue-fullbody-ik-math","predictive-foot-ik","ik-retargeter-ops-math"]},
+    {"title":"Motion Matching","articles":["motion-matching-pose-search-source-guide"]}
+  ]},
+  {"id":"deformables","title":"可变形体","sections":[
+    {"title":"布料、弹性杆与弹性体","articles":["chaos-cloth","position-based-elastic-rods","jgs2-gpu-elastodynamics"]}
+  ]},
+  {"id":"fluids","title":"流体模拟","sections":[
+    {"title":"粒子流体","articles":["sph-fluid-simulation","pbf-fluid-simulation"]}
+  ]},
+  {"id":"flight-control","title":"无人机与飞行控制","sections":[
+    {"title":"动力学与控制实现","articles":["quadcopter-basics-interactive","quadcopter-flight-control-math"]}
+  ]},
+  {"id":"engine","domain":"engine","title":"引擎与渲染","sections":[
+    {"title":"Niagara","articles":["ue-niagara-parameters"]}
+  ]}
+]

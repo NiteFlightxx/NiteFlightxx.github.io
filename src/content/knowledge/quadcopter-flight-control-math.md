@@ -1,6 +1,6 @@
 ---
-title: "AircraftLab 无人机插件技术详解 — 物理、飞控、自动驾驶、Simulation LOD 与网络同步"
-excerpt: "从 MovementIntent 到 Chaos 的源码级解算链路，解释串级 PID、MPCC 风格预测跟踪、3D ORCA、旋翼分配、Simulation LOD 与网络执行边界。"
+title: "AircraftLab：动力学、飞控与仿真架构"
+excerpt: "沿任务意图到旋翼与物理后端的链路，分析 PID、预测跟踪、ORCA、LOD 与网络边界。"
 date: "2026-10-13"
 category: "Physics"
 subtopic: "FlightController"
@@ -11,9 +11,11 @@ level: "advanced"
 prerequisites: ["quadcopter-basics-interactive", "classical-mechanics", "differential-equations", "iterative-linear-solvers"]
 nextArticles: []
 pageType: "source-analysis"
-aliases: ["AircraftLab", "无人机飞控", "Flight Controller", "MPCC", "ORCA"]
+aliases: ["AircraftLab","无人机飞控","Flight Controller","MPCC","ORCA","AircraftLab 无人机插件技术详解 — 物理、飞控、自动驾驶、Simulation LOD 与网络同步"]
 featured: true
 ---
+
+AircraftLab 的控制链需要区分任务意图、低频路径规划、周期性预测跟踪和短周期局部避障。本文沿插件实际数据流解释它们如何进入串级飞控、旋翼分配与物理后端，并保留源码证据和工程取舍。推力与姿态的直观关系见[四旋翼原理](/knowledge/quadcopter-basics-interactive/)，不会用参考框架替代插件事实。
 
 ## 先给结论
 
@@ -61,7 +63,7 @@ Chaos 物理子步施加力和力矩
 
 ## 学习位置与边界
 
-- 前置：[四旋翼无人机基础详解 — 升力、姿态、6DOF 动力学与 PID 控制的交互式 3D 图解](/knowledge/quadcopter-basics-interactive/)
+- 前置：[四旋翼飞行原理：动力学与交互演示](/knowledge/quadcopter-basics-interactive/)
 - 数学基础：[经典力学三大体系](/knowledge/classical-mechanics/)、[常微分方程与数值方法](/knowledge/differential-equations/)、[迭代线性求解器](/knowledge/iterative-linear-solvers/)
 - 相关：[Jacobian 矩阵](/knowledge/jacobian-matrix/)、[PBD / XPBD](/knowledge/pbd-xpbd-math/)、[VBD / AVBD](/knowledge/vbd-avbd-math/)
 
