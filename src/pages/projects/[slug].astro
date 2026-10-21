@@ -80,11 +80,10 @@ const sortedArticles = [...articles].sort((a, b) => {
   </head>
   <body class="bg-surface-base text-text-secondary">
     <div class="fixed inset-0 -z-20 bg-surface-base"></div>
-    <div class="grain-overlay" aria-hidden="true"></div>
 
     <StaticSiteHeader activeTab="projects" />
 
-    <main class="w-full max-w-5xl mx-auto px-6 md:px-8 py-12 md:py-20 space-y-14">
+    <main id="main-content" class="w-full max-w-5xl mx-auto px-6 md:px-8 py-10 space-y-10">
       <section class="space-y-6">
         <div class="flex flex-wrap items-center gap-2 text-[10px] font-mono uppercase tracking-widest">
           <span class="text-accent-primary">专题研究</span>
@@ -92,8 +91,8 @@ const sortedArticles = [...articles].sort((a, b) => {
           <span class="text-text-muted">{knowledgeCategoryZh(topic.data.category)}</span>
           <span class="px-2 py-1 rounded border border-accent-primary/30 text-accent-primary bg-accent-primary/5">{topic.data.status === 'active' ? '持续研究' : topic.data.status}</span>
         </div>
-        <h1 class="font-display font-black text-4xl md:text-6xl text-text-primary tracking-tight leading-tight">{topic.data.title}</h1>
-        <p class="max-w-3xl text-base md:text-lg text-text-secondary leading-relaxed">{topic.data.excerpt}</p>
+        <h1 class="font-display font-semibold text-3xl text-text-primary tracking-tight leading-normal">{topic.data.title}</h1>
+        <p class="max-w-3xl text-sm text-text-muted leading-relaxed">{topic.data.excerpt}</p>
         <div class="flex flex-wrap gap-2 text-[10px] font-mono text-text-muted">
           {topic.data.engine && <span class="px-2.5 py-1 rounded border border-border-subtle bg-surface-card">{topic.data.engine}</span>}
           {topic.data.engineVersion && <span class="px-2.5 py-1 rounded border border-border-subtle bg-surface-card">{topic.data.engineVersion}</span>}

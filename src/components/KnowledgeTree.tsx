@@ -2,28 +2,43 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { BookOpen, ChevronDown, Clock3, FolderTree, Star } from 'lucide-react';
 import type { ContentArticle } from '../types';
 import { READER_STATE_EVENT, readReaderState, updateReaderState } from '../lib/readerState';
+import { compactTitle } from '../lib/research';
+import { useReaderState } from '../lib/useReaderState';
 
 const BASE_URL = import.meta.env.BASE_URL;
 
 interface Props {
   articles: ContentArticle[];
   currentSlug?: string;
+  showQuickLinks?: boolean;
 }
 
-export default function KnowledgeTree({ articles, currentSlug }: Props) {
+export default function KnowledgeTree({ articles, currentSlug, showQuickLinks = true }: Props) {
   const [version, setVersion] = useState(0);
-  const state = readReaderState();
-  const [expanded, setExpanded] = useState<Set<string>>(() => new Set(state.expandedFolders));
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const reader = useReaderState();
 
   useEffect(() => {
-    const sync = () => setVersion((value) => value + 1);
+    let previousFolders: string | undefined;
+    const sync = () => {
+      setVersion((value) => value + 1);
+      const folders = readReaderState().expandedFolders;
+      const serialized = JSON.stringify(folders);
+      if (serialized === previousFolders) return;
+      const initial = previousFolders === undefined;
+      previousFolders = serialized;
+      const current = articles.find((article) => article.slug === currentSlug);
+      const currentKeys = initial && current ? [current.category, `${current.category}/${current.subtopic ?? '其他'}`] : [];
+      setExpanded(new Set([...folders, ...currentKeys]));
+    };
+    sync();
     window.addEventListener(READER_STATE_EVENT, sync);
     window.addEventListener('storage', sync);
     return () => {
       window.removeEventListener(READER_STATE_EVENT, sync);
       window.removeEventListener('storage', sync);
     };
-  }, []);
+  }, [articles, currentSlug]);
 
   const groups = useMemo(() => {
     const categoryMap = new Map<string, Map<string, ContentArticle[]>>();
@@ -38,24 +53,13 @@ export default function KnowledgeTree({ articles, currentSlug }: Props) {
     return [...categoryMap.entries()];
   }, [articles]);
 
-  useEffect(() => {
-    if (!currentSlug) return;
-    const current = articles.find((article) => article.slug === currentSlug);
-    if (!current) return;
-    const keys = [current.category, `${current.category}/${current.subtopic ?? '其他'}`];
-    setExpanded((previous) => new Set([...previous, ...keys]));
-  }, [currentSlug, articles]);
-
   const toggle = (key: string) => {
-    setExpanded((previous) => {
-      const next = new Set(previous);
-      if (next.has(key)) next.delete(key); else next.add(key);
-      updateReaderState((reader) => ({ ...reader, expandedFolders: [...next] }));
-      return next;
-    });
+    const next = new Set(expanded);
+    if (next.has(key)) next.delete(key); else next.add(key);
+    setExpanded(next);
+    updateReaderState((reader) => ({ ...reader, expandedFolders: [...next] }));
   };
 
-  const reader = readReaderState();
   const quickItems = [
     { icon: Star, label: '收藏', count: reader.favorites.length },
     { icon: Clock3, label: '最近阅读', count: reader.recents.length },
@@ -67,14 +71,14 @@ export default function KnowledgeTree({ articles, currentSlug }: Props) {
         <span className="flex items-center gap-2 font-mono text-[11px] uppercase tracking-widest text-text-muted"><FolderTree className="h-4 w-4 text-accent-primary" />知识目录</span>
         <a href={`${BASE_URL}knowledge/`} className="text-[10px] text-text-faint hover:text-accent-primary">全部</a>
       </div>
-      <div className="grid grid-cols-2 gap-2 border-b border-border-subtle p-3">
+      {showQuickLinks && <div className="grid grid-cols-2 gap-2 border-b border-border-subtle p-3">
         {quickItems.map(({ icon: Icon, label, count }) => (
           <a key={label} href={`${BASE_URL}knowledge/?scope=${label === '收藏' ? 'favorites' : 'recents'}`} className="rounded-lg border border-border-subtle bg-surface-base/40 px-3 py-2 hover:border-accent-primary/30">
-            <span className="flex items-center gap-1.5 text-[10px] text-text-muted"><Icon className="h-3 w-3" />{label}</span>
+            <span className="flex items-center gap-1.5 whitespace-nowrap text-[10px] text-text-muted"><Icon className="h-3 w-3 shrink-0" />{label === '最近阅读' ? '最近' : label}</span>
             <strong className="mt-1 block font-mono text-sm text-text-primary">{count}</strong>
           </a>
         ))}
-      </div>
+      </div>}
       <div className="max-h-[calc(100vh-18rem)] overflow-y-auto px-2 py-3">
         {groups.map(([category, subtopics]) => {
           const categoryOpen = expanded.has(category);
@@ -98,7 +102,7 @@ export default function KnowledgeTree({ articles, currentSlug }: Props) {
                     </button>
                     {open && items.map((article) => (
                       <a key={article.slug} href={`${BASE_URL}knowledge/${article.slug}/`} aria-current={article.slug === currentSlug ? 'page' : undefined} className={`flex items-start gap-2 rounded px-2 py-1.5 text-[11px] leading-relaxed ${article.slug === currentSlug ? 'bg-accent-primary/10 text-accent-primary' : 'text-text-faint hover:bg-surface-raised/40 hover:text-text-secondary'}`}>
-                        <BookOpen className="mt-0.5 h-3 w-3 shrink-0" /><span>{article.title.replace(/详解\s+—\s+.*/, '详解')}</span>
+                        <BookOpen className="mt-0.5 h-3 w-3 shrink-0" /><span>{compactTitle(article.title)}</span>
                       </a>
                     ))}
                   </div>

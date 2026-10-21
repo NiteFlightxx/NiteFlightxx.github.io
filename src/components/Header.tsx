@@ -1,238 +1,63 @@
-import React, { useState } from "react";
-import { motion, AnimatePresence } from "motion/react";
-import { Menu, X, Sun, Moon, Search } from "lucide-react";
-import Logo from "./Logo";
-import BilibiliIcon from "./BilibiliIcon";
-import GithubIcon from "./GithubIcon";
-import { MAIN_NAV_ITEMS } from "../lib/siteNavigation";
-import { UI_TRANSLATIONS } from "../translations";
+import { useEffect, useState, type MouseEvent } from 'react';
+import { Menu, Moon, Search, Sun } from 'lucide-react';
+import Logo from './Logo';
+import GithubIcon from './GithubIcon';
+import { MAIN_NAV_ITEMS, mainNavHref } from '../lib/siteNavigation';
 
 interface HeaderProps {
   activeTab: string;
-  setActiveTab: (tab: string) => void;
-  theme: "dark" | "light";
-  setTheme: (theme: "dark" | "light") => void;
+  setActiveTab?: (tab: string) => void;
 }
 
-export default function Header({
-  activeTab,
-  setActiveTab,
-  theme,
-  setTheme,
-}: HeaderProps) {
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const t = UI_TRANSLATIONS.zh;
+export default function Header({ activeTab, setActiveTab }: HeaderProps) {
+  const [theme, setTheme] = useState<'dark' | 'light'>('dark');
+  useEffect(() => {
+    const sync = () => {
+      let stored: string | null = null;
+      try { stored = localStorage.getItem('theme'); } catch { /* reading still works */ }
+      const light = stored === 'light' || (stored !== 'dark' && window.matchMedia('(prefers-color-scheme: light)').matches);
+      document.documentElement.classList.toggle('light-theme', light);
+      setTheme(light ? 'light' : 'dark');
+    };
+    sync();
+    window.addEventListener('storage', sync);
+    return () => window.removeEventListener('storage', sync);
+  }, []);
+
+  const toggleTheme = () => {
+    const next = theme === 'dark' ? 'light' : 'dark';
+    document.documentElement.classList.toggle('light-theme', next === 'light');
+    setTheme(next);
+    try { localStorage.setItem('theme', next); } catch { /* optional persistence */ }
+  };
+  const navigation = MAIN_NAV_ITEMS.map((item) => ({ ...item, href: mainNavHref(item.id, import.meta.env.BASE_URL) }));
+  const navigate = (event: MouseEvent<HTMLAnchorElement>, tab: string) => {
+    if (!setActiveTab || tab === 'knowledge' || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey || event.button !== 0) return;
+    event.preventDefault();
+    setActiveTab(tab);
+    event.currentTarget.closest('details')?.removeAttribute('open');
+  };
 
   return (
-    <header className="sticky top-0 z-50 w-full glass-panel border-b border-border-subtle px-6 py-4.5 md:px-12 select-none shadow-[0_8px_30px_rgba(0,0,0,0.45)]">
-      <div className="max-w-7xl mx-auto flex items-center justify-between">
-        {/* Left: Branding */}
-        <button
-          type="button"
-          onClick={() => setActiveTab("home")}
-          className="flex items-center gap-3 cursor-pointer group"
-          id="nav-logo"
-        >
-          <div className="relative w-9 h-9 rounded bg-surface-raised border border-border-strong flex items-center justify-center overflow-hidden transition-all duration-300 group-hover:border-accent-primary/50">
-            <Logo className="w-5 h-5 text-text-secondary transition-colors duration-300 group-hover:text-accent-primary" />
-            <div className="absolute inset-0 bg-gradient-to-tr from-brand-accent-orange/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-          </div>
-          <div className="flex flex-col">
-            <span className="font-display font-black text-base tracking-widest text-text-primary group-hover:text-accent-primary transition-colors duration-300">
-              NITE
-            </span>
-          </div>
-        </button>
-
-        {/* Center: Navigation Links */}
-        <nav className="hidden md:flex items-center gap-3 bg-surface-base/80 border border-accent-primary/20 rounded-full px-3 py-2 shadow-[0_8px_32px_rgba(0,0,0,0.8)]">
-          {MAIN_NAV_ITEMS.map((item) => {
-            const isActive = activeTab === item.id;
-            return (
-              <button
-                type="button"
-                key={item.id}
-                id={`nav-${item.id}`}
-                onClick={() => setActiveTab(item.id)}
-                className={`relative px-6 py-2.5 text-base font-bold tracking-wider transition-all duration-300 rounded-full cursor-pointer flex items-center justify-center ${
-                  isActive 
-                    ? "text-accent-primary drop-shadow-[0_0_10px_rgba(188,253,73,0.3)]" 
-                    : "text-text-muted hover:text-text-primary"
-                }`}
-              >
-                {isActive && (
-                  <motion.div
-                    layoutId="activeNavBackground"
-                    className="absolute inset-0 bg-surface-raised/95 border border-accent-primary/40 rounded-full -z-10 shadow-[0_0_20px_rgba(188,253,73,0.15)]"
-                    transition={{ type: "spring", stiffness: 380, damping: 30 }}
-                  />
-                )}
-                {item.labelZh}
-              </button>
-            );
-          })}
-        </nav>
-
-        {/* Right: Actions / Socials */}
-        <div className="hidden md:flex items-center gap-3">
-          <button
-            type="button"
-            onClick={() => window.dispatchEvent(new Event('nite:open-command-palette'))}
-            className="flex items-center gap-2 rounded-lg border border-border-subtle bg-surface-base/40 px-3 py-2 text-xs text-text-muted transition-colors hover:border-accent-primary/30 hover:text-text-primary"
-            aria-label="打开全局搜索"
-          >
-            <Search className="h-4 w-4" />
-            <span className="hidden lg:inline">搜索</span>
-            <kbd className="hidden rounded border border-border-subtle px-1.5 py-0.5 font-mono text-[8px] text-text-faint xl:inline">Ctrl K</kbd>
-          </button>
-          <a
-            href="https://github.com/NiteFlightxx"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="p-2 text-text-muted hover:text-text-primary transition-colors duration-200 rounded-lg hover:bg-surface-raised/20"
-            aria-label="GitHub Profile"
-            id="social-github"
-          >
-            <GithubIcon className="w-4 h-4" />
-          </a>
-          <a
-            href="https://space.bilibili.com/101356800"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="p-2 text-text-muted hover:text-text-primary transition-colors duration-200 rounded-lg hover:bg-surface-raised/20"
-            aria-label="Bilibili 主页"
-            id="social-bilibili"
-          >
-            <BilibiliIcon className="w-4 h-4" />
-          </a>
-
-          {/* Theme switcher */}
-          <button
-            type="button"
-            onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-            className="p-2 text-text-muted hover:text-text-primary transition-colors duration-200 rounded-lg hover:bg-surface-raised/20 cursor-pointer"
-            aria-label="Toggle Theme"
-            id="theme-toggle"
-          >
-            {theme === "dark" ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
-          </button>
-
-          <span className="h-4 w-px bg-surface-raised/25" />
-          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-accent-primary/10 border border-accent-primary/20 text-[10px] font-mono text-accent-primary font-medium tracking-wider">
-            <span className="w-1.5 h-1.5 rounded-full bg-accent-primary animate-pulse" />
-            {t.compileStatus}
+    <>
+      <a className="skip-link" href="#main-content">跳到主要内容</a>
+      <header className="site-header">
+        <div className="site-header-inner">
+          <a className="site-brand" href={import.meta.env.BASE_URL} onClick={(event) => navigate(event, 'home')} id="nav-logo" aria-label="NITE 首页"><Logo className="h-6 w-6" /><span>NITE<span className="brand-caption">研究笔记</span></span></a>
+          <nav className="desktop-navigation" aria-label="主导航">
+            {navigation.map((item) => <a id={'nav-' + item.id} key={item.id} href={item.href} onClick={(event) => navigate(event, item.id)} aria-current={activeTab === item.id ? 'page' : undefined}>{item.labelZh}</a>)}
+          </nav>
+          <div className="header-actions">
+            <button type="button" className="header-search" onClick={() => window.dispatchEvent(new Event('nite:open-command-palette'))} aria-label="打开全局搜索"><Search size={16} /><span>搜索</span><kbd>⌘ K</kbd></button>
+            <a className="icon-button header-github" href="https://github.com/NiteFlightxx" target="_blank" rel="noopener noreferrer" aria-label="GitHub 主页"><GithubIcon className="h-4 w-4" /></a>
+            <button className="icon-button" type="button" onClick={toggleTheme} aria-label={theme === 'dark' ? '切换浅色主题' : '切换深色主题'} id="theme-toggle">{theme === 'dark' ? <Sun size={17} /> : <Moon size={17} />}</button>
+            <details className="mobile-navigation">
+              <summary aria-label="打开导航菜单"><Menu size={20} /></summary>
+              <nav aria-label="移动端主导航">{navigation.map((item) => <a key={item.id} href={item.href} onClick={(event) => navigate(event, item.id)} aria-current={activeTab === item.id ? 'page' : undefined}>{item.labelZh}</a>)}<a href={import.meta.env.BASE_URL + 'knowledge/graph/'}>知识图谱</a><a href={import.meta.env.BASE_URL + 'knowledge/?scope=favorites'}>我的收藏</a></nav>
+            </details>
           </div>
         </div>
-
-        {/* Mobile: Hamburger Trigger */}
-        <div className="flex items-center gap-2 md:hidden">
-          <div className="flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-accent-primary/10 border border-accent-primary/20 text-[9px] font-mono text-accent-primary">
-            <span className="w-1 h-1 rounded-full bg-accent-primary animate-pulse" />
-            UE5.8
-          </div>
-          <button
-            type="button"
-            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            className="p-2 text-text-muted hover:text-text-primary transition-colors duration-200"
-            aria-label={mobileMenuOpen ? "关闭导航菜单" : "打开导航菜单"}
-            aria-expanded={mobileMenuOpen}
-            aria-controls="mobile-navigation"
-            id="mobile-menu-toggle"
-          >
-            {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
-          </button>
-        </div>
-      </div>
-
-      {/* Mobile Drawer Navigation */}
-      <AnimatePresence>
-        {mobileMenuOpen && (
-          <motion.div
-            id="mobile-navigation"
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -10 }}
-            transition={{ duration: 0.2 }}
-            className="md:hidden absolute top-[73px] left-0 right-0 glass-panel border-b border-border-subtle px-6 py-6 shadow-2xl flex flex-col gap-4"
-          >
-            <div className="flex flex-col gap-1">
-              <button
-                type="button"
-                onClick={() => {
-                  setMobileMenuOpen(false);
-                  window.dispatchEvent(new Event('nite:open-command-palette'));
-                }}
-                className="mb-2 flex w-full items-center gap-2 rounded-lg border border-border-subtle px-4 py-2.5 text-left text-sm text-text-secondary"
-              >
-                <Search className="h-4 w-4 text-accent-primary" />搜索知识库
-              </button>
-              {MAIN_NAV_ITEMS.map((item) => {
-                const isActive = activeTab === item.id;
-                return (
-                  <button
-                    type="button"
-                    key={item.id}
-                    id={`mobile-nav-${item.id}`}
-                    onClick={() => {
-                      setActiveTab(item.id);
-                      setMobileMenuOpen(false);
-                    }}
-                    className={`w-full text-left py-2.5 px-4 rounded-lg text-base font-bold tracking-wide transition-all ${
-                      isActive 
-                        ? "bg-surface-raised text-accent-primary border border-accent-primary/30 shadow-[0_2px_10px_rgba(188,253,73,0.1)]" 
-                        : "text-text-muted hover:text-text-primary hover:bg-surface-raised/20"
-                    }`}
-                  >
-                    {item.labelZh}
-                  </button>
-                );
-              })}
-            </div>
-            
-            <div className="h-px bg-surface-raised/20" />
-            <div className="flex items-center justify-between px-3 text-xs text-text-faint">
-              <span className="font-mono">系统设置</span>
-              <div className="flex items-center gap-2">
-                {/* Theme switcher */}
-                <button
-                  type="button"
-                  onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-                  className="p-1.5 border border-border-subtle hover:border-border-strong bg-surface-base/30 hover:bg-surface-raised/20 rounded text-text-secondary hover:text-text-primary transition-colors cursor-pointer"
-                  aria-label="Toggle Theme"
-                  id="mobile-theme-toggle"
-                >
-                  {theme === "dark" ? <Sun className="w-3.5 h-3.5" /> : <Moon className="w-3.5 h-3.5" />}
-                </button>
-              </div>
-            </div>
-
-            <div className="h-px bg-surface-raised/20" />
-            <div className="flex items-center justify-between px-3 text-xs text-text-faint">
-              <span className="font-mono">LINKS</span>
-              <div className="flex items-center gap-3">
-                <a
-                  href="https://github.com/NiteFlightxx"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-text-muted hover:text-text-primary transition-colors"
-                  aria-label="GitHub Profile"
-                >
-                  <GithubIcon className="w-4 h-4" />
-                </a>
-                <a
-                  href="https://space.bilibili.com/101356800"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-text-muted hover:text-text-primary transition-colors"
-                  aria-label="Bilibili 主页"
-                >
-                  <BilibiliIcon className="w-4 h-4" />
-                </a>
-              </div>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </header>
+      </header>
+    </>
   );
 }

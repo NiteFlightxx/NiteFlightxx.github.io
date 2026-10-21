@@ -1,185 +1,46 @@
-import React, { useState } from "react";
-import { motion, AnimatePresence } from "motion/react";
-import { Sliders, ArrowUpRight } from "lucide-react";
-import type { Project } from "../types";
-import type { ProjectStatus } from "../lib/taxonomy";
-import { PROJECT_CATEGORIES, projectCategoryZh, projectStatusZh } from "../lib/taxonomy";
-import { UI_TRANSLATIONS } from "../translations";
-import BorderGlow from "./BorderGlow";
+import { ArrowRight, ArrowUpRight } from 'lucide-react';
+import type { ContentArticle, KnowledgeDomain, Project } from '../types';
+import type { ProjectStatus } from '../lib/taxonomy';
+import { projectStatusZh } from '../lib/taxonomy';
+import { compactTitle, getResearchAreas } from '../lib/research';
+import ResearchDiagram from './ResearchDiagram';
+import ResearchSidebar from './ResearchSidebar';
 
-// Status → badge styling. Exported so HomeView featured cards reuse the same look.
-// Three statuses, three hues: primary lime (done), ice-blue secondary (experimental),
-// neutral muted gray (archived).
+const BASE = import.meta.env.BASE_URL;
 export const STATUS_BADGE: Record<ProjectStatus, string> = {
-  completed: "bg-accent-primary/15 text-accent-primary border-accent-primary/30",
-  experimental: "bg-accent-secondary/15 text-accent-secondary border-accent-secondary/30",
-  archived: "bg-text-faint/10 text-text-faint border-text-faint/25",
+  completed: 'bg-accent-primary/15 text-accent-primary border-accent-primary/30',
+  experimental: 'bg-accent-secondary/15 text-accent-secondary border-accent-secondary/30',
+  archived: 'bg-text-faint/10 text-text-faint border-text-faint/25',
 };
 
 interface ProjectsViewProps {
   projects: Project[];
+  articles: ContentArticle[];
+  domains: KnowledgeDomain[];
   onSelectProject: (project: Project) => void;
-  lang: "zh" | "en";
+  lang: 'zh' | 'en';
 }
 
-export default function ProjectsView({ projects, onSelectProject, lang }: ProjectsViewProps) {
-  const t = UI_TRANSLATIONS[lang];
-  const [selectedCategory, setSelectedCategory] = useState<string>("All");
-
-  const categoryEntries = Object.entries(PROJECT_CATEGORIES);
-
-  const filteredProjects = selectedCategory === "All"
-    ? projects
-    : projects.filter((p) => p.category === selectedCategory);
-
+export default function ProjectsView({ projects, articles, domains, onSelectProject }: ProjectsViewProps) {
+  const areas = getResearchAreas(articles, domains);
   return (
-    <div className="space-y-12 pb-20 select-none" id="projects-view-container">
-      {/* Intro Header */}
-      <div className="max-w-4xl mx-auto text-center space-y-4 px-6">
-        <h1 className="font-display font-black text-4xl md:text-6xl text-text-primary tracking-tighter">
-          {lang === "zh" ? "项目" : "Projects"}
-        </h1>
-      </div>
-
-      {/* Categories Toolbar Filter */}
-      <div className="max-w-5xl mx-auto px-6">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-border-subtle pb-4">
-          <div className="flex items-center gap-2 text-sm font-mono text-text-secondary">
-            <Sliders className="w-4.5 h-4.5 text-accent-primary" />
-            <span>{t.filterSpecialization}</span>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-1.5 bg-surface-card/40 p-1.5 border border-border-subtle rounded-lg">
-            <button
-              type="button"
-              onClick={() => setSelectedCategory("All")}
-              className={`px-4 py-2 text-xs font-mono tracking-wider uppercase rounded-md cursor-pointer transition-all duration-200 ${
-                selectedCategory === "All"
-                  ? "bg-surface-raised text-accent-primary border border-accent-primary/30 shadow-lg"
-                  : "text-text-muted hover:text-text-secondary hover:bg-surface-raised/20"
-              }`}
-              id="filter-btn-all"
-            >
-              {t.all}
-            </button>
-            {categoryEntries.map(([id, labelZh]) => {
-              const isActive = selectedCategory === id;
-              return (
-                <button
-                  type="button"
-                  key={id}
-                  onClick={() => setSelectedCategory(id)}
-                  className={`px-4 py-2 text-xs font-mono tracking-wider uppercase rounded-md cursor-pointer transition-all duration-200 ${
-                    isActive
-                      ? "bg-surface-raised text-accent-primary border border-accent-primary/30 shadow-lg"
-                      : "text-text-muted hover:text-text-secondary hover:bg-surface-raised/20"
-                  }`}
-                  id={`filter-btn-${id.toLowerCase()}`}
-                >
-                  {lang === "zh" ? labelZh : id}
-                </button>
-              );
-            })}
-          </div>
+    <div className="workspace-shell" id="projects-view-container">
+      <ResearchSidebar domains={domains} articles={articles} />
+      <div className="workspace-main">
+        <header className="page-heading"><div><span className="eyebrow">Research index</span><h1>研究专题</h1><p>按研究问题组织原理、源码与实践。</p></div></header>
+        <div className="research-index">
+          {areas.map((area) => <section className="research-index-section" key={area.id} id={area.id}>
+            <div className="research-index-intro"><span className="eyebrow">{area.number} / {area.label}</span><h2>{area.title}</h2><p>{area.description}</p><ResearchDiagram kind={area.id} />{area.domain && <a className="quiet-link" href={BASE + 'knowledge/domain/' + area.domain.id + '/'}>领域与阅读路径<ArrowRight size={14} /></a>}</div>
+            <div className="research-index-articles">{area.articles.map((article, index) => <a key={article.slug} href={BASE + 'knowledge/' + article.slug + '/'}><span className="note-number">{String(index + 1).padStart(2, '0')}</span><div><h3>{compactTitle(article.title)}</h3><p>{article.excerpt}</p></div><ArrowUpRight size={16} /></a>)}</div>
+          </section>)}
         </div>
-      </div>
-
-      {/* Filtered Grid */}
-      <div className="max-w-5xl mx-auto px-6">
-        <motion.div
-          layout
-          className="grid grid-cols-1 md:grid-cols-2 gap-8"
-        >
-          <AnimatePresence mode="popLayout">
-            {filteredProjects.map((proj) => (
-              <motion.button
-                type="button"
-                layout
-                key={proj.id}
-                initial={{ opacity: 0, scale: 0.95 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.95 }}
-                transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
-                onClick={() => onSelectProject(proj)}
-                className="group cursor-pointer text-left w-full rounded-[20px] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-brand-accent-lime"
-              >
-                <BorderGlow
-                  edgeSensitivity={35}
-                  glowColor="76 95 64"
-                  backgroundColor="#121214"
-                  borderRadius={20}
-                  glowRadius={55}
-                  glowIntensity={1.25}
-                  coneSpread={22}
-                  colors={["#bcfd49", "#6366f1", "#4f46e5"]}
-                  fillOpacity={0.18}
-                  className="h-full"
-                >
-                  <div className="flex flex-col h-full justify-between">
-                    {/* Info block */}
-                    <div className="p-6 md:p-8 space-y-4 flex-1 flex flex-col justify-between">
-                      <div className="space-y-4">
-                        <div className="flex items-center justify-between text-xs font-mono">
-                          <div className="flex items-center gap-2">
-                            <span className={`px-1.5 py-0.5 rounded border text-[9px] uppercase tracking-wider ${STATUS_BADGE[proj.status]}`}>
-                              {lang === "zh" ? projectStatusZh(proj.status) : proj.status}
-                            </span>
-                            <span className="text-accent-primary uppercase tracking-wider font-semibold">
-                              {lang === "zh" ? projectCategoryZh(proj.category) : proj.category}
-                            </span>
-                            {proj.year && <span className="text-text-faint">{proj.year}</span>}
-                          </div>
-                          <span className="text-text-muted group-hover:text-text-primary transition-colors flex items-center gap-1">
-                            {t.examine} <ArrowUpRight className="w-3.5 h-3.5 text-accent-primary" />
-                          </span>
-                        </div>
-
-                        <h3 className="font-display font-bold text-xl md:text-2xl text-text-primary group-hover:text-accent-primary transition-colors">
-                          {proj.title}
-                        </h3>
-
-                        <p className="text-sm text-text-secondary leading-relaxed font-sans line-clamp-3">
-                          {proj.overview}
-                        </p>
-
-                        {/* Visual Prompt Quote block */}
-                        {proj.visualPrompt && (
-                          <div className="text-xs text-text-muted border-l-2 border-accent-primary/40 pl-3 py-0.5 leading-relaxed bg-surface-base/20 rounded-r pr-2">
-                            "{proj.visualPrompt}"
-                          </div>
-                        )}
-                      </div>
-
-                      <div className="space-y-4 pt-4 mt-auto">
-                        {/* Split metric grid */}
-                        <div className="grid grid-cols-2 gap-2 pt-2 border-t border-border-subtle">
-                          {proj.metrics.slice(0, 2).map((m) => (
-                            <div key={m.label} className="flex flex-col">
-                              <span className="text-[9px] font-mono text-text-faint uppercase tracking-wider">{m.label}</span>
-                              <span className="text-xs font-mono text-text-primary font-semibold">{m.value}</span>
-                            </div>
-                          ))}
-                        </div>
-
-                        {/* Tags */}
-                        <div className="flex flex-wrap gap-1">
-                          {proj.tech.map((techItem) => (
-                            <span
-                              key={techItem}
-                              className="px-2 py-0.5 text-[9px] font-mono bg-surface-base text-text-muted border border-border-subtle rounded"
-                            >
-                              {techItem}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </BorderGlow>
-              </motion.button>
-            ))}
-          </AnimatePresence>
-        </motion.div>
+        <section className="home-section">
+          <div className="section-heading"><h2>项目与实验</h2><span className="eyebrow">{projects.length} 项</span></div>
+          <div className="project-index">{projects.map((project) => <button type="button" key={project.id} className="project-index-card" onClick={() => onSelectProject(project)}>
+            <div className="project-index-meta"><span className={'rounded border px-2 py-1 text-[10px] ' + STATUS_BADGE[project.status]}>{projectStatusZh(project.status)}</span><span>{project.year}</span><ArrowUpRight size={16} /></div>
+            <h3>{project.title}</h3><p>{project.overview}</p><div className="research-keywords">{project.tech.map((tech) => <span key={tech}>{tech}</span>)}</div>
+          </button>)}</div>
+        </section>
       </div>
     </div>
   );

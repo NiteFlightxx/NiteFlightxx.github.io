@@ -1,15 +1,11 @@
-import React from "react";
-import { motion } from "motion/react";
-import type { Variants } from "motion/react";
-import { ArrowRight } from "lucide-react";
-import type { Project, ContentArticle, KnowledgeDomain } from "../types";
-import { projectCategoryZh, projectStatusZh } from "../lib/taxonomy";
-import { UI_TRANSLATIONS } from "../translations";
-import BorderGlow from "./BorderGlow";
-import { STATUS_BADGE } from "./ProjectsView";
-import AvbdViewport from "./AvbdViewport";
+import { ArrowRight, ArrowUpRight, BookOpen, Search } from 'lucide-react';
+import type { Project, ContentArticle, KnowledgeDomain } from '../types';
+import { compactTitle, getResearchAreas, researchDomains } from '../lib/research';
+import { useReaderState } from '../lib/useReaderState';
+import ResearchSidebar from './ResearchSidebar';
+import ResearchDiagram from './ResearchDiagram';
 
-const BASE_URL = import.meta.env.BASE_URL;
+const BASE = import.meta.env.BASE_URL;
 
 interface HomeViewProps {
   projects: Project[];
@@ -17,182 +13,78 @@ interface HomeViewProps {
   knowledgeDomains: KnowledgeDomain[];
   onSelectProject: (project: Project) => void;
   setActiveTab: (tab: string) => void;
-  lang: "zh" | "en";
+  lang: 'zh' | 'en';
 }
 
-export default function HomeView({
-  projects,
-  knowledgeArticles,
-  knowledgeDomains,
-  onSelectProject,
-  setActiveTab,
-  lang,
-}: HomeViewProps) {
-  const t = UI_TRANSLATIONS[lang];
-  const zh = lang === "zh";
-
-  const featured = projects.slice(0, 2);
-  const recentKnowledge = knowledgeArticles.slice(0, 4);
-
-  const containerVariants: Variants = {
-    hidden: { opacity: 0 },
-    show: {
-      opacity: 1,
-      transition: { staggerChildren: 0.12, delayChildren: 0.08 },
-    },
-  };
-
-  const itemVariants: Variants = {
-    hidden: { opacity: 0, y: 20 },
-    show: { opacity: 1, y: 0, transition: { duration: 0.6, ease: [0.16, 1, 0.3, 1] } },
-  };
+export default function HomeView({ projects, knowledgeArticles, knowledgeDomains, onSelectProject }: HomeViewProps) {
+  const areas = getResearchAreas(knowledgeArticles, knowledgeDomains);
+  const reader = useReaderState();
+  const bySlug = new Map(knowledgeArticles.map((article) => [article.slug, article]));
+  const recents = reader.recents.filter((entry) => bySlug.has(entry.slug)).slice(0, 3);
+  const paths = researchDomains(knowledgeDomains).flatMap((domain) =>
+    domain.learningPaths.slice(0, 1).map((path) => ({ ...path, domainId: domain.id }))
+  );
 
   return (
-    <motion.div
-      variants={containerVariants}
-      initial="hidden"
-      animate="show"
-      className="space-y-20 pb-24"
-      id="home-view-container"
-    >
-      {/* ===== AVBD interactive physics viewport ===== */}
-      <AvbdViewport />
+    <div className="workspace-shell" id="home-view-container">
+      <ResearchSidebar domains={knowledgeDomains} articles={knowledgeArticles} />
+      <div className="workspace-main">
+        <header className="page-heading">
+          <div><span className="eyebrow">Research notebook</span><h1>研究概览</h1><p>实时物理 · 动画系统 · 工程数学</p></div>
+          <a className="quiet-link" href={BASE + 'knowledge/'}>浏览知识库<ArrowUpRight size={15} /></a>
+        </header>
 
-      {/* ===== Knowledge domains and learning paths ===== */}
-      <section className="px-6 md:px-12 max-w-7xl mx-auto space-y-10">
-        <motion.div variants={itemVariants} className="flex items-end justify-between border-b border-border-subtle pb-5">
-          <div><span className="font-mono text-[10px] uppercase tracking-widest text-accent-primary">Learning routes</span><h2 className="mt-2 font-display font-black text-3xl md:text-5xl text-text-primary tracking-tight">知识领域与学习路径</h2></div>
-          <a href={`${BASE_URL}knowledge/`} className="group flex items-center gap-1.5 text-xs font-mono text-text-muted hover:text-text-primary">全部知识 <ArrowRight className="h-3.5 w-3.5 group-hover:translate-x-0.5" /></a>
-        </motion.div>
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          {knowledgeDomains.filter((domain) => domain.articleCount > 0).map((domain) => (
-            <motion.a variants={itemVariants} key={domain.id} href={`${BASE_URL}knowledge/domain/${domain.id}/`} className="group flex min-h-56 flex-col rounded-2xl border border-border-subtle bg-surface-card/70 p-5 transition-all hover:-translate-y-1 hover:border-accent-primary/30">
-              <div className="flex items-center justify-between font-mono text-[9px] uppercase tracking-wider text-text-faint"><span>{domain.articleCount} articles</span><span>{domain.subtopicCount} topics</span></div>
-              <h3 className="mt-6 font-display text-xl font-bold text-text-primary group-hover:text-accent-primary">{domain.title}</h3>
-              <p className="mt-3 line-clamp-3 text-xs leading-6 text-text-muted">{domain.excerpt}</p>
-              <div className="mt-auto border-t border-border-subtle pt-4 text-[10px] text-text-faint">{domain.learningPaths.length > 0 ? `${domain.learningPaths.length} 条推荐学习路径` : '按子主题浏览'}<ArrowRight className="ml-2 inline h-3 w-3" /></div>
-            </motion.a>
-          ))}
-        </div>
-      </section>
+        <button className="home-search" type="button" onClick={() => window.dispatchEvent(new Event('nite:open-command-palette'))}>
+          <Search size={19} /><span>查找概念、源码与研究笔记</span><kbd>Ctrl / ⌘ K</kbd>
+        </button>
 
-      {/* ===== Featured Systems ===== */}
-      <section className="px-6 md:px-12 max-w-7xl mx-auto space-y-10">
-        <motion.div variants={itemVariants} className="flex items-end justify-between border-b border-border-subtle pb-5">
-          <h2 className="font-display font-black text-3xl md:text-5xl text-text-primary tracking-tight">{t.featuredSystems}</h2>
-          <button
-            type="button"
-            onClick={() => setActiveTab("projects")}
-            className="group flex items-center gap-1.5 text-xs font-mono text-text-muted hover:text-text-primary transition-colors cursor-pointer"
-            id="view-all-projects-btn"
-          >
-            {t.viewAllProjects} <ArrowRight className="w-3.5 h-3.5 transition-transform group-hover:translate-x-0.5" />
-          </button>
-        </motion.div>
-
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          {featured.map((proj) => (
-            <motion.button
-              type="button"
-              key={proj.id}
-              variants={itemVariants}
-              onClick={() => onSelectProject(proj)}
-              className="group cursor-pointer text-left w-full rounded-[24px] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-brand-accent-lime"
-            >
-              <BorderGlow
-                edgeSensitivity={35}
-                glowColor="76 95 64"
-                backgroundColor="#121214"
-                borderRadius={24}
-                glowRadius={60}
-                glowIntensity={1.3}
-                coneSpread={22}
-                colors={["#bcfd49", "#6366f1", "#4f46e5"]}
-                fillOpacity={0.2}
-                className="h-full"
-              >
-                <div className="flex flex-col h-full justify-between">
-                  <div className="p-7 md:p-9 space-y-5 flex-1 flex flex-col justify-between">
-                    <div className="space-y-5">
-                      <div className="flex items-center justify-between text-xs font-mono">
-                        <div className="flex items-center gap-2">
-                          <span className={`px-1.5 py-0.5 rounded border text-[9px] uppercase tracking-wider ${STATUS_BADGE[proj.status]}`}>
-                            {zh ? projectStatusZh(proj.status) : proj.status}
-                          </span>
-                          <span className="text-accent-primary">{(zh ? projectCategoryZh(proj.category) : proj.category).toUpperCase()}</span>
-                        </div>
-                        {proj.year && <span className="text-text-faint">{proj.year}</span>}
-                      </div>
-                      <h3 className="font-display font-bold text-2xl md:text-3xl text-text-primary group-hover:text-accent-primary transition-colors">
-                        {proj.title}
-                      </h3>
-                      <p className="text-sm md:text-base text-text-secondary leading-relaxed font-sans line-clamp-4">{proj.overview}</p>
-                    </div>
-                    <div className="flex flex-wrap gap-1.5 pt-5 border-t border-border-subtle mt-auto">
-                      {proj.tech.slice(0, 4).map((techItem) => (
-                        <span key={techItem} className="px-2 py-0.5 text-[8px] font-mono bg-surface-base text-text-faint border border-border-subtle rounded">
-                          {techItem}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              </BorderGlow>
-            </motion.button>
-          ))}
-        </div>
-      </section>
-
-      {/* ===== Recent Knowledge ===== */}
-      <section className="px-6 md:px-12 max-w-7xl mx-auto space-y-10">
-        <motion.div variants={itemVariants} className="flex items-end justify-between border-b border-border-subtle pb-5">
-          <h2 className="font-display font-black text-3xl md:text-5xl text-text-primary tracking-tight">{t.recentKnowledge}</h2>
-          <button
-            type="button"
-            onClick={() => setActiveTab("knowledge")}
-            className="group flex items-center gap-1.5 text-xs font-mono text-text-muted hover:text-text-primary transition-colors cursor-pointer"
-            id="view-all-knowledge-btn"
-          >
-            {t.viewAllKnowledge} <ArrowRight className="w-3.5 h-3.5 transition-transform group-hover:translate-x-0.5" />
-          </button>
-        </motion.div>
-
-        <div className="space-y-4">
-          {recentKnowledge.map((art) => (
-            <BorderGlow
-              key={art.id}
-              edgeSensitivity={30}
-              glowColor="76 95 64"
-              backgroundColor="#121214"
-              borderRadius={14}
-              glowRadius={40}
-              glowIntensity={1.1}
-              coneSpread={20}
-              colors={["#bcfd49", "#6366f1", "#4f46e5"]}
-              fillOpacity={0.15}
-              className="group cursor-pointer"
-            >
-              <a href={`${BASE_URL}knowledge/${art.slug}`} className="block p-6 md:p-7 flex flex-col justify-between gap-5">
-                <div className="flex items-center justify-between text-xs font-mono">
-                  <span className="text-accent-primary">{art.category.toUpperCase()}</span>
-                  <span className="text-text-faint">{art.date}</span>
-                </div>
-                <h3 className="font-display font-bold text-xl md:text-2xl text-text-primary group-hover:text-accent-primary transition-colors">
-                  {art.title}
-                </h3>
-                {art.excerpt && (
-                  <p className="text-sm md:text-base text-text-secondary leading-relaxed font-sans line-clamp-2">{art.excerpt}</p>
-                )}
-                {art.readTime && (
-                  <div className="font-mono text-[9px] text-text-faint pt-3 border-t border-border-subtle">
-                    {art.readTime}
-                  </div>
-                )}
+        <section aria-labelledby="research-heading" className="home-section">
+          <div className="section-heading"><h2 id="research-heading">研究方向</h2><a className="quiet-link" href={BASE + '#projects'}>全部专题<ArrowRight size={14} /></a></div>
+          <div className="research-cards">
+            {areas.map((area) => (
+              <a className="research-card" key={area.id} href={area.domain ? BASE + 'knowledge/domain/' + area.domain.id + '/' : BASE + 'knowledge/' + area.articles[0].slug + '/'}>
+                <div className="research-card-top"><span className="eyebrow">{area.number} / {area.label}</span><ArrowUpRight size={16} /></div>
+                <ResearchDiagram kind={area.id} />
+                <div><h3>{area.title}</h3><p>{area.description}</p><div className="research-keywords">{area.keywords.map((keyword) => <span key={keyword}>{keyword}</span>)}</div></div>
               </a>
-            </BorderGlow>
-          ))}
+            ))}
+          </div>
+        </section>
+
+        <div className="home-reading-grid">
+          <section aria-labelledby="notes-heading" className="home-section">
+            <div className="section-heading"><h2 id="notes-heading">最近收录</h2><a className="quiet-link" href={BASE + 'knowledge/'}>全部文章<ArrowRight size={14} /></a></div>
+            <div className="note-list">
+              {knowledgeArticles.slice(0, 6).map((article, index) => (
+                <a key={article.slug} className="note-row" href={BASE + 'knowledge/' + article.slug + '/'}>
+                  <span className="note-number">{String(index + 1).padStart(2, '0')}</span>
+                  <div className="note-copy"><span className="note-meta">{article.category}{article.subtopic ? ' / ' + article.subtopic : ''}</span><h3>{compactTitle(article.title)}</h3>{article.excerpt && <p>{article.excerpt}</p>}</div>
+                  <div className="note-end"><span>{article.date}</span><ArrowUpRight size={16} /></div>
+                </a>
+              ))}
+            </div>
+          </section>
+
+          <aside className="home-context">
+            {recents.length > 0 && <section className="context-section" aria-labelledby="continue-heading">
+              <div className="section-heading"><h2 id="continue-heading">继续阅读</h2><a className="quiet-link" href={BASE + 'knowledge/?scope=recents'}>历史<ArrowRight size={13} /></a></div>
+              {recents.map((entry) => {
+                const article = bySlug.get(entry.slug)!;
+                const progress = Math.round(Math.max(0, Math.min(100, reader.progress[entry.slug] ?? 0)));
+                return <a className="continue-entry" key={entry.slug} href={BASE + 'knowledge/' + article.slug + '/'}><span>{compactTitle(article.title)}</span><div className="continue-progress"><div style={{ width: progress + '%' }} /></div><small>已读 {progress}%</small></a>;
+              })}
+            </section>}
+            {paths.length > 0 && <section className="context-section" aria-labelledby="paths-heading">
+              <div className="section-heading"><h2 id="paths-heading">阅读路径</h2><BookOpen size={15} /></div>
+              {paths.map((path) => <a className="path-link" key={path.id} href={BASE + 'knowledge/domain/' + path.domainId + '/#' + path.id}><div><h3>{path.title}</h3><span>{path.articles.length} 篇关联文章</span></div><ArrowUpRight size={14} /></a>)}
+            </section>}
+            {projects.length > 0 && <section className="context-section" aria-labelledby="projects-heading">
+              <div className="section-heading"><h2 id="projects-heading">项目与实验</h2></div>
+              {projects.map((project) => <button type="button" className="path-link" key={project.id} onClick={() => onSelectProject(project)}><div><h3>{project.title}</h3><span>{project.tech.slice(0, 2).join(' / ')}</span></div><ArrowUpRight size={14} /></button>)}
+            </section>}
+          </aside>
         </div>
-      </section>
-    </motion.div>
+      </div>
+    </div>
   );
 }

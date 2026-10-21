@@ -96,7 +96,7 @@ export default function ArticleToc({ headings, lang }: ArticleTocProps) {
     e.preventDefault();
     const el = document.getElementById(slug);
     if (el) {
-      el.scrollIntoView({ behavior: "smooth", block: "start" });
+      el.scrollIntoView({ behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: "start" });
       history.replaceState(null, "", `#${slug}`);
     }
   };

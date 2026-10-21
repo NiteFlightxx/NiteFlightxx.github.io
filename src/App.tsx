@@ -4,7 +4,7 @@
  */
 
 import React, { useCallback, useEffect, useState } from "react";
-import { motion, AnimatePresence } from "motion/react";
+import { AnimatePresence } from "motion/react";
 
 // Sub-components
 import Header from "./components/Header";
@@ -14,8 +14,6 @@ import ProjectsView from "./components/ProjectsView";
 import KnowledgeView from "./components/KnowledgeView";
 import ArchiveView from "./components/ArchiveView";
 import ProjectDetailModal from "./components/ProjectDetailModal";
-import DynamicLinesBg from "./components/DynamicLinesBg";
-import SideRays from "./components/SideRays";
 import GlobalCommandPalette from "./components/GlobalCommandPalette";
 
 // Data records (Chinese-only after migration; English datasets removed)
@@ -36,14 +34,6 @@ const VALID_TABS: readonly string[] = MAIN_NAV_ITEMS.map((item) => item.id);
 
 export default function App({ knowledgeArticles = [], knowledgeDomains = [] }: AppProps) {
   const [activeTab, setActiveTab] = useState("home");
-  // Lazy initial theme: read the persisted value (or system preference) once
-  // at first render so the rays layer never flashes dark→light on load.
-  const [theme, setTheme] = useState<"dark" | "light">(() => {
-    if (typeof window === "undefined") return "dark";
-    const stored = localStorage.getItem("theme");
-    if (stored === "light" || stored === "dark") return stored;
-    return window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
-  });
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
 
   const navigateToTab = useCallback((tab: string) => {
@@ -70,16 +60,10 @@ export default function App({ knowledgeArticles = [], knowledgeDomains = [] }: A
     setSelectedProjectId(project.id);
   }, []);
 
-  // Persist + sync to <html> on every toggle so global CSS (body bg,
-  // scrollbar, article-body) applies everywhere.
-  useEffect(() => {
-    localStorage.setItem("theme", theme);
-    document.documentElement.classList.toggle("light-theme", theme === "light");
-  }, [theme]);
-
   useEffect(() => {
     const syncFromUrl = () => {
       const tab = window.location.hash.replace(/^#/, "");
+      if (tab === 'main-content') return;
       setActiveTab(VALID_TABS.includes(tab) ? tab : "home");
     };
     syncFromUrl();
@@ -93,7 +77,7 @@ export default function App({ knowledgeArticles = [], knowledgeDomains = [] }: A
 
   // Smooth scroll to top on page switches
   useEffect(() => {
-    window.scrollTo({ top: 0, behavior: "smooth" });
+    window.scrollTo({ top: 0, behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
   }, [activeTab]);
 
   // Dispatch current view
@@ -121,6 +105,8 @@ export default function App({ knowledgeArticles = [], knowledgeDomains = [] }: A
         return (
           <ProjectsView
             projects={projects}
+            articles={knowledge}
+            domains={knowledgeDomains}
             onSelectProject={openProject}
             lang={lang}
           />
@@ -138,56 +124,17 @@ export default function App({ knowledgeArticles = [], knowledgeDomains = [] }: A
   };
 
   return (
-    <div className={`relative min-h-screen flex flex-col justify-between transition-colors duration-300 selection:bg-accent-primary/30 selection:text-text-primary text-text-primary ${
-      theme === "light" ? "light-theme" : ""
-    }`}>
-      {/* Fixed Background Color Layer (solves canvas stacking context) */}
-      <div className="fixed inset-0 -z-20 transition-colors duration-300 bg-surface-base" />
-
-      {/* Global Seamless WebGL Rays Background */}
-      <div className={`fixed inset-0 -z-15 pointer-events-none transition-opacity duration-300 ${
-        theme === "light" ? "opacity-30" : "opacity-90"
-      }`}>
-        <SideRays
-          speed={2.5}
-          rayColor1="#bcfd49"
-          rayColor2="#96c8ff"
-          intensity={2.0}
-          spread={2.0}
-          origin="top-right"
-          tilt={0}
-          saturation={1.5}
-          blend={0.75}
-          falloff={1.6}
-          opacity={1.0}
-        />
-      </div>
-
-      {/* Cybernetic dynamic lines background */}
-      <DynamicLinesBg theme={theme} />
+    <div className="site-app min-h-screen flex flex-col bg-surface-base text-text-primary selection:bg-accent-primary/25">
 
       {/* Primary Sticky Header */}
       <Header
         activeTab={activeTab}
         setActiveTab={navigateToTab}
-        theme={theme}
-        setTheme={setTheme}
       />
 
       {/* Main Page Stage Area */}
-      <main className="flex-grow pt-12 md:pt-16">
-        <AnimatePresence mode="wait">
-          <motion.div
-            key={activeTab}
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -10 }}
-            transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
-            className="w-full h-full"
-          >
-            {renderCurrentView()}
-          </motion.div>
-        </AnimatePresence>
+      <main className="flex-grow" id="main-content">
+        {renderCurrentView()}
       </main>
 
       {/* Standard Footer */}

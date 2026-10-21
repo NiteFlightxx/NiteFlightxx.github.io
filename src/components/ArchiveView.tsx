@@ -1,115 +1,18 @@
-import React from "react";
-import { Cpu } from "lucide-react";
-import type { SkillCategory } from "../types";
-import { UI_TRANSLATIONS } from "../translations";
+import { ArrowUpRight } from 'lucide-react';
+import type { SkillCategory } from '../types';
 
-interface ArchiveViewProps {
-  skills: SkillCategory[];
-  lang: "zh" | "en";
-}
+interface ArchiveViewProps { skills: SkillCategory[]; lang: 'zh' | 'en'; }
 
-// 五条核心描述 — 档案概览的主体内容，中英双语。
-const PROFILE_PILLARS = [
-  {
-    labelZh: "核心方向",
-    labelEn: "Core Direction",
-    zh: "专注于 Unreal Engine 角色运动技术，研究动画、程序动画、角色物理与实时交互系统。",
-    en: "Focused on Unreal Engine character motion technology, researching animation, procedural animation, character physics, and real-time interaction systems.",
-  },
-  {
-    labelZh: "设计理念",
-    labelEn: "Design Philosophy",
-    zh: "通过动画、物理模拟与控制算法的协同，构建真实、自然且富有表现力的角色运动体验。",
-    en: "Through the synergy of animation, physics simulation, and control algorithms, building authentic, natural, and expressive character motion experiences.",
-  },
-  {
-    labelZh: "工程实践",
-    labelEn: "Engineering Practice",
-    zh: "深入探索 Active Ragdoll、程序动画、Chaos Physics、实时交互等角色技术，并关注运动表现的设计与调校。",
-    en: "Deeply exploring character technologies such as Active Ragdoll, procedural animation, Chaos Physics, and real-time interaction, with attention to the design and tuning of motion performance.",
-  },
-  {
-    labelZh: "底层研究",
-    labelEn: "Foundational Research",
-    zh: "持续研究 Unreal Engine 源码、实时物理仿真与控制理论，从底层原理到工程实践不断完善角色运动系统。",
-    en: "Continuously studying Unreal Engine source, real-time physics simulation, and control theory, refining the character motion system from underlying principles to engineering practice.",
-  },
-  {
-    labelZh: "最终目标",
-    labelEn: "Ultimate Goal",
-    zh: "致力于让角色真正感知环境、遵循物理规律，并与玩家和游戏世界建立可信、自然的实时交互。",
-    en: "Committed to making characters truly perceive their environment, follow physical laws, and build credible, natural real-time interactions with players and the game world.",
-  },
-];
-
-export default function ArchiveView({ skills, lang }: ArchiveViewProps) {
-  const t = UI_TRANSLATIONS[lang];
-
+export default function ArchiveView({ skills }: ArchiveViewProps) {
   return (
-    <div className="space-y-20 pb-20 select-none" id="archive-view-container">
-      {/* Profile Overview — 技术方向 / 研究兴趣 / 专业领域 */}
-      <section className="max-w-4xl mx-auto px-6">
-        <div className="space-y-4">
-          <span className="font-mono text-[10px] text-accent-primary uppercase tracking-widest block">
-            {t.profileOverview}
-          </span>
-          <h1 className="font-display font-black text-4xl md:text-5xl text-text-primary tracking-tighter leading-tight">
-            {t.narrativeHeadline}
-          </h1>
-          <div className="space-y-5">
-            {PROFILE_PILLARS.map((p) => (
-              <div key={p.labelZh} className="space-y-1.5">
-                <div className="flex items-center gap-2">
-                  <span className="w-1 h-1 rounded-full bg-accent-primary" />
-                  <span className="font-mono text-[10px] text-accent-primary uppercase tracking-widest">
-                    {lang === "zh" ? p.labelZh : p.labelEn}
-                  </span>
-                </div>
-                <p className="text-xs text-text-muted leading-relaxed font-sans font-light pl-3">
-                  {lang === "zh" ? p.zh : p.en}
-                </p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* Skill Matrix — 6 categories */}
-      <section className="max-w-5xl mx-auto px-6 space-y-10">
-        <div className="space-y-2 border-b border-border-subtle pb-4">
-          <span className="font-mono text-[10px] text-accent-primary uppercase tracking-widest block">
-            {t.systemProficiencies}
-          </span>
-          <h2 className="font-display font-medium text-2xl text-text-primary tracking-tight">
-            {t.techStackProfile}
-          </h2>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-          {skills.map((cat) => (
-            <div key={cat.name} className="space-y-6">
-              <h3 className="font-display font-semibold text-xs text-brand-accent-silver tracking-widest uppercase flex items-center gap-2">
-                <Cpu className="w-4 h-4 text-accent-primary" />
-                {cat.name}
-              </h3>
-
-              <div className="space-y-5">
-                {cat.skills.map((skill) => (
-                  <div key={skill.name} className="space-y-1.5 group">
-                    <div className="flex items-center gap-2 text-xs font-mono">
-                      <span className="text-accent-primary select-none">›</span>
-                      <span className="text-text-secondary group-hover:text-text-primary transition-colors">{skill.name}</span>
-                    </div>
-                    <p className="text-[10px] text-text-faint leading-relaxed font-sans group-hover:text-text-muted transition-colors pl-4">
-                      {skill.details}
-                    </p>
-                  </div>
-                ))}
-              </div>
-            </div>
-          ))}
-        </div>
-      </section>
+    <div className="about-page" id="archive-view-container">
+      <header className="page-heading"><div><span className="eyebrow">About this notebook</span><h1>关于这些研究笔记</h1><p>Nite / 实时物理与动画系统</p></div></header>
+      <div className="about-intro">
+        <div><h2>从原理到实现，再回到问题。</h2><p>这里记录实时物理、角色动画与控制系统的学习和工程研究，包括数学推导、Unreal Engine 源码分析，以及实现中的取舍与验证。</p><p>知识文章保留完整推导，研究专题串联相关问题，交互实验用于建立直觉。不同层次的内容通过链接关联，不必重复展开。</p></div>
+        <aside><span className="eyebrow">Elsewhere</span><a className="path-link" href="https://github.com/NiteFlightxx" target="_blank" rel="noopener noreferrer">GitHub<ArrowUpRight size={15} /></a><a className="path-link" href="https://space.bilibili.com/101356800" target="_blank" rel="noopener noreferrer">Bilibili<ArrowUpRight size={15} /></a></aside>
+      </div>
+      <section className="about-method"><div><span className="eyebrow">01 / Principles</span><h3>原理与数学</h3><p>明确假设、量纲与适用范围，建立可以复用的基础。</p></div><div><span className="eyebrow">02 / Implementation</span><h3>源码与实现</h3><p>沿实际执行链路理解系统，保留文件、版本与证据。</p></div><div><span className="eyebrow">03 / Validation</span><h3>实验与边界</h3><p>区分源码事实、工程判断与仍需运行时验证的内容。</p></div></section>
+      <section><div className="section-heading"><h2>技术索引</h2><span className="eyebrow">Areas of practice</span></div><div className="about-skills">{skills.map((category) => <section key={category.name}><h3>{category.name}</h3><dl>{category.skills.map((skill) => <div key={skill.name}><dt>{skill.name}</dt><dd>{skill.details}</dd></div>)}</dl></section>)}</div></section>
     </div>
   );
 }
