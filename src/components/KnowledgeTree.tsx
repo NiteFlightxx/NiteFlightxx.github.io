@@ -69,11 +69,11 @@ export default function KnowledgeTree({ articles, currentSlug, showQuickLinks = 
     <nav className="knowledge-tree glass-panel overflow-hidden rounded-xl border border-border-subtle" aria-label="知识目录" data-reader-version={version}>
       <div className="flex items-center justify-between border-b border-border-subtle px-4 py-3">
         <span className="flex items-center gap-2 font-mono text-[11px] uppercase tracking-widest text-text-muted"><FolderTree className="h-4 w-4 text-accent-primary" />知识目录</span>
-        <a href={`${BASE_URL}knowledge/library/`} className="text-[10px] text-text-faint hover:text-accent-primary">全部</a>
+        <a href={`${BASE_URL}knowledge/`} className="text-[10px] text-text-faint hover:text-accent-primary">全部</a>
       </div>
       {showQuickLinks && <div className="grid grid-cols-2 gap-2 border-b border-border-subtle p-3">
         {quickItems.map(({ icon: Icon, label, count }) => (
-          <a key={label} href={`${BASE_URL}knowledge/library/?scope=${label === '收藏' ? 'favorites' : 'recents'}`} className="rounded-lg border border-border-subtle bg-surface-base/40 px-3 py-2 hover:border-accent-primary/30">
+          <a key={label} href={`${BASE_URL}knowledge/?scope=${label === '收藏' ? 'favorites' : 'recents'}`} className="rounded-lg border border-border-subtle bg-surface-base/40 px-3 py-2 hover:border-accent-primary/30">
             <span className="flex items-center gap-1.5 whitespace-nowrap text-[10px] text-text-muted"><Icon className="h-3 w-3 shrink-0" />{label === '最近阅读' ? '最近' : label}</span>
             <strong className="mt-1 block font-mono text-sm text-text-primary">{count}</strong>
           </a>

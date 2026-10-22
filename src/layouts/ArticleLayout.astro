@@ -122,10 +122,6 @@ const {
     <StaticSiteHeader activeTab="knowledge" />
 
     <div class="knowledge-reader-shell">
-      <aside class="document-sidebar">
-        <div class="sticky top-24"><DocumentNavigation groups={readingGroups} current={currentSlug} /></div>
-      </aside>
-
       <main id="main-content" class="reader-main min-w-0">
         <div class="document-mobile-bars">
           <details class="document-mobile-navigation rounded-lg border border-border-subtle">
@@ -136,7 +132,7 @@ const {
             <summary class="cursor-pointer px-4 py-3 text-xs text-text-muted">本文目录与阅读设置</summary>
             <div class="space-y-3 border-t border-border-subtle p-3">
               <ArticleToc client:load headings={headings} lang={lang} />
-              <ReaderActions client:media="(max-width: 1439px)" slug={currentSlug} title={title} category={category} url={canonicalPath} />
+              <ReaderActions client:media="(max-width: 1099px)" slug={currentSlug} title={title} category={category} url={canonicalPath} />
             </div>
           </details>
         </div>
@@ -278,21 +274,11 @@ const {
 
       <aside class="document-toc-sidebar">
         <div class="sticky top-24 space-y-4">
-          <ReaderActions client:media="(min-width: 1440px)" slug={currentSlug} title={title} category={category} url={canonicalPath} />
+          <ReaderActions client:media="(min-width: 1100px)" slug={currentSlug} title={title} category={category} url={canonicalPath} />
           <ArticleToc client:load headings={headings} lang={lang} />
           <a href={`${import.meta.env.BASE_URL}knowledge/graph/?center=${currentSlug}`} class="block rounded-xl border border-border-subtle bg-surface-card/40 px-4 py-3 text-center font-mono text-[10px] uppercase tracking-wider text-text-muted hover:border-accent-primary/30 hover:text-accent-primary">在知识图谱中查看</a>
         </div>
       </aside>
     </div>
-    <script>
-      // Scroll only the document tree, never the article, to reveal its active entry.
-      for (const nav of document.querySelectorAll<HTMLElement>('.document-sidebar .document-navigation')) {
-        const active = nav.querySelector<HTMLElement>('[aria-current="page"]');
-        if (!active) continue;
-        const navRect = nav.getBoundingClientRect();
-        const activeRect = active.getBoundingClientRect();
-        if (activeRect.bottom > navRect.bottom) nav.scrollTop += activeRect.bottom - navRect.bottom + 12;
-      }
-    </script>
   </body>
 </html>

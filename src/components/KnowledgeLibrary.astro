@@ -1,0 +1,15 @@
+---
+import Layout from '../layouts/Layout.astro';
+import StaticSiteHeader from './StaticSiteHeader.astro';
+import KnowledgeView from './KnowledgeView';
+import Footer from './Footer';
+import { loadKnowledge } from '../lib/content';
+interface Props { title?: string; }
+const { title = '知识 · NITE' } = Astro.props;
+const articles = await loadKnowledge();
+---
+<Layout title={title}>
+  <StaticSiteHeader activeTab="knowledge" />
+  <main id="main-content"><KnowledgeView client:load articles={articles} lang="zh" /></main>
+  <Footer lang="zh" />
+</Layout>

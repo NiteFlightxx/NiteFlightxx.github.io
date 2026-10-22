@@ -14,11 +14,13 @@ const knowledge = read('knowledge/library/index.html');
 const documentHome = read('knowledge/index.html');
 const order = JSON.parse(fs.readFileSync(path.join(root, 'src/data/reading-order.json'), 'utf8'));
 const forbidden = /学完能做什么|练习与验收|手动完成|我已完成本课|查看课程|课程目录|课节完成与导航|规划中/;
-assert.match(documentHome, /class="article-body /);
-assert.match(documentHome, /知识库文档目录/);
+assert.match(documentHome, /knowledge-browser/);
+assert.match(documentHome, /搜索知识库/);
+assert.equal((documentHome.match(/class="browser-article"/g) ?? []).length, manifest.length, 'Knowledge landing must expose every public document');
 assert.doesNotMatch(documentHome, forbidden);
 assert.doesNotMatch(documentHome, /data-pagefind-body/);
-const navigation = documentHome.match(/<nav class="document-navigation"[\s\S]*?<\/nav>/)?.[0];
+const firstDocument = read('knowledge/' + order[0].sections[0].articles[0] + '/index.html');
+const navigation = firstDocument.match(/<nav class="document-navigation"[\s\S]*?<\/nav>/)?.[0];
 assert.ok(navigation, 'Ordered document navigation must be server rendered');
 let previousPosition = -1;
 for (const group of order) {
@@ -46,9 +48,9 @@ for (const group of order.slice(0, 3)) {
     assert.ok(html.includes('href="https://niteflightxx.github.io/knowledge/' + slug + '/"'), 'Alias must use the canonical article URL');
   }
 }
-assert.match(home, /研究概览/);
-assert.match(home, /研究专题/);
-assert.match(home, /workspace-shell/);
+assert.match(home, /精选研究/);
+assert.match(home, /探索网站/);
+assert.match(home, /studio-shell/);
 assert.doesNotMatch(home, /<canvas\b|avbd\/avbd\.js|createAvbdModule/);
 assert.equal((knowledge.match(/class="browser-article"/g) ?? []).length, manifest.length, 'Public articles must render without client JavaScript');
 assert.match(knowledge, /aria-label="搜索知识库"|搜索知识库/);

@@ -1,89 +1,34 @@
-import { ArrowRight, ArrowUpRight, BookOpen, Search } from 'lucide-react';
+import { ArrowRight, ArrowUpRight, BookOpen, Boxes, MoveUpRight } from 'lucide-react';
 import type { Project, ContentArticle, KnowledgeDomain } from '../types';
-import { compactTitle, getResearchAreas } from '../lib/research';
-import { readingGroups, articleHref } from '../lib/readingOrder';
+import { compactTitle } from '../lib/research';
 import { useReaderState } from '../lib/useReaderState';
-import ResearchSidebar from './ResearchSidebar';
+import { RESEARCH_WORKS } from '../data/researchWorks';
+import { TOY_CASES } from '../data/toys';
 import ResearchDiagram from './ResearchDiagram';
+import StudioIllustration from './StudioIllustration';
 
 const BASE = import.meta.env.BASE_URL;
-
 interface HomeViewProps {
-  projects: Project[];
-  knowledgeArticles: ContentArticle[];
-  knowledgeDomains: KnowledgeDomain[];
-  onSelectProject: (project: Project) => void;
-  setActiveTab: (tab: string) => void;
-  lang: 'zh' | 'en';
+  projects: Project[]; knowledgeArticles: ContentArticle[]; knowledgeDomains: KnowledgeDomain[];
+  onSelectProject: (project: Project) => void; setActiveTab: (tab: string) => void; lang: 'zh' | 'en';
 }
 
-export default function HomeView({ projects, knowledgeArticles, knowledgeDomains, onSelectProject }: HomeViewProps) {
-  const areas = getResearchAreas(knowledgeArticles, knowledgeDomains);
-  const groups = readingGroups(knowledgeArticles);
+export default function HomeView({ knowledgeArticles }: HomeViewProps) {
   const reader = useReaderState();
-  const bySlug = new Map(knowledgeArticles.map((article) => [article.slug, article]));
-  const recents = reader.recents.filter((entry) => bySlug.has(entry.slug)).slice(0, 3);
-
-  return (
-    <div className="workspace-shell" id="home-view-container">
-      <ResearchSidebar domains={knowledgeDomains} articles={knowledgeArticles} />
-      <div className="workspace-main">
-        <header className="page-heading">
-          <div><span className="eyebrow">Research notebook</span><h1>研究概览</h1><p>实时物理 · 动画系统 · 工程数学</p></div>
-          <a className="quiet-link" href={BASE + 'knowledge/'}>浏览知识库<ArrowUpRight size={15} /></a>
-        </header>
-
-        <button className="home-search" type="button" onClick={() => window.dispatchEvent(new Event('nite:open-command-palette'))}>
-          <Search size={19} /><span>查找概念、源码与研究笔记</span><kbd>Ctrl / ⌘ K</kbd>
-        </button>
-
-        <section aria-labelledby="research-heading" className="home-section">
-          <div className="section-heading"><h2 id="research-heading">研究方向</h2><a className="quiet-link" href={BASE + '#projects'}>全部专题<ArrowRight size={14} /></a></div>
-          <div className="research-cards">
-            {areas.map((area) => (
-              <a className="research-card" key={area.id} href={area.domain ? BASE + 'knowledge/domain/' + area.domain.id + '/' : BASE + 'knowledge/' + area.articles[0].slug + '/'}>
-                <div className="research-card-top"><span className="eyebrow">{area.number} / {area.label}</span><ArrowUpRight size={16} /></div>
-                <ResearchDiagram kind={area.id} />
-                <div><h3>{area.title}</h3><p>{area.description}</p><div className="research-keywords">{area.keywords.map((keyword) => <span key={keyword}>{keyword}</span>)}</div></div>
-              </a>
-            ))}
-          </div>
-        </section>
-
-        <div className="home-reading-grid">
-          <section aria-labelledby="notes-heading" className="home-section">
-            <div className="section-heading"><h2 id="notes-heading">最近收录</h2><a className="quiet-link" href={BASE + 'knowledge/library/'}>全部文章<ArrowRight size={14} /></a></div>
-            <div className="note-list">
-              {knowledgeArticles.slice(0, 6).map((article, index) => (
-                <a key={article.slug} className="note-row" href={BASE + 'knowledge/' + article.slug + '/'}>
-                  <span className="note-number">{String(index + 1).padStart(2, '0')}</span>
-                  <div className="note-copy"><span className="note-meta">{article.category}{article.subtopic ? ' / ' + article.subtopic : ''}</span><h3>{compactTitle(article.title)}</h3>{article.excerpt && <p>{article.excerpt}</p>}</div>
-                  <div className="note-end"><span>{article.date}</span><ArrowUpRight size={16} /></div>
-                </a>
-              ))}
-            </div>
-          </section>
-
-          <aside className="home-context">
-            {recents.length > 0 && <section className="context-section" aria-labelledby="continue-heading">
-              <div className="section-heading"><h2 id="continue-heading">继续阅读</h2><a className="quiet-link" href={BASE + 'knowledge/library/?scope=recents'}>历史<ArrowRight size={13} /></a></div>
-              {recents.map((entry) => {
-                const article = bySlug.get(entry.slug)!;
-                const progress = Math.round(Math.max(0, Math.min(100, reader.progress[entry.slug] ?? 0)));
-                return <a className="continue-entry" key={entry.slug} href={BASE + 'knowledge/' + article.slug + '/'}><span>{compactTitle(article.title)}</span><div className="continue-progress"><div style={{ width: progress + '%' }} /></div><small>已读 {progress}%</small></a>;
-              })}
-            </section>}
-            <section className="context-section" aria-labelledby="paths-heading">
-              <div className="section-heading"><h2 id="paths-heading">顺序阅读</h2><BookOpen size={15} /></div>
-              {groups.slice(0, 3).map(group => <a className="path-link" key={group.id} href={articleHref(group.sections[0].articles[0].slug)}><div><h3>{group.title}</h3><span>{group.sections.reduce((n, section) => n + section.articles.length, 0)} 篇文档</span></div><ArrowUpRight size={14} /></a>)}
-            </section>
-            {projects.length > 0 && <section className="context-section" aria-labelledby="projects-heading">
-              <div className="section-heading"><h2 id="projects-heading">项目与实验</h2></div>
-              {projects.map((project) => <button type="button" className="path-link" key={project.id} onClick={() => onSelectProject(project)}><div><h3>{project.title}</h3><span>{project.tech.slice(0, 2).join(' / ')}</span></div><ArrowUpRight size={14} /></button>)}
-            </section>}
-          </aside>
-        </div>
-      </div>
+  const bySlug = new Map(knowledgeArticles.map(article=>[article.slug,article]));
+  const recents = reader.recents.filter(entry=>bySlug.has(entry.slug)).slice(0,2);
+  const toy = TOY_CASES[0];
+  return <div className="studio-shell" id="home-view-container">
+    <section className="studio-hero" aria-labelledby="studio-title">
+      <div className="studio-hero-copy"><span className="studio-eyebrow"><i/> INDEPENDENT RESEARCH & EXPERIMENTS</span><h1 id="studio-title">让原理，<br/>成为可以运行的<em>系统。</em></h1><p>我是 Nite，探索实时物理、动画与控制系统。<br/>在这里记录原理、实现，以及让想法变得具体的小实验。</p><div className="studio-hero-foot"><span>UNREAL ENGINE</span><span>PHYSICS</span><span>ANIMATION</span></div></div>
+      <div className="studio-hero-art"><StudioIllustration/><span className="studio-art-note">从一个问题出发，回到可以验证的实现。</span></div>
+    </section>
+    <nav className="studio-entry-strip" aria-label="探索网站"><a href={`${BASE}research/`}><span className="entry-index">01</span><div><strong>研究 <ArrowUpRight size={17}/></strong><span>工程实现与研究记录</span></div><Boxes size={21}/></a><a href={`${BASE}knowledge/`}><span className="entry-index">02</span><div><strong>知识 <ArrowUpRight size={17}/></strong><span>查找原理、推导与源码笔记</span></div><BookOpen size={21}/></a><a href={`${BASE}about/`}><span className="entry-index">03</span><div><strong>TOY <ArrowUpRight size={17}/></strong><span>动手体验，建立一点直觉</span></div><MoveUpRight size={22}/></a></nav>
+    <section className="studio-section" aria-labelledby="research-heading"><div className="studio-section-heading"><div><span className="eyebrow">Selected work</span><h2 id="research-heading">精选研究</h2></div><a className="quiet-link" href={`${BASE}research/`}>全部研究 <ArrowRight size={15}/></a></div><div className="studio-work-grid">{RESEARCH_WORKS.map((work,index)=><a className="studio-work-card" key={work.id} href={`${BASE}${work.href}`}><div className="work-card-top"><span>{String(index+1).padStart(2,'0')} / {work.field}</span><ArrowUpRight size={16}/></div><div className={`studio-work-art art-${work.diagram}`}><ResearchDiagram kind={work.diagram}/></div><div className="studio-work-copy"><span className="work-kind">{work.kind}</span><h3>{work.name}</h3><p>{work.description}</p><div className="work-tags">{work.tags.map(tag=><span key={tag}>{tag}</span>)}</div></div></a>)}</div></section>
+    <div className="studio-bottom-grid">
+      <section aria-labelledby="notes-heading"><div className="studio-section-heading"><div><span className="eyebrow">Notes & discoveries</span><h2 id="notes-heading">最近收录</h2></div><a className="quiet-link" href={`${BASE}knowledge/`}>全部笔记 <ArrowRight size={15}/></a></div><div className="studio-notes">{knowledgeArticles.slice(0,4).map((article,index)=><a className="studio-note" key={article.slug} href={`${BASE}knowledge/${article.slug}/`}><span className="note-number">{String(index+1).padStart(2,'0')}</span><div><span className="note-meta">{article.category}{article.subtopic?` / ${article.subtopic}`:''}</span><h3>{compactTitle(article.title)}</h3></div><ArrowUpRight size={16}/></a>)}</div></section>
+      {toy&&<section className="studio-toy" aria-labelledby="toy-heading"><div className="studio-section-heading"><div><span className="eyebrow">A playground for ideas</span><h2 id="toy-heading">一点好玩的</h2></div><a className="quiet-link" href={`${BASE}about/`}>TOY <ArrowRight size={15}/></a></div><a className="studio-toy-card" href={`${BASE}${toy.href}`}><div className="studio-toy-cover" aria-hidden="true"><svg viewBox={toy.preview.viewBox} preserveAspectRatio="xMidYMid meet"><image href={`${BASE}${toy.preview.src}`} width={toy.preview.width} height={toy.preview.height}/></svg></div><div><span className="eyebrow">001 / {toy.category}</span><h3>{toy.accent && toy.title.endsWith(toy.accent) ? <>{toy.title.slice(0, -toy.accent.length)}<em>{toy.accent}</em></> : toy.title}</h3><span className="studio-toy-action">撕开一张全息通行证 <ArrowUpRight size={16}/></span></div></a></section>}
     </div>
-  );
+    {recents.length>0&&<section className="studio-continue" aria-label="继续阅读"><span className="eyebrow">上次读到这里</span>{recents.map(entry=><a key={entry.slug} href={`${BASE}knowledge/${entry.slug}/`}>{compactTitle(bySlug.get(entry.slug)!.title)}<span>{Math.round(reader.progress[entry.slug]??0)}% <ArrowUpRight size={13}/></span></a>)}</section>}
+  </div>;
 }

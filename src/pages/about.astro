@@ -1,0 +1,16 @@
+---
+import Layout from '../layouts/Layout.astro';
+import StaticSiteHeader from '../components/StaticSiteHeader.astro';
+import ToyGallery from '../components/ToyGallery';
+import Footer from '../components/Footer';
+---
+
+<Layout title="TOY · 交互案例 | NITE">
+  <div class="site-app min-h-screen flex flex-col bg-surface-base text-text-primary selection:bg-accent-primary/25">
+    <StaticSiteHeader activeTab="archive" />
+    <main id="main-content" class="flex-grow">
+      <ToyGallery />
+    </main>
+    <Footer lang="zh" />
+  </div>
+</Layout>

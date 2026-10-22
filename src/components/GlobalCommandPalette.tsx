@@ -95,9 +95,9 @@ export default function GlobalCommandPalette() {
   }, [entries, open]);
 
   const quickLinks = useMemo<PaletteResult[]>(() => [
-    { id: 'knowledge', title: '知识库', excerpt: '按阅读顺序浏览数学、物理与动画文档', url: `${BASE_URL}knowledge/`, meta: '常用入口' },
-    { id: 'library', title: '全部文档', excerpt: '搜索、筛选、收藏与最近阅读', url: `${BASE_URL}knowledge/library/`, meta: '常用入口' },
-    { id: 'graph', title: '打开知识图谱', excerpt: '查看文章、专题与知识关系', url: `${BASE_URL}knowledge/graph/`, meta: '常用入口' },
+    { id: 'research', title: '研究', excerpt: '自主项目、算法研究与源码专题', url: `${BASE_URL}research/`, meta: '常用入口' },
+    { id: 'knowledge', title: '知识', excerpt: '搜索文档、按领域筛选，继续收藏与阅读', url: `${BASE_URL}knowledge/`, meta: '常用入口' },
+    { id: 'toy', title: 'TOY', excerpt: '动手体验物理、视觉与交互实验', url: `${BASE_URL}about/`, meta: '常用入口' },
     ...entries.filter((entry) => entry.featured).slice(0, 4).map((entry) => ({ id: entry.slug, title: entry.title, excerpt: entry.summary, url: entry.url, meta: `精选 · ${entry.categoryLabel}` })),
   ], [entries]);
 

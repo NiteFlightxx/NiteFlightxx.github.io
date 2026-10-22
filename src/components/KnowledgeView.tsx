@@ -94,13 +94,13 @@ export default function KnowledgeView({ articles }: KnowledgeViewProps) {
     <div className="workspace-shell knowledge-browser">
       <aside className="browser-sidebar">
         <div className="sidebar-group"><span className="eyebrow">我的知识</span>{scopes.map(({ id, icon: Icon, label, count }) => <button type="button" className="sidebar-link" aria-pressed={scope === id} onClick={() => chooseScope(id)} key={id}><Icon size={16} />{label}<span>{count}</span></button>)}</div>
-        <a className="sidebar-link" href={`${BASE}knowledge/`}>← 返回文档阅读</a>
+        <a className="sidebar-link" href={`${BASE}knowledge/course-math-points-vectors/`}>从基础开始阅读<ArrowUpRight size={13}/></a>
         <KnowledgeTree articles={articles} showQuickLinks={false} />
         <a className="sidebar-link graph-sidebar-link" href={BASE + 'knowledge/graph/'}><Network size={16} />知识图谱<ArrowUpRight size={13} /></a>
         <p className="sidebar-note">收藏与阅读记录仅保存在当前浏览器。</p>
       </aside>
       <div className="workspace-main">
-        <header className="page-heading"><div><span className="eyebrow">Document index</span><h1>{scope === 'favorites' ? '我的收藏' : scope === 'recents' ? '最近阅读' : '全部文档'}</h1><p>{articles.length} 篇文档 · {categories.length} 个领域</p></div><a className="quiet-link" href={BASE + 'knowledge/graph/'}><Network size={15} />知识图谱<ArrowUpRight size={14} /></a></header>
+        <header className="page-heading"><div><span className="eyebrow">The notebook</span><h1>{scope === 'favorites' ? '我的收藏' : scope === 'recents' ? '最近阅读' : '知识，让想法有迹可循。'}</h1><p>原理、推导与源码笔记。{articles.length} 篇文档，按你的问题开始阅读。</p></div><a className="quiet-link" href={BASE + 'knowledge/graph/'}><Network size={15} />知识图谱<ArrowUpRight size={14} /></a></header>
         <div className="browser-mobile-scopes">{scopes.map(({ id, label, count }) => <button key={id} type="button" aria-pressed={scope === id} onClick={() => chooseScope(id)}>{label}<span>{count}</span></button>)}</div>
         <label className="browser-search"><Search size={18} /><span className="sr-only">搜索知识库</span><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索标题、正文、标签或 UE 类型…" />{query && <button type="button" aria-label="清除关键词" onClick={() => setQuery('')}><X size={16} /></button>}</label>
         <div className="browser-categories"><button type="button" aria-pressed={category === 'all'} onClick={() => chooseCategory('all')}>全部领域<span>{articles.length}</span></button>{categories.map(([name, count]) => <button type="button" key={name} aria-pressed={category === name} onClick={() => chooseCategory(name)}>{name}<span>{count}</span></button>)}</div>

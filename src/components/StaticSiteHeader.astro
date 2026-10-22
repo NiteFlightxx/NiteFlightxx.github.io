@@ -1,9 +1,10 @@
 ---
 import Header from './Header';
 import GlobalCommandPalette from './GlobalCommandPalette';
+import type { MainNavTab } from '../lib/siteNavigation';
 
 interface Props {
-  activeTab: 'projects' | 'knowledge';
+  activeTab: MainNavTab;
 }
 const { activeTab } = Astro.props;
 ---

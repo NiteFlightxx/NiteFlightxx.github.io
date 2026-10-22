@@ -10,13 +10,14 @@ interface HeaderProps {
 }
 
 export default function Header({ activeTab, setActiveTab }: HeaderProps) {
-  const [theme, setTheme] = useState<'dark' | 'light'>('dark');
+  const [theme, setTheme] = useState<'dark' | 'light'>('light');
   useEffect(() => {
     const sync = () => {
       let stored: string | null = null;
       try { stored = localStorage.getItem('theme'); } catch { /* reading still works */ }
-      const light = stored === 'light' || (stored !== 'dark' && window.matchMedia('(prefers-color-scheme: light)').matches);
+      const light = stored !== 'dark';
       document.documentElement.classList.toggle('light-theme', light);
+      document.querySelector('meta[name="theme-color"]')?.setAttribute('content', light ? '#F4F2ED' : '#171C18');
       setTheme(light ? 'light' : 'dark');
     };
     sync();
@@ -27,12 +28,13 @@ export default function Header({ activeTab, setActiveTab }: HeaderProps) {
   const toggleTheme = () => {
     const next = theme === 'dark' ? 'light' : 'dark';
     document.documentElement.classList.toggle('light-theme', next === 'light');
+    document.querySelector('meta[name="theme-color"]')?.setAttribute('content', next === 'light' ? '#F4F2ED' : '#171C18');
     setTheme(next);
     try { localStorage.setItem('theme', next); } catch { /* optional persistence */ }
   };
   const navigation = MAIN_NAV_ITEMS.map((item) => ({ ...item, href: mainNavHref(item.id, import.meta.env.BASE_URL) }));
   const navigate = (event: MouseEvent<HTMLAnchorElement>, tab: string) => {
-    if (!setActiveTab || tab === 'knowledge' || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey || event.button !== 0) return;
+    if (!setActiveTab || tab === 'knowledge' || tab === 'archive' || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey || event.button !== 0) return;
     event.preventDefault();
     setActiveTab(tab);
     event.currentTarget.closest('details')?.removeAttribute('open');
@@ -43,7 +45,7 @@ export default function Header({ activeTab, setActiveTab }: HeaderProps) {
       <a className="skip-link" href="#main-content">跳到主要内容</a>
       <header className="site-header">
         <div className="site-header-inner">
-          <a className="site-brand" href={import.meta.env.BASE_URL} onClick={(event) => navigate(event, 'home')} id="nav-logo" aria-label="NITE 首页"><Logo className="h-6 w-6" /><span>NITE<span className="brand-caption">研究笔记</span></span></a>
+          <a className="site-brand" href={import.meta.env.BASE_URL} onClick={(event) => navigate(event, 'home')} id="nav-logo" aria-label="NITE 首页"><Logo className="h-6 w-6" /><span>NITE<span className="brand-caption">独立研究与实验</span></span></a>
           <nav className="desktop-navigation" aria-label="主导航">
             {navigation.map((item) => <a id={'nav-' + item.id} key={item.id} href={item.href} onClick={(event) => navigate(event, item.id)} aria-current={activeTab === item.id ? 'page' : undefined}>{item.labelZh}</a>)}
           </nav>

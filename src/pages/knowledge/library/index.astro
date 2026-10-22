@@ -1,13 +1,4 @@
 ---
-import Layout from '../../../layouts/Layout.astro';
-import StaticSiteHeader from '../../../components/StaticSiteHeader.astro';
-import KnowledgeView from '../../../components/KnowledgeView';
-import Footer from '../../../components/Footer';
-import { loadKnowledge } from '../../../lib/content';
-const articles = await loadKnowledge();
+import KnowledgeLibrary from '../../../components/KnowledgeLibrary.astro';
 ---
-<Layout title="全部文档 · NITE">
-  <StaticSiteHeader activeTab="knowledge" />
-  <main id="main-content"><KnowledgeView client:load articles={articles} lang="zh" /></main>
-  <Footer lang="zh" />
-</Layout>
+<KnowledgeLibrary title="全部文档 · NITE" />

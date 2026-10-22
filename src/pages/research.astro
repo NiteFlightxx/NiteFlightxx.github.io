@@ -1,0 +1,7 @@
+---
+import Layout from '../layouts/Layout.astro';
+import App from '../App';
+import { loadKnowledge, loadKnowledgeDomains } from '../lib/content';
+const [knowledgeArticles, knowledgeDomains] = await Promise.all([loadKnowledge(), loadKnowledgeDomains()]);
+---
+<Layout title="研究 · NITE"><App client:load initialTab="projects" knowledgeArticles={knowledgeArticles} knowledgeDomains={knowledgeDomains} /></Layout>

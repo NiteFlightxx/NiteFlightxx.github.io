@@ -1,6 +1,7 @@
 import type { APIRoute } from 'astro';
 import { getCollection } from 'astro:content';
 import { SITE } from '../consts';
+import { TOY_CASES } from '../data/toys';
 
 // Prerendered at build time (output: 'static'). Auto-updates as Markdown
 // content is added — no dependency, no manual maintenance.
@@ -19,7 +20,7 @@ export const GET: APIRoute = async () => {
   for (const e of knowledge) {
     urls.push({ loc: `${SITE.url}/knowledge/${e.slug}/`, lastmod: e.data.date });
   }
-  for (const route of ['knowledge/', 'knowledge/library/']) {
+  for (const route of ['research/', 'knowledge/', 'knowledge/library/', 'knowledge/graph/', 'about/', ...TOY_CASES.map(toy => toy.href)]) {
     urls.push({ loc: `${SITE.url}/${route}`, lastmod: today });
   }
   for (const e of topics) {

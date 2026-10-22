@@ -10,9 +10,9 @@ interface Props {
 }
 
 function applyFontScale(scale: number) {
-  document.documentElement.style.setProperty('--reader-font-size', `${0.9 * scale}rem`);
-  document.documentElement.style.setProperty('--reader-font-size-desktop', `${1.025 * scale}rem`);
-  document.documentElement.style.setProperty('--reader-small-font-size', `${0.85 * scale}rem`);
+  document.documentElement.style.setProperty('--reader-font-size', `${1 * scale}rem`);
+  document.documentElement.style.setProperty('--reader-font-size-desktop', `${1.0625 * scale}rem`);
+  document.documentElement.style.setProperty('--reader-small-font-size', `${0.875 * scale}rem`);
 }
 
 export default function ReaderActions({ slug, title, category, url }: Props) {
