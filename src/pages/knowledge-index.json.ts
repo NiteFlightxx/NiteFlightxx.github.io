@@ -6,7 +6,7 @@ import { getCollection } from 'astro:content';
 // the home page doesn't have to inline article bodies (keeps index.html ~50KB
 // instead of 11MB). Loaded lazily only when the user types a search query.
 export const GET: APIRoute = async () => {
-  const entries = await getCollection('knowledge', (e) => !e.data.draft);
+  const entries = await getCollection('knowledge', (e) => !e.data.draft && !e.data.redirectTo);
   const index: Record<string, string> = {};
   for (const entry of entries) {
     // entry.body is the raw Markdown body (frontmatter stripped) as a string.

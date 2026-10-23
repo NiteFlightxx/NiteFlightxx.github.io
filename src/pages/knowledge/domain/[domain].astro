@@ -9,7 +9,7 @@ export async function getStaticPaths() {
   return domains.map(domain => ({ params: { domain: domain.slug }, props: { domain } }));
 }
 const { domain } = Astro.props;
-const entries = await getCollection('knowledge', entry => !entry.data.draft);
+const entries = await getCollection('knowledge', entry => !entry.data.draft && !entry.data.redirectTo);
 const groups = readingGroups(entries.map(entry => ({ slug: entry.slug, title: entry.data.title })));
 const group = groups.find(group => group.domain === domain.slug);
 const firstSlug = group?.sections[0]?.articles[0]?.slug;

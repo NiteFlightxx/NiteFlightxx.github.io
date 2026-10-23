@@ -10,7 +10,7 @@ function formatZhDate(iso: string): string {
 
 /** Load only the metadata required by the homepage and knowledge feed. */
 export async function loadKnowledge(): Promise<ContentArticle[]> {
-  const entries = await getCollection('knowledge', (entry) => !entry.data.draft);
+  const entries = await getCollection('knowledge', (entry) => !entry.data.draft && !entry.data.redirectTo);
   entries.sort((a, b) => new Date(b.data.date).getTime() - new Date(a.data.date).getTime());
 
   return entries.map((entry) => {
@@ -45,7 +45,7 @@ export async function loadKnowledge(): Promise<ContentArticle[]> {
 export async function loadKnowledgeDomains(): Promise<KnowledgeDomain[]> {
   const [domains, articles] = await Promise.all([
     getCollection('knowledgeDomains'),
-    getCollection('knowledge', (entry) => !entry.data.draft),
+    getCollection('knowledge', (entry) => !entry.data.draft && !entry.data.redirectTo),
   ]);
 
   return domains
@@ -75,7 +75,7 @@ export async function loadKnowledgeDomains(): Promise<KnowledgeDomain[]> {
 export async function loadTopicSummaries(): Promise<ContentTopicSummary[]> {
   const [topics, articles] = await Promise.all([
     getCollection('topics'),
-    getCollection('knowledge', (entry) => !entry.data.draft),
+    getCollection('knowledge', (entry) => !entry.data.draft && !entry.data.redirectTo),
   ]);
 
   return topics.map((topic) => ({

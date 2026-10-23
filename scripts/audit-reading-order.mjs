@@ -4,7 +4,7 @@ import matter from 'gray-matter';
 import ts from 'typescript';
 
 const order = JSON.parse(fs.readFileSync('src/data/reading-order.json', 'utf8'));
-const articles = fs.readdirSync('src/content/knowledge').filter(f => f.endsWith('.md') && !f.startsWith('_')).map(f => ({ slug: f.slice(0, -3), ...matter(fs.readFileSync(`src/content/knowledge/${f}`, 'utf8')).data })).filter(a => !a.draft);
+const articles = fs.readdirSync('src/content/knowledge').filter(f => f.endsWith('.md') && !f.startsWith('_')).map(f => ({ slug: f.slice(0, -3), ...matter(fs.readFileSync(`src/content/knowledge/${f}`, 'utf8')).data })).filter(a => !a.draft && !a.redirectTo);
 const visible = new Set(articles.map(a => a.slug));
 const groups = new Set();
 const assigned = new Set();

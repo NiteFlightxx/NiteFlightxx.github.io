@@ -6,7 +6,9 @@ const root = process.cwd();
 const domainDir = path.join(root, 'src', 'content', 'knowledgeDomains');
 const articleDir = path.join(root, 'src', 'content', 'knowledge');
 const files = (dir) => fs.readdirSync(dir).filter((name) => name.endsWith('.md'));
-const articleSlugs = new Set(files(articleDir).filter((name) => name !== '_template.md').map((name) => name.replace(/\.md$/, '')));
+const articleSlugs = new Set(files(articleDir).filter((name) => name !== '_template.md')
+  .filter((name) => !matter(fs.readFileSync(path.join(articleDir, name), 'utf8')).data.redirectTo)
+  .map((name) => name.replace(/\.md$/, '')));
 const errors = [];
 const ids = new Set();
 
@@ -14,6 +16,7 @@ for (const file of files(articleDir)) {
   if (file === '_template.md') continue;
   const slug = file.replace(/\.md$/, '');
   const data = matter(fs.readFileSync(path.join(articleDir, file), 'utf8')).data;
+  if (data.redirectTo) continue;
   for (const relation of ['prerequisites', 'nextArticles']) {
     for (const target of Array.isArray(data[relation]) ? data[relation] : []) {
       if (!articleSlugs.has(target)) errors.push(`${slug}: unknown ${relation} article ${target}`);

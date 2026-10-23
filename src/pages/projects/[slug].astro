@@ -18,7 +18,7 @@ interface Props {
 export async function getStaticPaths() {
   const [topics, knowledge] = await Promise.all([
     getCollection('topics'),
-    getCollection('knowledge', (entry) => !entry.data.draft),
+    getCollection('knowledge', (entry) => !entry.data.draft && !entry.data.redirectTo),
   ]);
 
   return topics.map((topic) => ({

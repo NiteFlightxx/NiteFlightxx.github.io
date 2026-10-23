@@ -11,7 +11,7 @@ learningPaths:
   - id: "simulation-math"
     title: "仿真数学路线"
     description: "把微积分和力学转成微分方程、时间积分、Jacobian 与迭代求解器。"
-    articles: ["classical-mechanics", "differential-equations", "numerical-integration-methods", "jacobian-matrix", "iterative-linear-solvers"]
+    articles: ["differential-equations", "numerical-integration-methods", "jacobian-matrix", "iterative-linear-solvers"]
   - id: "optimization-math"
     title: "导数与优化"
     description: "在完成微积分和 Jacobian 后，继续学习 Hessian 与二阶信息。"

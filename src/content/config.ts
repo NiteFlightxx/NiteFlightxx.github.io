@@ -107,6 +107,7 @@ const knowledge = defineCollection({
       tags: z.array(z.string().min(1)).min(3).max(6),
       readTime: z.string().regex(/^阅读约\d+分钟$/, 'readTime must use 阅读约N分钟'),
       draft: z.boolean().optional().default(false),
+      redirectTo: z.string().min(1).optional(),
       topics: z.array(articleTopic).default([]),
       kind: z.enum(ARTICLE_KINDS).default('theory'),
       level: z.enum(ARTICLE_LEVELS).default('intermediate'),

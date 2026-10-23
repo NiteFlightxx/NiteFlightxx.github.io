@@ -14,6 +14,7 @@ for (const file of files) {
   const slug = file.replace(/\.md$/, '');
   const source = fs.readFileSync(path.join(articleDir, file), 'utf8');
   const data = matter(source).data;
+  if (data.redirectTo) continue;
   if (articles.has(slug)) errors.push(`duplicate article id: ${slug}`);
   articles.set(slug, { data, source });
 

@@ -13,7 +13,7 @@ nextArticles: ["predictive-foot-ik", "ue-fullbody-ik-math", "ik-retargeter-ops-m
 aliases: ["UE 动画节点详解 — IK、混合、骨骼控制与惯性化"]
 ---
 
-这是一份节点参考，不需要从第一项读到最后一项才开始使用动画系统。先确认输入姿态、更新阶段、求解空间和输出方式，再进入相应节点的公式与源码。空间基础见[骨骼姿态与父子空间](/knowledge/course-animation-pose-spaces/)，完整的姿态搜索链路见[Motion Matching](/knowledge/motion-matching-pose-search-source-guide/)。
+这是一份动画系统主参考，按“姿态数据 → 空间传播 → 求解节点 → 输出姿态”的链路组织节点、公式与源码。先确认输入姿态、更新阶段、求解空间和输出方式，再进入相应节点；完整的姿态搜索链路见[Motion Matching](/knowledge/motion-matching-pose-search-source-guide/)。
 
 > 本文档基于 `Engine\Source\Editor\AnimGraph\Public` 下的编辑器节点定义，并深入到运行时实现（`AnimGraphRuntime`、`Engine\Private\Animation`、`AnimationCore` 纯算法模块）梳理常用动画节点的数学原理、公式与核心代码。
 > 源码版本：UE 5.9。

@@ -5,7 +5,7 @@ import matter from 'gray-matter';
 const publicArticles = fs.readdirSync('src/content/knowledge')
   .filter(file => file.endsWith('.md') && !file.startsWith('_'))
   .map(file => ({ slug: file.slice(0, -3), data: matter(fs.readFileSync(`src/content/knowledge/${file}`, 'utf8')).data }))
-  .filter(({ data }) => !data.draft);
+  .filter(({ data }) => !data.draft && !data.redirectTo);
 const decode = value => value.replace(/&amp;/g, '&').replace(/&quot;/g, '"').replace(/&#39;/g, "'")
   .replace(/&#x([0-9a-f]+);/gi, (_, n) => String.fromCodePoint(parseInt(n, 16)))
   .replace(/&#([0-9]+);/g, (_, n) => String.fromCodePoint(parseInt(n, 10)));

@@ -7,7 +7,7 @@ learningPaths:
   - id: "realtime-physics"
     title: "实时物理主路线"
     description: "按经典力学 → 时间积分 → 碰撞 → 约束 → Chaos 总览的顺序学习。"
-    articles: ["mathematical-notation-reference", "calculus-foundations", "classical-mechanics", "differential-equations", "numerical-integration-methods", "collision-detection-gjk-epa-sat", "pbd-xpbd-math", "physics_constraints_deep_dive", "ue-chaos-physics-engine"]
+    articles: ["classical-mechanics", "numerical-integration-methods", "collision-detection-gjk-epa-sat", "pbd-xpbd-math", "physics_constraints_deep_dive", "ue-chaos-physics-engine"]
   - id: "chaos-source"
     title: "Chaos 源码路线"
     description: "完成主路线后，进入窄相、同步、布料和 GPU 分支。"

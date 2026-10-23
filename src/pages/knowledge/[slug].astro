@@ -2,9 +2,25 @@
 import { getCollection } from 'astro:content';
 import KnowledgeDocument from '../../components/KnowledgeDocument.astro';
 export async function getStaticPaths() {
-  const entries = await getCollection('knowledge', entry => !entry.data.draft);
-  return entries.map(entry => ({ params: { slug: entry.slug }, props: { entry } }));
+  const entries = await getCollection('knowledge');
+  return entries.filter(entry => !entry.data.draft || entry.data.redirectTo)
+    .map(entry => ({ params: { slug: entry.slug }, props: { entry } }));
 }
 const { entry } = Astro.props;
 ---
-<KnowledgeDocument entry={entry} />
+{entry.data.redirectTo ? (
+  <html lang="zh-CN">
+    <head>
+      <meta charset="utf-8" />
+      <meta http-equiv="refresh" content={`0;url=${import.meta.env.BASE_URL}knowledge/${entry.data.redirectTo}/`} />
+      <link rel="canonical" href={`${Astro.site ?? ''}${import.meta.env.BASE_URL}knowledge/${entry.data.redirectTo}/`} />
+      <title>文档已归并 · {entry.data.title}</title>
+    </head>
+    <body>
+      <main style="max-width: 42rem; margin: 12vh auto; padding: 2rem; font-family: system-ui, sans-serif; line-height: 1.8;">
+        <p>这篇短文已经归并到更完整的知识文档。</p>
+        <a href={`${import.meta.env.BASE_URL}knowledge/${entry.data.redirectTo}/`}>继续阅读：{entry.data.redirectTo}</a>
+      </main>
+    </body>
+  </html>
+) : <KnowledgeDocument entry={entry} />}

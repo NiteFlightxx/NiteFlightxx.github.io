@@ -6,6 +6,7 @@ category: "Mathematics"
 subtopic: "LinearAlgebra"
 tags: ["工程数学", "向量", "空间变换"]
 readTime: "阅读约12分钟"
+redirectTo: "ue-linear-algebra-guide"
 contentRole: "lesson"
 kind: "theory"
 level: "foundation"

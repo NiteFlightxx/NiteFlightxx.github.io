@@ -6,6 +6,7 @@ category: "Animation"
 subtopic: "AnimationNode"
 tags: ["角色动画", "骨骼姿态", "坐标空间"]
 readTime: "阅读约13分钟"
+redirectTo: "ue-animation-node-math"
 contentRole: "lesson"
 kind: "theory"
 level: "foundation"

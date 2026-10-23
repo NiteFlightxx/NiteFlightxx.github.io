@@ -13,7 +13,7 @@ nextArticles: []
 aliases: ["UE IK Retargeter Op 堆栈详解 — 堆栈架构与逐 Op 公式拆解"]
 ---
 
-重定向不是只让源骨骼与目标骨骼名字相同，而是把动作语义映射到不同的参考姿态、链长和空间约定。本文沿 IK Retargeter 的 Op 执行管线查阅各项输入、数学与参数；骨骼层级见[姿态空间](/knowledge/course-animation-pose-spaces/)，具体 IK 求解见[全身 IK](/knowledge/ue-fullbody-ik-math/)。
+重定向不是只让源骨骼与目标骨骼名字相同，而是把动作语义映射到不同的参考姿态、链长和空间约定。本文沿 IK Retargeter 的 Op 执行管线查阅各项输入、数学与参数；骨骼层级与组件空间见[动画系统主参考](/knowledge/ue-animation-node-math/)，具体 IK 求解见[全身 IK](/knowledge/ue-fullbody-ik-math/)。
 
 > 本文基于 Unreal Engine 5.9 的 `IKRig` 插件源码整理，源码位于 `Engine/Plugins/Animation/IKRig/Source/IKRig`。目录 `Public/Retargeter/RetargetOps` 下共有 22 个 Op 头文件，其中 `IKChainsOp` 已在整个 `USTRUCT` 上标注 `Deprecated`（被 `FKChainsOp` 取代），本文**不收录**该废弃 Op，仅覆盖其余 20 个活跃 Op 及曲线 Op 的抽象基类。
 >

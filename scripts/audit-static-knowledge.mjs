@@ -24,7 +24,8 @@ for (const filename of files) {
   for (const field of ['title', 'excerpt', 'date', 'category', 'subtopic', 'tags', 'readTime']) {
     if (parsed.data[field] === undefined || parsed.data[field] === '') report(errors, filename, `缺少 frontmatter 字段 ${field}`);
   }
-  if (parsed.data.draft === true) continue;
+  if (parsed.data.redirectTo && parsed.data.redirectTo === slug) report(errors, filename, 'redirectTo cannot point to itself');
+  if (parsed.data.draft === true || parsed.data.redirectTo) continue;
 
   const body = stripCode(parsed.content);
   const headings = [...body.matchAll(/^(#{1,6})\s+(.+)$/gm)].map((match) => ({ depth: match[1].length, text: match[2].trim() }));
@@ -61,9 +62,12 @@ for (const filename of files) {
   }
 }
 
-const publicSlugs = new Set([...records].filter(([, record]) => record.data.draft !== true).map(([slug]) => slug));
+const publicSlugs = new Set([...records].filter(([, record]) => record.data.draft !== true && !record.data.redirectTo).map(([slug]) => slug));
 for (const [, record] of records) {
-  if (record.data.draft === true) continue;
+  if (record.data.redirectTo && !publicSlugs.has(record.data.redirectTo)) report(errors, record.filename, `兼容文档指向不存在的公开文章：${record.data.redirectTo}`);
+}
+for (const [, record] of records) {
+  if (record.data.draft === true || record.data.redirectTo) continue;
   const relationships = [...(record.links ?? []), ...(record.data.related ?? []), ...(record.data.prerequisites ?? []), ...(record.data.nextArticles ?? [])];
   for (const target of new Set(relationships)) {
     if (!publicSlugs.has(String(target).toLocaleLowerCase())) report(errors, record.filename, `知识关系指向不存在或未公开页面：${target}`);
@@ -85,7 +89,7 @@ if (fs.existsSync(domainDir)) {
 }
 
 for (const [, record] of records) {
-  if (record.data.draft === true) continue;
+  if (record.data.draft === true || record.data.redirectTo) continue;
   if ((record.links ?? []).length === 0 && (record.data.related ?? []).length === 0 && (record.data.prerequisites ?? []).length === 0 && (record.data.nextArticles ?? []).length === 0) report(warnings, record.filename, '没有站内知识关系，图谱中可能成为孤立节点');
 }
 

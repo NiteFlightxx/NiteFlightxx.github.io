@@ -6,6 +6,7 @@ category: "Physics"
 subtopic: "RigidBodyDynamics"
 tags: ["刚体物理", "时间步", "状态更新"]
 readTime: "阅读约12分钟"
+redirectTo: "differential-equations"
 contentRole: "lesson"
 kind: "theory"
 level: "foundation"

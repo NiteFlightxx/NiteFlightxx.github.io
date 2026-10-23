@@ -8,14 +8,14 @@ tags: ["线性代数", "FVector", "FMatrix", "FTransform", "FQuat", "UE源码"]
 readTime: "阅读约55分钟"
 kind: "theory"
 level: "foundation"
-prerequisites: ["course-math-points-vectors"]
+prerequisites: ["mathematical-notation-reference"]
 nextArticles: ["jacobian-matrix", "iterative-linear-solvers"]
 pageType: "source-analysis"
 aliases: ["Unreal Engine 线性代数","FVector FMatrix FTransform","UE Math","UE 线性代数详解 — 坐标系、向量、矩阵、FTransform 与四元数"]
 featured: true
 ---
 
-空间计算出错，往往不是公式不会写，而是把点和方向、局部和世界空间、行列向量或变换顺序混在了一起。本文在一篇文档内串联这些约定，并对照 UE 类型与源码；[点、方向与位移](/knowledge/course-math-points-vectors/)提供更短的起点。IK、约束和线性求解仅保留接口，完整推导链接各自主文。
+空间计算出错，往往不是公式不会写，而是把点和方向、局部和世界空间、行列向量或变换顺序混在了一起。本文在一篇文档内串联这些约定，并对照 UE 类型与源码。这里同时承担点、位移、方向和父子变换的基础语义；IK、约束和线性求解仅保留接口，完整推导链接各自主文。
 
 > 本文以当前 `E:\UnrealEngine\UnrealEngine_Source` 源码快照为 UE 行为依据。数学公式会明确采用列向量还是 UE 的行向量语义；代码示例区分可直接使用的 UE API 与算法伪代码，避免把教材约定直接套进 Unreal Engine。
 >

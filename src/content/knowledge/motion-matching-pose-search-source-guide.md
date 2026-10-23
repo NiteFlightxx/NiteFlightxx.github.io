@@ -15,7 +15,7 @@ aliases: ["Pose Search","FAnimNode_MotionMatching","运动匹配","UE Motion Mat
 featured: true
 ---
 
-Motion Matching 的问题不只是“哪条动画最像”，还包括何时继续、何时搜索、如何切换，以及混合后的姿态怎样输出。本文以 Pose Search 运行链路为主线，将数据构建、查询、评分与播放控制分开。基础空间见[骨骼姿态](/knowledge/course-animation-pose-spaces/)，相关传统节点可按需查[动画节点参考](/knowledge/ue-animation-node-math/)。
+Motion Matching 的问题不只是“哪条动画最像”，还包括何时继续、何时搜索、如何切换，以及混合后的姿态怎样输出。本文以 Pose Search 运行链路为主线，将数据构建、查询、评分与播放控制分开。骨骼空间、姿态传播与传统节点可按需查[动画系统主参考](/knowledge/ue-animation-node-math/)。
 
 > 本文以 `E:\UnrealEngine\UnrealEngine_Source` 的当前 `ue5-main` 快照为事实边界。Graphify/GitNexus 只用于定位关系，最终结论以源码路径和行号为准。文中标签含义为：**源码事实**＝当前文件直接可见；**工程经验**＝可落地但需结合项目验证；**推测/需要验证**＝源码没有提供足够证据。
 

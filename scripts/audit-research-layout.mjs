@@ -35,7 +35,6 @@ for (const group of order.slice(0, 3)) {
   const slug = group.sections[0].articles[0];
   const canonical = read('knowledge/' + slug + '/index.html');
   assert.match(canonical, /data-pagefind-body/);
-  assert.match(canonical, /data-demo="course-/);
   assert.match(canonical, /class="katex/);
   assert.match(canonical, /顺序阅读/);
   assert.doesNotMatch(canonical, forbidden);
@@ -54,6 +53,11 @@ assert.match(home, /studio-shell/);
 assert.doesNotMatch(home, /<canvas\b|avbd\/avbd\.js|createAvbdModule/);
 assert.equal((knowledge.match(/class="browser-article"/g) ?? []).length, manifest.length, 'Public articles must render without client JavaScript');
 assert.match(knowledge, /aria-label="搜索知识库"|搜索知识库/);
+for (const legacy of ['course-math-points-vectors', 'course-animation-pose-spaces', 'course-physics-state-timestep']) {
+  const html = read(`knowledge/${legacy}/index.html`);
+  assert.match(html, /http-equiv="refresh"/);
+  assert.doesNotMatch(html, /data-pagefind-body/);
+}
 
 const researchSource = fs.readFileSync(path.join(root, 'src/lib/research.ts'), 'utf8');
 let curatedCount = 0;

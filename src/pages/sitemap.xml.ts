@@ -7,7 +7,7 @@ import { TOY_CASES } from '../data/toys';
 // content is added — no dependency, no manual maintenance.
 export const GET: APIRoute = async () => {
   const [knowledge, topics, domains] = await Promise.all([
-    getCollection('knowledge', (e) => !e.data.draft),
+    getCollection('knowledge', (e) => !e.data.draft && !e.data.redirectTo),
     getCollection('topics'),
     getCollection('knowledgeDomains'),
   ]);

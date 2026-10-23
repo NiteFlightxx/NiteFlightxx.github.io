@@ -38,7 +38,7 @@ export function buildKnowledgeArtifacts(
   topics: TopicEntry[] = [],
   learningPathCount = 0,
 ): KnowledgeArtifacts {
-  const published = entries.filter((entry) => !entry.data.draft);
+  const published = entries.filter((entry) => !entry.data.draft && !entry.data.redirectTo);
   const slugSet = new Set(published.map((entry) => entry.slug));
   const baseURL = import.meta.env.BASE_URL;
 
