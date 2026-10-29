@@ -26,6 +26,11 @@ const KNOWLEDGE_SUBTOPICS = {
     'VFXSystem',
   ],
   Physics: [
+    'DynamicsFoundations',
+    'ParticleDynamics',
+    'ContinuumMechanics',
+    'DeformableDynamics',
+    'Multiphysics',
     'ConstraintSolver',
     'ChaosPhysics',
     'Collision',

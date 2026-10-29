@@ -1,57 +1,67 @@
 ---
-title: "弹性杆：材料标架与位置约束"
-excerpt: "从中心线与材料标架理解弯曲和扭转，再推导离散 Darboux 向量与约束求解。"
-date: "2026-09-06"
-category: "Physics"
-subtopic: "ConstraintSolver"
-tags: ["弹性杆", "PBD", "Kirchhoff", "Darboux", "C++"]
-readTime: "阅读约40分钟"
-topics:
-  - id: "ue-chaos-physics"
-    stage: "constraint"
-    role: "algorithm"
-    order: 50
-kind: "algorithm"
-level: "advanced"
-prerequisites: ["pbd-xpbd-math", "vbd-avbd-math"]
+title: 弹性杆：材料标架与位置约束
+excerpt: 从中心线与材料标架理解弯曲和扭转，再推导离散 Darboux 向量与约束求解。
+date: '2026-09-06'
+category: Physics
+subtopic: ConstraintSolver
+tags:
+  - 弹性杆
+  - PBD
+  - Kirchhoff
+  - Darboux
+  - C++
+readTime: 阅读约20分钟
+kind: algorithm
+level: advanced
+pageType: guide
+aliases:
+  - 基于位置的弹性杆详解 — Kirchhoff 杆、Darboux 向量与 PBD 约束求解
+prerequisites:
+  - pbd-xpbd-math
+  - vbd-avbd-math
 nextArticles: []
-aliases: ["基于位置的弹性杆详解 — Kirchhoff 杆、Darboux 向量与 PBD 约束求解"]
+related: [deformable-body-dynamics, continuum-mechanics]
+topics:
+  - id: ue-chaos-physics
+    stage: constraint
+    role: algorithm
+    order: 50
+sources: []
 ---
-
 细长物体不仅有中心线弯曲，还会绕自身轴扭转，因此仅保存一串位置不足以表达完整材料状态。本文从材料标架进入离散 Darboux 向量和位置约束，并区分不同杆模型的自由度与求解方式。投影基础见[PBD 与 XPBD](/knowledge/pbd-xpbd-math/)，不把绳索、Kirchhoff 杆与 Cosserat 杆视为同一个模型。
 
-> **Position-Based Elastic Rods (PBER)** 由 Umetani、Schmidt 与 Stam (2014) 提出，是 Position-Based Dynamics 框架在细长弹性物体（头发、绳索、电缆、植物茎干）模拟中的应用。它通过幽灵点隐式定义材料坐标系，用离散 Darboux 向量捕捉弯曲与扭转，以 PBD 约束投影求解——无条件稳定、适合实时应用。
+> **Position-Based Elastic Rods (PBER)** 由 Umetani、Schmidt 与 Stam (2014) 提出，是 Position-Based Dynamics 框架在细长弹性物体（头发、绳索、电缆、植物茎干）模拟中的应用。它通过幽灵点隐式定义材料坐标系，用离散 Darboux 向量捕捉弯曲与扭转，以 PBD 约束投影求解。实时可用性仍取决于离散、子步、退化处理与求解预算。
 >
-> 本文系统推导 PBER 的数学内核，并修正原工程文档中的若干错误：Darboux 向量分母的矩阵加法（应为迹形式）、能量梯度扭转项的刚度系数（应为 $GJ$ 而非 $EI$）、符号选择公式的归属（幽灵点符号歧义而非四元数双重覆盖）。与&#12298;[位置约束求解：PBD 与 XPBD](/knowledge/pbd-xpbd-math/)&#12299;、&#12298;[变分物理求解：VBD 与 AVBD](/knowledge/vbd-avbd-math/)&#12299;、&#12298;[数值积分：方法、误差与稳定性](/knowledge/numerical-integration-methods/)&#12299;形成交叉引用。
+> 本文系统推导 PBER 的数学内核，并修正原工程文档中的若干错误：Darboux 向量分母的矩阵加法（应为迹形式）、能量梯度扭转项的刚度系数（应为 $GJ$ 而非 $EI$）、符号选择公式的归属（幽灵点符号歧义而非四元数双重覆盖）。与《[位置约束求解：PBD 与 XPBD](/knowledge/pbd-xpbd-math/)》、《[变分物理求解：VBD 与 AVBD](/knowledge/vbd-avbd-math/)》、《[数值积分：方法、误差与稳定性](/knowledge/numerical-integration-methods/)》形成交叉引用。
 
 ---
 
-## 一、引言：弹性杆与 PBD
+## 引言：弹性杆与 PBD
 
-### 1.1 什么是 PBER
+### 什么是 PBER
 
 弹性杆模拟的核心挑战是在离散表示中同时捕捉三个变形模式：**拉伸**（长度变化）、**弯曲**（曲率变化）与**扭转**（绕切线旋转）。PBER 通过将连续 Kirchhoff 杆理论离散化，把每种变形模式表达为 PBD 约束，以约束投影而非力积分求解。
 
 | 特性 | 说明 |
 |------|------|
-| 稳定性 | 无条件稳定，可使用大时间步长 |
+| 稳定性 | 可用投影控制约束误差；步长与有限迭代仍需验证 |
 | 实时性 | 适合游戏和实时应用 |
 | 表示方式 | 幽灵点隐式定义材料坐标系，避免显式旋转 |
 | 可扩展性 | 易于添加碰撞、摩擦等约束 |
 
-### 1.2 应用场景
+### 应用场景
 
 头发模拟、绳索/电缆、植物枝藤、医疗导管、工业软管——凡是一维细长弹性物体的动态行为，PBER 都适用。
 
 ---
 
-## 二、Kirchhoff 杆理论基础
+## Kirchhoff 杆理论基础
 
-### 2.1 杆的几何表示
+### 杆的几何表示
 
 一根连续杆被离散为粒子序列与连接边：
 
-```
+```text
 粒子:  p₀ ---- p₁ ---- p₂ ---- ... ---- pₙ
 边:       e₀      e₁      e₂           eₙ₋₁
 ```
@@ -60,7 +70,7 @@ aliases: ["基于位置的弹性杆详解 — Kirchhoff 杆、Darboux 向量与 
 - **边** $\mathbf{e}_i = \mathbf{p}_{i+1} - \mathbf{p}_i$：连接相邻粒子的向量。
 - **边长** $l_i = \|\mathbf{e}_i\|$。
 
-### 2.2 Kirchhoff 假设
+### Kirchhoff 假设
 
 经典 Kirchhoff 杆理论基于三个假设：
 
@@ -68,7 +78,7 @@ aliases: ["基于位置的弹性杆详解 — Kirchhoff 杆、Darboux 向量与 
 2. **不可剪切**：横截面始终垂直于中心线（材料坐标系 $\mathbf{d}_3$ 沿切线）。
 3. **细杆**：直径远小于长度，可忽略横向惯性。
 
-### 2.3 弹性能量
+### 弹性能量
 
 杆的总弹性能量由拉伸、弯曲、扭转三部分组成：
 
@@ -102,9 +112,9 @@ $$
 
 ---
 
-## 三、材料坐标系与幽灵点
+## 材料坐标系与幽灵点
 
-### 3.1 材料坐标系
+### 材料坐标系
 
 为描述杆的扭转与弯曲，每条边需要一个局部正交坐标系（材料坐标系）：
 
@@ -115,11 +125,11 @@ $$
 - $\mathbf{d}_3^i = \frac{\mathbf{e}_i}{\|\mathbf{e}_i\|}$：切向量（沿边方向）。
 - $\mathbf{d}_1^i, \mathbf{d}_2^i$：垂直于切向量的两个正交向量，定义了横截面的朝向。
 
-### 3.2 幽灵点构建
+### 幽灵点构建
 
 PBER 的关键创新是用**幽灵点**（ghost point）隐式定义材料坐标系，避免显式的四元数或旋转矩阵：
 
-```
+```text
         g₀   g₁         ← 幽灵点
         |    |
     p₀--+--p₁--+--p₂    ← 中心线粒子
@@ -141,7 +151,7 @@ $$
 
 幽灵点位于边的一侧，通过叉积定义 $\mathbf{d}_2$（法向），再由 $\mathbf{d}_2 \times \mathbf{d}_3$ 得到 $\mathbf{d}_1$（副法向）。三个轴正交且单位化。
 
-### 3.3 材料坐标系导数
+### 材料坐标系导数
 
 约束求解需要材料坐标系对粒子位置的导数。设 $[\mathbf{a}]_\times$ 为向量 $\mathbf{a}$ 的叉乘矩阵：
 
@@ -171,9 +181,9 @@ $$
 
 ---
 
-## 四、Darboux 向量理论
+## Darboux 向量理论
 
-### 4.1 Darboux 向量定义
+### Darboux 向量定义
 
 **Darboux 向量** $\boldsymbol{\omega}$ 描述相邻两个材料坐标系之间的相对旋转：
 
@@ -184,7 +194,7 @@ $$
 - $\omega_1, \omega_2$：两个方向的**曲率**（弯曲）。
 - $\omega_3$：**扭转率**（twist）。
 
-### 4.2 离散 Darboux 向量
+### 离散 Darboux 向量
 
 > **源码错误修正**：原工程文档将分母写为 $1 + \mathbf{D}_A^T \mathbf{D}_B$（矩阵加标量，无意义）。正确形式使用**迹**：$1 + \text{tr}(\mathbf{D}_A^T \mathbf{D}_B)$，这是一个标量。
 
@@ -198,7 +208,7 @@ $$
 
 **迹的几何意义**：对于两个旋转矩阵，$\text{tr}(\mathbf{D}_A^T \mathbf{D}_B) = 1 + 2\cos\theta$，其中 $\theta$ 是相对旋转角。因此分母 $1 + \text{tr} = 2(1 + \cos\theta)$，在 $\theta \in (-\pi, \pi)$ 时恒为正，避免除零（仅在 180° 对齐时退化）。
 
-### 4.3 几何意义
+### 几何意义
 
 **曲率向量**：Darboux 向量的前两个分量构成曲率向量 $\boldsymbol{\kappa} = \omega_1 \mathbf{d}_1 + \omega_2 \mathbf{d}_2$，大小 $\kappa = \sqrt{\omega_1^2 + \omega_2^2}$，方向 $\mathbf{n}_\kappa = \boldsymbol{\kappa}/\kappa$ 指向弯曲方向。
 
@@ -206,7 +216,7 @@ $$
 
 **离散与连续关系**：$\boldsymbol{\omega}_i \approx \bar{l}_i [\kappa_1, \kappa_2, \tau]^T$，是连续 Darboux 向量的有限差分近似。
 
-### 4.4 Frenet-Serret 关系
+### Frenet-Serret 关系
 
 连续情况下，Darboux 向量与 Frenet-Serret 公式相关：
 
@@ -218,9 +228,9 @@ $$
 
 ---
 
-## 五、约束类型
+## 约束类型
 
-### 5.1 垂直平分线约束
+### 垂直平分线约束
 
 确保幽灵点位于边的垂直平分面上：
 
@@ -234,7 +244,7 @@ $$
 \frac{\partial C_\perp}{\partial \mathbf{p}_0} = -\frac{1}{2}(\mathbf{p}_1 - \mathbf{p}_0) + (\mathbf{g} - \mathbf{p}_m), \quad \frac{\partial C_\perp}{\partial \mathbf{p}_1} = \frac{1}{2}(\mathbf{p}_1 - \mathbf{p}_0) + (\mathbf{g} - \mathbf{p}_m), \quad \frac{\partial C_\perp}{\partial \mathbf{g}} = -(\mathbf{p}_1 - \mathbf{p}_0)
 $$
 
-### 5.2 幽灵边距离约束
+### 幽灵边距离约束
 
 保持幽灵点到边中点的距离为静止长度：
 
@@ -248,7 +258,7 @@ $$
 \frac{\partial C_{\text{dist}}}{\partial \mathbf{p}_0} = -\frac{1}{2}\mathbf{n}, \quad \frac{\partial C_{\text{dist}}}{\partial \mathbf{p}_1} = -\frac{1}{2}\mathbf{n}, \quad \frac{\partial C_{\text{dist}}}{\partial \mathbf{g}} = \mathbf{n}
 $$
 
-### 5.3 Darboux 向量约束
+### Darboux 向量约束
 
 核心约束——将 Darboux 向量偏差表达为约束：
 
@@ -272,9 +282,9 @@ $$
 
 ---
 
-## 六、求解器实现
+## 求解器实现
 
-### 6.1 Darboux 梯度的闭式展开
+### Darboux 梯度的闭式展开
 
 > **源码补全**：原工程文档用 `term1` 和 `term2` 占位，以下展开为完整闭式。
 
@@ -316,7 +326,7 @@ $$
 \text{term2} = \sum_{n=1}^{3}\left[\left(\frac{\partial \mathbf{d}_n^A}{\partial \mathbf{p}_m}\right)^T \mathbf{d}_n^B + \mathbf{1}_{\mathbf{p}_m \in B}\left(\frac{\partial \mathbf{d}_n^B}{\partial \mathbf{p}_m}\right)^T \mathbf{d}_n^A\right]
 $$
 
-### 6.2 系统矩阵求解
+### 系统矩阵求解
 
 Darboux 约束涉及 5 个粒子（3 中心线 + 2 幽灵点），约束值为 3 维向量，梯度为 $3 \times 3$ 矩阵。系统矩阵为：
 
@@ -374,9 +384,9 @@ void SolveDarbouxConstraint(
 }
 ```
 
-### 6.3 完整算法流程
+### 完整算法流程
 
-```
+```text
 输入：粒子位置 p^n，速度 v^n，时间步长 h
 输出：新位置 p^(n+1)，新速度 v^(n+1)
 
@@ -395,7 +405,7 @@ void SolveDarbouxConstraint(
    v^(n+1) = (p^(n+1) - p^n) / h
 ```
 
-### 6.4 符号选择
+### 符号选择
 
 > **源码错误修正**：原工程文档将符号选择归因于"四元数的双重覆盖性"。PBER 使用幽灵点而非四元数，符号歧义来自幽灵点材料坐标系的构造——当幽灵点跨越边时，叉积 $\mathbf{d}_3 \times (\mathbf{g} - \mathbf{p}_0)$ 变号，导致 $\mathbf{d}_1, \mathbf{d}_2$ 整体翻转，Darboux 向量随之改变。需选择与静止状态最接近的表示：
 
@@ -403,9 +413,9 @@ $$
 \boldsymbol{\omega}_{\text{correct}} = \begin{cases} \boldsymbol{\omega} & \text{if } \|\boldsymbol{\omega} - \boldsymbol{\omega}_0\| < \|-\boldsymbol{\omega} - \boldsymbol{\omega}_0\| \\ -\boldsymbol{\omega} & \text{otherwise} \end{cases}
 $$
 
-> 注：基于四元数的 Cosserat Rod 方法（§7.2）有类似的符号问题，但其来源是四元数双重覆盖（$q$ 与 $-q$ 表示同一旋转），处理方式也不同（取相对四元数的 $w$ 分量符号）。
+> 注：基于四元数的 Cosserat Rod 方法（见[四元数法](#position-based-cosserat-rods四元数法)）有类似的符号问题，但其来源是四元数双重覆盖（$q$ 与 $-q$ 表示同一旋转），处理方式也不同（取相对四元数的 $w$ 分量符号）。
 
-### 6.5 数值稳定性
+### 数值稳定性
 
 **奇异性处理**：当边长趋近零时，切向量归一化不稳定，加小常数保护：
 
@@ -417,11 +427,11 @@ $$
 
 ---
 
-## 七、三种实现方法对比
+## 三种实现方法对比
 
 弹性杆的 PBD 实现有三种主要方法，各有优劣。
 
-### 7.1 PBER（幽灵点法）
+### PBER（幽灵点法）
 
 **论文**：Umetani, Schmidt & Stam (2014)
 
@@ -431,7 +441,7 @@ $$
 - 需要额外幽灵点粒子（内存开销）
 - 对极刚杆收敛较慢
 
-### 7.2 Position-Based Cosserat Rods（四元数法）
+### Position-Based Cosserat Rods（四元数法）
 
 **论文**：Kugelstadt & Schömer (2016)
 
@@ -440,7 +450,7 @@ $$
 - 适合刚性杆
 - 需处理四元数约束（归一化、符号选择）
 
-### 7.3 Direct Position-Based Solver（直接法）
+### Direct Position-Based Solver（直接法）
 
 **论文**：Deul, Kugelstadt, Weiler & Bender (2018)
 
@@ -450,7 +460,7 @@ $$
 - 收敛快，支持树状拓扑
 - 实现最复杂，并行性差
 
-### 7.4 对比表
+### 对比表
 
 | 特性 | PBER | Cosserat Rods | Direct Solver |
 |------|------|---------------|---------------|
@@ -463,11 +473,11 @@ $$
 
 ---
 
-## 八、UE 实现视角
+## UE 实现视角
 
 原工程文档为纯理论与伪代码，本节补充在 UE / Chaos 中承接 PBER 的工程视角。
 
-### 8.1 Chaos 物理资产
+### Chaos 物理资产
 
 UE Chaos 引擎的 `FPhysicsAsset` 与 `FKinematicGeometryCollection` 可承载杆状结构，但 Chaos 原生不直接暴露 PBER 的幽灵点机制。实现路径：
 
@@ -475,7 +485,7 @@ UE Chaos 引擎的 `FPhysicsAsset` 与 `FKinematicGeometryCollection` 可承载�
 2. **约束注册**：将垂直平分线、幽灵边距离、Darboux 约束封装为 `Chaos::FImplicitObject` 衍生约束或 PBD 约束回调，注册到 Chaos 的 `FPBDConstraintContainer`。
 3. **求解器集成**：Chaos 的 `FPBDRigidSolver` 已支持顺序约束投影迭代——PBER 的约束只需作为自定义 `FPBDConstraint` 加入容器的 `ApplyConstraints()` 阶段。
 
-### 8.2 插件实现
+### 插件实现
 
 在 PhysicsInteraction 插件中，可封装为 `UElasticRodComponent`：
 
@@ -503,15 +513,15 @@ class UElasticRodComponent : public UActorComponent
 };
 ```
 
-### 8.3 与 XPBD 的衔接
+### 与 XPBD 的衔接
 
-PBER 使用标准 PBD 约束（刚度系数 $k$ 直接控制，但与时间步长/迭代次数耦合）。若需更可控的刚度行为，可升级为 XPBD——引入柔度参数 $\alpha = 1/(k\,\Delta t^2)$，使刚度与迭代次数解耦。XPBD 的约束求解框架见&#12298;[位置约束求解：PBD 与 XPBD](/knowledge/pbd-xpbd-math/)&#12299;。
+PBER 使用标准 PBD 约束（刚度系数 $k$ 直接控制，但与时间步长/迭代次数耦合）。若需更可控的刚度行为，可升级为 XPBD——引入柔度参数 $\alpha = 1/(k\,\Delta t^2)$，使刚度与迭代次数解耦。XPBD 的约束求解框架见《[位置约束求解：PBD 与 XPBD](/knowledge/pbd-xpbd-math/)》。
 
 ---
 
-## 九、参数调优
+## 参数调优
 
-### 9.1 刚度系数
+### 刚度系数
 
 | 材料 | 杨氏模量 $E$ | 说明 |
 |------|-------------|------|
@@ -521,13 +531,13 @@ PBER 使用标准 PBD 约束（刚度系数 $k$ 直接控制，但与时间步�
 
 剪切模量与泊松比关系：$G = \frac{E}{2(1+\nu)}$，$\nu \approx 0.3$。
 
-### 9.2 迭代次数
+### 迭代次数
 
 - 柔软杆：5–10 次
 - 中等刚度：10–20 次
 - 刚性杆：20–50 次，或改用 Direct Solver
 
-### 9.3 时间步长
+### 时间步长
 
 - 稳定性：$h < 0.01$ s
 - 实时应用：$h = 1/60$ 或 $1/30$ s
@@ -535,7 +545,7 @@ PBER 使用标准 PBD 约束（刚度系数 $k$ 直接控制，但与时间步�
 
 ---
 
-## 十、参考文献
+## 参考文献
 
 1. Umetani, N., Schmidt, R., & Stam, J. (2014). *Position Based Elastic Rods*. ACM SIGGRAPH/Eurographics SCA. ——PBER 原始论文，幽灵点方法。
 2. Kugelstadt, T., & Schömer, E. (2016). *Position and Orientation Based Cosserat Rods*. ACM SIGGRAPH/Eurographics SCA. ——四元数 Cosserat 杆。

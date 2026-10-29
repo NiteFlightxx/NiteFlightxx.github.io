@@ -912,7 +912,10 @@ html.light-theme {
 .document-navigation summary { cursor: pointer; font-weight: 500; color: var(--color-text-primary); line-height: 1.8; }
 .document-navigation summary small { float: right; margin-right: 4px; color: var(--color-text-faint); font-weight: 400; font-size: 10px; }
 .document-nav-section { margin-top: 18px; }
-.document-nav-section > span { display: block; margin: 0 0 8px 10px; font-size: 10px; color: var(--color-text-faint); }
+.document-nav-description { margin: 10px; font-size: 11px; line-height: 1.8; color: var(--color-text-muted); }
+.document-nav-section > span { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 6px; margin: 0 0 8px 10px; font-size: 10px; color: var(--color-text-faint); }
+.document-nav-section > span small { font-size: 9px; }
+.document-nav-section a i { font-style: normal; color: var(--color-text-faint); }
 .document-nav-section ol { display: grid; gap: 3px; }
 .document-nav-section a { display: block; padding: 8px 10px; border-radius: 5px; color: var(--color-text-muted); font-size: 12px; line-height: 1.7; overflow-wrap: anywhere; }
 .document-navigation a:hover { color: var(--color-accent-primary); }
@@ -922,6 +925,35 @@ html.light-theme {
 .document-adjacent a { color: var(--color-text-secondary); font-size: 13px; line-height: 1.8; text-decoration: none !important; }
 .document-adjacent a:hover { color: var(--color-accent-primary); }
 .document-adjacent span { display: block; font-size: 10px; color: var(--color-text-faint); margin-bottom: 6px; }
+.document-reading-context { margin: -12px 0 32px; padding: 0 0 22px; border-bottom: 1px solid var(--color-border-subtle); font-size: 12px; line-height: 1.8; }
+.document-reading-context > div { display: flex; flex-wrap: wrap; gap: 16px; align-items: baseline; }
+.document-reading-context strong { color: var(--color-text-secondary); font-weight: 500; }
+.document-reading-context span { font-size: 11px; color: var(--color-text-faint); }
+.article-body .document-reading-context p { margin: 8px 0; font-size: 12px; color: var(--color-text-muted); }
+.article-body .document-reading-context a { font-size: 11px; color: var(--color-accent-primary); }
+.simulation-pipeline { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin: 24px 0; }
+.article-body .simulation-pipeline a { display: flex; flex-direction: column; gap: 8px; padding: 16px 12px; border-block: 1px solid var(--color-border-subtle); text-decoration: none; }
+.simulation-pipeline strong { font-size: 14px; color: var(--color-text-primary); }
+.simulation-pipeline span { font-size: 12px; line-height: 1.8; color: var(--color-text-muted); }
+.physics-figure { margin: 28px 0; padding-block: 18px; border-block: 1px solid var(--color-border-subtle); color: var(--color-text-secondary); }
+.physics-figure-grid { display: grid; grid-template-columns: repeat(auto-fit,minmax(min(100%,260px),1fr)); gap: 16px; }
+.physics-figure svg { display: block; width: 100%; max-width: 420px; height: auto; margin-inline: auto; font-family: var(--font-sans); font-size: 15px; }
+.physics-figure svg text { fill: currentColor; }
+.physics-figure :is(.diagram-line,.diagram-muted,.diagram-accent) { fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.physics-figure .diagram-muted { stroke: var(--color-text-faint); }
+.physics-figure .diagram-accent { stroke: var(--color-accent-primary); }
+.physics-figure .diagram-dot { fill: var(--color-accent-primary); }
+.article-body :is(.physics-figure,.physics-atlas) figcaption { margin-top: 14px; font-size: 12px; line-height: 1.9; color: var(--color-text-muted); }
+.physics-atlas { margin: 28px 0; }
+.physics-atlas-common,.article-body .physics-atlas-coupling { display: block; padding: 17px 14px; text-align: center; background: var(--color-surface-raised); border-radius: 6px; font-size: 13px; line-height: 1.9; }
+.physics-atlas-connector { text-align: center; color: var(--color-text-faint); font-size: 23px; line-height: 1.8; }
+.physics-atlas-models { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 14px; }
+.article-body .physics-atlas-models a { display: flex; flex-direction: column; align-items: center; padding: 14px 8px; border-block: 1px solid var(--color-border-subtle); text-align: center; text-decoration: none; }
+.physics-atlas-models svg { width: 140px; max-width: 100%; height: 90px; color: var(--color-accent-primary); }
+.physics-atlas-models strong { margin-block: 8px; font-size: 15px; color: var(--color-text-primary); }
+.physics-atlas-models span { font-size: 12px; line-height: 1.9; color: var(--color-text-muted); }
+@media(max-width:600px) { .physics-atlas-models { grid-template-columns:minmax(0,1fr); } .article-body .physics-atlas-models a { padding-block:14px; } }
+@media (max-width: 600px) { .simulation-pipeline { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 .document-mobile-navigation .document-navigation { max-height: 60dvh; padding: 10px; }
 .document-mobile-bars { margin-bottom: 24px; }
 @media (max-width: 1023px) {
@@ -1080,6 +1112,15 @@ body { -webkit-font-smoothing: antialiased; }
 .article-body pre code { color:inherit; font-size:13px; line-height:1.8; }
 .article-body th { font-weight:550; font-size:12px; }
 .article-body table { font-size:13px; }
+.knowledge-reader-shell .article-body :is(h2,h3,h4,h5,h6)[data-section-number]::before {
+  content: attr(data-section-number) " ";
+  color: var(--color-text-muted);
+  font-variant-numeric: tabular-nums;
+  margin-right: .35em;
+}
+.document-anchor-alias { display: block; height: 0; scroll-margin-top: 100px; }
+.knowledge-reader-shell .reader-main { min-width: 0; }
+.knowledge-reader-shell .article-body :is(p,li,h2,h3,h4,h5,h6) { overflow-wrap: anywhere; }
 .article-header > nav { font-size:12px; }
 .document-navigation .document-nav-article { font-size:12px; }
 .document-toc-sidebar .glass-panel { border:0; background:none; border-radius:0; }
@@ -1091,7 +1132,18 @@ body { -webkit-font-smoothing: antialiased; }
 .toy-page .page-heading h1 { font-size:40px; font-weight:500; }
 .toy-page .section-heading h2 { font-size:18px; }
 .toy-page .featured-case { border-radius:6px; }
-@media(min-width:1100px) { .knowledge-reader-shell { grid-template-columns:minmax(0,800px) 190px; } .document-toc-sidebar { display:block; } .document-reader-tools { display:none; } .document-mobile-bars { grid-template-columns:1fr; } }
+@media(min-width:1100px) {
+  .knowledge-reader-shell { grid-template-columns:220px minmax(0,800px); gap:32px; }
+  .document-sidebar { display:block; }
+  .document-mobile-navigation,.document-toc-sidebar { display:none; }
+  .document-reader-tools { display:block; }
+  .document-mobile-bars { display:grid; grid-template-columns:1fr; }
+}
+@media(min-width:1440px) {
+  .knowledge-reader-shell { grid-template-columns:220px minmax(0,800px) 190px; max-width:1440px; }
+  .document-toc-sidebar { display:block; }
+  .document-mobile-bars { display:none; }
+}
 @media(min-width:768px) { .article-body p,.article-body li { font-size:var(--reader-font-size-desktop,1.0625rem); } }
 @media(max-width:1240px) { .studio-shell { margin:0 40px; } .studio-hero { gap:20px; } .studio-work-art .research-diagram { padding-inline:38px; } }
 @media(max-width:1000px) { .brand-caption { display:none; } .studio-hero h1 { font-size:37px; } .studio-bottom-grid { gap:28px; grid-template-columns:1.1fr 1fr; } .studio-work-copy { padding:18px; } .studio-work-copy h3 { font-size:19px; } .studio-work-card .studio-work-art { height:135px; } .studio-toy-card { grid-template-columns:.8fr 1fr; } .studio-toy-card h3 { font-size:23px; } .studio-research-row { gap:30px; } }

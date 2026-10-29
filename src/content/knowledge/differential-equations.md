@@ -1,24 +1,37 @@
 ---
-title: "常微分方程：状态、初值与动力系统"
-excerpt: "把受力、衰减和弹簧写成状态方程，区分物理模型、初始条件与数值推进。"
-date: "2026-09-06"
-category: "Mathematics"
-subtopic: "DifferentialEquations"
-tags: ["ODE", "数值积分", "欧拉法", "Verlet", "RK4", "C++"]
-readTime: "阅读约25分钟"
+title: 常微分方程：状态、初值与动力系统
+excerpt: 把受力、衰减和弹簧写成状态方程，区分物理模型、初始条件与数值推进。
+date: '2026-09-06'
+category: Mathematics
+subtopic: DifferentialEquations
+tags:
+  - ODE
+  - 数值积分
+  - 欧拉法
+  - Verlet
+  - RK4
+  - C++
+readTime: 阅读约10分钟
+kind: theory
+level: foundation
+pageType: guide
+aliases:
+  - 常微分方程与数值方法详解 — 从牛顿运动方程到欧拉、Verlet 与龙格-库塔
+prerequisites:
+  - calculus-foundations
+nextArticles:
+  - numerical-integration-methods
+  - partial-differential-equations
+related: []
 topics:
-  - id: "ue-chaos-physics"
-    stage: "foundation"
-    role: "theory"
+  - id: ue-chaos-physics
+    stage: foundation
+    role: theory
     order: 40
-kind: "theory"
-level: "foundation"
-prerequisites: ["calculus-foundations"]
-nextArticles: ["numerical-integration-methods", "partial-differential-equations"]
-aliases: ["常微分方程与数值方法详解 — 从牛顿运动方程到欧拉、Verlet 与龙格-库塔"]
-sources: [{"title":"MIT ES.1803：ODE 与初值","url":"https://ocw.mit.edu/courses/es-1803-differential-equations-spring-2024/mites_1803_s24_topic_full.pdf"}]
+sources:
+  - title: MIT ES.1803：ODE 与初值
+    url: 'https://ocw.mit.edu/courses/es-1803-differential-equations-spring-2024/mites_1803_s24_topic_full.pdf'
 ---
-
 给定位置还不能预测运动：同一位置上的物体可能静止，也可能高速穿过。常微分方程负责描述状态如何连续变化，初始条件选定其中一条轨迹；数值积分只是推进这条轨迹的离散方法。把这三件事分开，才能判断问题来自模型、输入还是计算。
 
 本文只维护模型与初值的解释。Euler、Verlet 和 Runge–Kutta 的完整更新及稳定性比较见[数值积分](/knowledge/numerical-integration-methods/)，空间差分与 CFL 条件见[PDE](/knowledge/partial-differential-equations/)。
@@ -29,7 +42,7 @@ sources: [{"title":"MIT ES.1803：ODE 与初值","url":"https://ocw.mit.edu/cour
 <span id="12-分类" aria-hidden="true"></span>
 <span id="13-游戏中的例子" aria-hidden="true"></span>
 
-## 1. 状态方程描述什么
+## 状态方程描述什么
 
 一般的一阶初值问题写成：
 
@@ -61,7 +74,7 @@ $$
 <span id="21-微分形式" aria-hidden="true"></span>
 <span id="22-转化为一阶-ode-组" aria-hidden="true"></span>
 
-## 2. 从受力方程变成一阶系统
+## 从受力方程变成一阶系统
 
 对质量恒定且大于零的质点，牛顿方程是：
 
@@ -104,9 +117,9 @@ $$
 <span id="93-pid-控制器" aria-hidden="true"></span>
 <span id="94-碰撞冲量" aria-hidden="true"></span>
 
-## 3. 三个可以直接核对的模型
+## 三个可以直接核对的模型
 
-### 3.1 恒定加速度：初值决定轨迹
+### 恒定加速度：初值决定轨迹
 
 取起始时刻为零：
 
@@ -125,7 +138,7 @@ $$
 
 这个解适合检查积分误差和单位，不代表带阻力、碰撞或变化推力的轨迹也能使用同一公式。
 
-### 3.2 指数衰减：参数、时间常数与半衰期
+### 指数衰减：参数、时间常数与半衰期
 
 对固定目标 $r$：
 
@@ -149,7 +162,7 @@ $$
 
 同一固定目标下，分两步与合成一步得到相同结果，因为指数因子相乘。若目标在步内变化，这个公式只对“该步内把目标冻结”的近似问题精确；不能笼统称为任何移动目标下都帧率无关。
 
-### 3.3 弹簧阻尼：平衡点与时间尺度
+### 弹簧阻尼：平衡点与时间尺度
 
 一维固定平衡点 $r$ 的模型为：
 
@@ -185,7 +198,7 @@ $$
 
 临界阻尼对应 $\zeta=1$，但“最快且无超调”必须限定初始条件、响应指标及这个线性模型；任意初速度仍可能越过目标。目标移动时还要说明阻尼相对世界速度还是目标相对速度，两种模型并不相同。
 
-## 4. 解存在，不代表永远存在或容易计算
+## 解存在，不代表永远存在或容易计算
 
 对 $\dot{\mathbf y}=\mathbf f(t,\mathbf y)$，连续性与关于状态的局部 Lipschitz 条件是常用的局部存在唯一性充分条件。这是局部结论，不保证轨迹永远有界，也不保证闭式解。
 
@@ -199,7 +212,7 @@ $$
 
 它在 $t=1$ 发散。此时结果变大可能来自模型本身，不一定是积分器失稳。相反，一个稳定衰减的连续模型也可能因错误步长而数值发散。局部存在与唯一性的条件可查 [MIT ODE notes §10.5](https://ocw.mit.edu/courses/es-1803-differential-equations-spring-2024/mites_1803_s24_topic_full.pdf)。
 
-## 5. 解析解、数值解与刚性不是一回事
+## 解析解、数值解与刚性不是一回事
 
 解析解给出连续时间的表达式；数值解在离散时刻近似状态：
 
@@ -220,7 +233,7 @@ $$
 <span id="七有限差分" aria-hidden="true"></span>
 <span id="八cfl-稳定性条件" aria-hidden="true"></span>
 
-## 6. 碰撞、约束和控制如何接到模型上
+## 碰撞、约束和控制如何接到模型上
 
 光滑 ODE 不是所有模拟现象的完整描述。
 
@@ -249,7 +262,7 @@ $$
 <span id="十方法选择指南" aria-hidden="true"></span>
 <span id="十一参考文献" aria-hidden="true"></span>
 
-## 7. 从模型继续到实现
+## 从模型继续到实现
 
 先确定状态、单位、输入和初值，再选离散方法。若结果不符，先比较一个具有解析解的简化情形，分别检查模型误差、时间离散误差与求解残差，不用额外阻尼把三者一起盖住。
 

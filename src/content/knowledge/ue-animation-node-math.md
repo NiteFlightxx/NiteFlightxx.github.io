@@ -1,18 +1,29 @@
 ---
-title: "UE 动画节点：数据流与算法参考"
-excerpt: "按需查阅姿态混合、骨骼控制、IK、动力学与惯性化节点的输入和实现。"
-date: "2026-06-25"
-category: "Animation"
-subtopic: "AnimationNode"
-tags: ["UE5", "动画", "IK"]
-readTime: "阅读约40分钟"
-kind: "source"
-level: "intermediate"
-prerequisites: ["jacobian-matrix", "ue-linear-algebra-guide"]
-nextArticles: ["predictive-foot-ik", "ue-fullbody-ik-math", "ik-retargeter-ops-math"]
-aliases: ["UE 动画节点详解 — IK、混合、骨骼控制与惯性化"]
+title: UE 动画节点：数据流与算法参考
+excerpt: 按需查阅姿态混合、骨骼控制、IK、动力学与惯性化节点的输入和实现。
+date: '2026-06-25'
+category: Animation
+subtopic: AnimationNode
+tags:
+  - UE5
+  - 动画
+  - IK
+readTime: 阅读约85分钟
+kind: source
+level: intermediate
+pageType: source-analysis
+aliases:
+  - UE 动画节点详解 — IK、混合、骨骼控制与惯性化
+prerequisites:
+  - jacobian-matrix
+  - ue-linear-algebra-guide
+nextArticles:
+  - predictive-foot-ik
+  - ue-fullbody-ik-math
+  - ik-retargeter-ops-math
+related: []
+sources: []
 ---
-
 这是一份动画系统主参考，按“姿态数据 → 空间传播 → 求解节点 → 输出姿态”的链路组织节点、公式与源码。先确认输入姿态、更新阶段、求解空间和输出方式，再进入相应节点；完整的姿态搜索链路见[Motion Matching](/knowledge/motion-matching-pose-search-source-guide/)。
 
 > 本文档基于 `Engine\Source\Editor\AnimGraph\Public` 下的编辑器节点定义，并深入到运行时实现（`AnimGraphRuntime`、`Engine\Private\Animation`、`AnimationCore` 纯算法模块）梳理常用动画节点的数学原理、公式与核心代码。
@@ -20,9 +31,9 @@ aliases: ["UE 动画节点详解 — IK、混合、骨骼控制与惯性化"]
 
 ---
 
-## 一、架构与坐标空间基础
+## 架构与坐标空间基础
 
-### 1.1 三层结构
+### 三层结构
 
 UE 动画节点采用"编辑器节点 → 运行时节点 → 纯算法求解器"三层结构：
 
@@ -42,7 +53,7 @@ virtual void EvaluateSkeletalControl_AnyThread(
 
 输出 `TArray<FBoneTransform>` 为**组件空间（Component Space, CS）**变换，由基类写回 Pose。
 
-### 1.2 坐标空间
+### 坐标空间
 
 - **Local Space（局部空间）**：骨骼相对父骨骼的变换 $L_b$。
 - **Component Space（组件空间）**：骨骼相对骨骼树根的变换 $C_b = L_b \cdot C_{parent(b)}$。
@@ -55,7 +66,7 @@ $$
 C_b = L_b \cdot C_{parent(b)}, \qquad L_b = C_b \cdot C_{parent(b)}^{-1}
 $$
 
-### 1.3 通用数学工具
+### 通用数学工具
 
 各求解器反复使用的核心 API：
 
@@ -70,9 +81,9 @@ $$
 
 ---
 
-## 二、IK 类节点
+## IK 类节点
 
-### 2.1 TwoBoneIK（两骨 IK）
+### TwoBoneIK（两骨 IK）
 
 **文件**：
 - 节点：`AnimGraphRuntime\Public\BoneControllers\AnimNode_TwoBoneIK.h`
@@ -207,7 +218,7 @@ InOutRootTransform.SetRotation(DeltaRotation * InOutRootTransform.GetRotation())
 
 ---
 
-### 2.2 CCDIK（循环坐标下降 IK）
+### CCDIK（循环坐标下降 IK）
 
 **文件**：`AnimationCore\Public\CCDIK.h` / `Private\CCDIK.cpp`
 
@@ -286,7 +297,7 @@ for (int32 ChildLinkIndex = LinkIndex + 1; ChildLinkIndex <= TipBoneLinkIndex; +
 
 ---
 
-### 2.3 FABRIK（前向反向到达 IK）
+### FABRIK（前向反向到达 IK）
 
 **文件**：`AnimationCore\Public\FABRIK.h` / `Private\FABRIK.cpp`
 （参考：[andreasaristidou.com/publications/FABRIK.pdf](http://andreasaristidou.com/publications/FABRIK.pdf)）
@@ -387,7 +398,7 @@ if (RootToTargetDistSq > FMath::Square(MaximumReach)) {
 
 ---
 
-### 2.4 SplineIK（样条 IK）
+### SplineIK（样条 IK）
 
 **文件**：`AnimationCore\Public\SplineIK.h` / `Private\SplineIK.cpp`
 
@@ -482,7 +493,7 @@ for (int32 BoneIndex = 0; BoneIndex < BoneCount; BoneIndex++) {
 
 ---
 
-### 2.5 LegIK（腿部 IK + Soft IK）
+### LegIK（腿部 IK + Soft IK）
 
 **文件**：`AnimGraphRuntime\Public\BoneControllers\AnimNode_LegIK.h`
 求解器：`AnimNode_LegIK.cpp` 内的 `FIKChain` 类 + `AnimationCore\Private\SoftIK.cpp`
@@ -586,7 +597,7 @@ void FIKChain::SolveTwoBoneIK(const FVector& InTargetLocation) {
 
 ---
 
-### 2.6 LookAt（注视节点）
+### LookAt（注视节点）
 
 **文件**：`AnimGraphRuntime\Public\BoneControllers\AnimNode_LookAt.h`
 求解器：`AnimationCore::SolveAim`（`AnimationCore\Private\AnimationCoreLibrary.cpp`）
@@ -677,7 +688,7 @@ InOutBoneToModifyTransform.SetRotation(DeltaRotation * InOutBoneToModifyTransfor
 
 ---
 
-## 三、混合类节点
+## 混合类节点
 
 所有混合数学逻辑汇聚于 `Engine\Private\Animation\AnimationRuntime.cpp`。核心是两个模板辅助函数：
 
@@ -686,7 +697,7 @@ InOutBoneToModifyTransform.SetRotation(DeltaRotation * InOutBoneToModifyTransfor
 
 对归一化权重 $\sum w_i = 1$，输出为凸插值 $\text{Out} = \sum w_i \cdot \text{Pose}_i$。
 
-### 3.1 TwoWayBlend / MultiWayBlend
+### TwoWayBlend / MultiWayBlend
 
 **文件**：`AnimGraphRuntime\Public\AnimNodes\AnimNode_TwoWayBlend.h`（MultiWayBlend 同理）
 
@@ -731,7 +742,7 @@ else
 
 ---
 
-### 3.2 LayeredBoneBlend（分层骨骼混合）
+### LayeredBoneBlend（分层骨骼混合）
 
 **文件**：`AnimGraphRuntime\Public\AnimNodes\AnimNode_LayeredBoneBlend.h`
 
@@ -787,7 +798,7 @@ else {
 
 ---
 
-### 3.3 BlendBoneByChannel（按通道混合）
+### BlendBoneByChannel（按通道混合）
 
 **文件**：`AnimGraphRuntime\Public\AnimNodes\AnimNode_BlendBoneByChannel.h`
 
@@ -819,7 +830,7 @@ if (bBlendScale)       TargetTransform.SetScale3D(BlendedTransform.GetScale3D())
 
 ---
 
-### 3.4 ApplyAdditive / MakeDynamicAdditive（叠加动画）
+### ApplyAdditive / MakeDynamicAdditive（叠加动画）
 
 **文件**：`AnimGraphRuntime\Public\AnimNodes\AnimNode_ApplyDynamicAdditive.h` / `AnimNode_MakeDynamicAdditive.h`
 
@@ -875,7 +886,7 @@ TargetTransform.NormalizeRotation();
 
 ---
 
-### 3.5 Inertialization（惯性化）
+### Inertialization（惯性化）
 
 **文件**：`Engine\Classes\Animation\AnimNode_Inertialization.h` / `Engine\Private\Animation\AnimNode_Inertialization.cpp`
 （基于 Bollo 的 GDC 2018 演讲）
@@ -953,9 +964,9 @@ double CalcInertialFloat(double x0, double v0, double t, double t1)
 
 ---
 
-## 四、骨骼控制类节点
+## 骨骼控制类节点
 
-### 4.1 ModifyBone（修改骨骼 / Transform Bone）
+### ModifyBone（修改骨骼 / Transform Bone）
 
 **文件**：`AnimGraphRuntime\Public\BoneControllers\AnimNode_ModifyBone.h`
 空间变换辅助：`Engine\Private\Animation\AnimationRuntime.cpp`
@@ -1009,7 +1020,7 @@ NewBoneTM.AddToTranslation(Translation);
 
 ---
 
-### 4.2 BoneDrivenController（骨骼驱动控制器）
+### BoneDrivenController（骨骼驱动控制器）
 
 **文件**：`AnimGraphRuntime\Public\BoneControllers\AnimNode_BoneDrivenController.h`
 
@@ -1070,7 +1081,7 @@ NewRot = NewRot * FQuat::MakeFromEuler(DeltaEuler);
 
 ---
 
-### 4.3 RotationMultiplier（旋转乘数）
+### RotationMultiplier（旋转乘数）
 
 **文件**：`AnimGraphRuntime\Public\BoneControllers\AnimNode_RotationMultiplier.h`
 实现：`AnimGraphRuntime\Private\BoneControllers\AnimNodeRotationMultiplier.cpp`
@@ -1122,7 +1133,7 @@ OutQuat = ReferenceQuat * FQuat(RotationAxis, RotationAngle * InMultiplier);  //
 
 ---
 
-### 4.4 Constraint（约束节点）
+### Constraint（约束节点）
 
 **文件**：`AnimGraphRuntime\Public\BoneControllers\AnimNode_Constraint.h`
 求解器：`AnimationCore\Private\Constraint.cpp` / `AnimationCoreLibrary.cpp`
@@ -1182,9 +1193,9 @@ OutSource.Scale = InTarget.Scale * Base.Scale * Offset.Scale;
 
 ---
 
-## 五、动力学类节点
+## 动力学类节点
 
-### 5.1 SpringBone（弹簧骨骼）
+### SpringBone（弹簧骨骼）
 
 **文件**：`AnimGraphRuntime\Public\BoneControllers\AnimNode_SpringBone.h`
 
@@ -1257,7 +1268,7 @@ BoneLocation += (BoneVelocity * FixedTimeStep);                  // x += v_new*d
 
 ---
 
-### 5.2 Trail（拖尾骨骼链）
+### Trail（拖尾骨骼链）
 
 **文件**：`AnimGraphRuntime\Public\BoneControllers\AnimNode_Trail.h`
 
@@ -1324,7 +1335,7 @@ if (bLimitStretch) {
 
 ---
 
-### 5.3 AnimDynamics（动画动力学）
+### AnimDynamics（动画动力学）
 
 **文件**：`AnimGraphRuntime\Public\BoneControllers\AnimNode_AnimDynamics.h`
 求解器：`Engine\Private\Animation\AnimPhysicsSolver.cpp`（基于 Stan Melax 的 sandbox 物理代码）
@@ -1419,9 +1430,9 @@ for(Iteration < NumPostIterations) { for(Limit) CurrentLimit.Iter(dt); }
 | `SphericalLimits` / `PlanarLimits` / `ConstraintSetup` | 球面/平面/锥角/扭转约束 |
 | `WindScale` / `bEnableWind` | 风力 |
 
-## 六、惯性化外推与混合类补充节点
+## 惯性化外推与混合类补充节点
 
-### 6.1 DeadBlending（死混合 / 惯性化外推）
+### DeadBlending（死混合 / 惯性化外推）
 
 > 源码：`Engine\Private\Animation\AnimNode_DeadBlending.cpp`、`AnimNode_DeadBlending.h`
 
@@ -1526,7 +1537,7 @@ BoneTranslationVelocities[Idx] = BoneTranslationVelocities[Idx].GetClampedToMaxS
 
 ---
 
-### 6.2 BlendSpace 系列（混合空间）
+### BlendSpace 系列（混合空间）
 
 > 源码：`AnimGraphRuntime\Private\AnimNodes\AnimNode_BlendSpacePlayer.cpp`、`AnimNode_RotationOffsetBlendSpace.cpp`、`AnimNode_BlendSpaceEvaluator.cpp`
 
@@ -1602,9 +1613,9 @@ void FAnimNode_RotationOffsetBlendSpace::Evaluate_AnyThread(FPoseContext& Contex
 
 ---
 
-## 七、镜像与驱动类节点
+## 镜像与驱动类节点
 
-### 7.1 Mirror（镜像节点）
+### Mirror（镜像节点）
 
 > 源码：`AnimGraphRuntime\Private\AnimNodes\AnimNode_Mirror.cpp`、`Engine\Private\Animation\AnimationRuntime.cpp:1432`
 
@@ -1644,7 +1655,7 @@ $$
 
 对于非根骨骼，镜像变换在父骨骼空间中进行：
 
-```
+```text
 T' = R_parent^{tgt} . Unrotate( MirrorVector( R_parent^{src} . Rotate(T), M ) )
 Q' = R_parent^{src} * Q  →  MirrorQuat(·, M)  →  * 校正  →  R_parent^{tgt}^{-1} *
 S' = S  (缩放不变)
@@ -1678,7 +1689,7 @@ auto MirrorTransform = [&](const FTransform& SourceTransform,
 
 ---
 
-### 7.2 PoseDriver / RBF Solver（姿态驱动器 / 径向基函数求解器）
+### PoseDriver / RBF Solver（姿态驱动器 / 径向基函数求解器）
 
 > 源码：`AnimGraphRuntime\Private\RBF\RBFSolver.cpp`、`AnimNodes\AnimNode_PoseDriver.cpp`
 
@@ -1785,7 +1796,7 @@ if (TotalWeight > 1.f) {
 
 ---
 
-### 7.3 ModifyCurve（曲线修改节点）
+### ModifyCurve（曲线修改节点）
 
 > 源码：`AnimGraphRuntime\Private\AnimNodes\AnimNode_ModifyCurve.cpp`
 
@@ -1835,9 +1846,9 @@ OutputValue = FMath::Lerp(CurrentValue, Result, Alpha);
 
 ---
 
-## 八、骨骼控制类补充节点
+## 骨骼控制类补充节点
 
-### 8.1 CopyBone / CopyBoneDelta（骨骼复制）
+### CopyBone / CopyBoneDelta（骨骼复制）
 
 > 源码：`AnimGraphRuntime\Private\BoneControllers\AnimNode_CopyBone.cpp`、`AnimNode_CopyBoneDelta.cpp`
 
@@ -1896,7 +1907,7 @@ else // Copy 模式：直接覆盖
 
 ---
 
-### 8.2 TwistCorrectiveNode（扭转校正节点）
+### TwistCorrectiveNode（扭转校正节点）
 
 > 源码：`AnimGraphRuntime\Private\BoneControllers\AnimNode_TwistCorrectiveNode.cpp`
 
@@ -1947,7 +1958,7 @@ Context.Curve.Set(CurveName, FinalMappedValue * Alpha);
 
 ---
 
-### 8.3 HandIKRetargeting（手部 IK 重定向）
+### HandIKRetargeting（手部 IK 重定向）
 
 > 源码：`AnimGraphRuntime\Private\BoneControllers\AnimNode_HandIKRetargeting.cpp`
 
@@ -1999,7 +2010,7 @@ for (const FBoneReference& BoneReference : IKBonesToMove)
 
 ---
 
-### 8.4 ScaleChainLength（链长缩放）
+### ScaleChainLength（链长缩放）
 
 > 源码：`AnimGraphRuntime\Private\BoneControllers\AnimNode_ScaleChainLength.cpp`
 
@@ -2044,7 +2055,7 @@ for (const FCompactPoseBoneIndex& BoneIndex : ChainBoneIndices)
 
 ---
 
-### 8.5 ApplyLimits（角度限制）
+### ApplyLimits（角度限制）
 
 > 源码：`AnimGraphRuntime\Private\BoneControllers\AnimNode_ApplyLimits.cpp`、`AnimationCore\Private\AngularLimit.h`
 
@@ -2085,7 +2096,7 @@ FAnimationRuntime::BlendTwoPosesTogether(AnimationPoseData0, AnimationPoseData1,
 
 ---
 
-### 8.6 CopyPoseFromMesh（从网格复制姿态）
+### CopyPoseFromMesh（从网格复制姿态）
 
 > 源码：`AnimGraphRuntime\Private\AnimNodes\AnimNode_CopyPoseFromMesh.cpp`
 
@@ -2118,9 +2129,9 @@ if (bUseMeshPose)
 
 ---
 
-## 九、播放与混合列表节点
+## 播放与混合列表节点
 
-### 9.1 BlendList 系列（混合列表）
+### BlendList 系列（混合列表）
 
 > 源码：`AnimGraphRuntime\Private\AnimNodes\AnimNode_BlendListBase.cpp`、`BlendListByBool.cpp`、`BlendListByEnum.cpp`、`BlendListByInt.cpp`
 
@@ -2192,7 +2203,7 @@ FAnimationRuntime::BlendTwoPosesTogetherInPlace(        // 原地混合，避免
 
 ---
 
-### 9.2 RandomPlayer（随机播放器）
+### RandomPlayer（随机播放器）
 
 > 源码：`AnimGraphRuntime\Private\AnimNodes\AnimNode_RandomPlayer.cpp`
 
@@ -2260,9 +2271,9 @@ if (ShuffleList.Num() > 1 && ShuffleList.Last() == LastEntry)
 
 ---
 
-## 十、RigidBody 与空间/根骨节点
+## RigidBody 与空间/根骨节点
 
-### 10.1 RigidBody（刚体物理节点）
+### RigidBody（刚体物理节点）
 
 > 源码：`AnimGraphRuntime\Private\BoneControllers\AnimNode_RigidBody.cpp`、`RigidBodyNodeShared.cpp`
 
@@ -2334,7 +2345,7 @@ void FAnimNode_RigidBody::RunPhysicsSimulation(float DeltaTime)
 
 ---
 
-### 10.2 空间转换与根骨节点
+### 空间转换与根骨节点
 
 > 源码：`Engine\Private\Animation\AnimationRuntime.cpp`、`AnimGraphRuntime\Private\AnimNodes\AnimNode_RotateRootBone.cpp`、`BoneControllers\AnimNode_ResetRoot.cpp`
 

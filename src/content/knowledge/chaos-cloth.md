@@ -1,34 +1,46 @@
 ---
-title: "Chaos Cloth：布料求解与 Dataflow"
-excerpt: "连接布料资产、Dataflow、材料约束与碰撞，查阅 Chaos Cloth 的参数与创建条件。"
-date: "2026-07-02"
-category: "Physics"
-subtopic: "ChaosPhysics"
-tags: ["Chaos", "布料", "Cloth", "XPBD", "PBD", "约束"]
-readTime: "阅读约60分钟"
-kind: "source"
-level: "advanced"
-prerequisites: ["ue-chaos-physics-engine", "pbd-xpbd-math", "physics_constraints_deep_dive"]
+title: Chaos Cloth：布料求解与 Dataflow
+excerpt: 连接布料资产、Dataflow、材料约束与碰撞，查阅 Chaos Cloth 的参数与创建条件。
+date: '2026-07-02'
+category: Physics
+subtopic: ChaosPhysics
+tags:
+  - Chaos
+  - 布料
+  - Cloth
+  - XPBD
+  - PBD
+  - 约束
+readTime: 阅读约40分钟
+kind: source
+level: advanced
+pageType: source-analysis
+aliases:
+  - UE Chaos Cloth 详解 — 布料模拟架构、Dataflow 节点与约束系统
+prerequisites:
+  - ue-chaos-physics-engine
+  - pbd-xpbd-math
+  - physics_constraints_deep_dive
 nextArticles: []
+related: [deformable-body-dynamics, continuum-mechanics]
 topics:
-  - id: "ue-chaos-physics"
-    stage: "parallel"
-    role: "source"
+  - id: ue-chaos-physics
+    stage: parallel
+    role: source
     order: 20
-aliases: ["UE Chaos Cloth 详解 — 布料模拟架构、Dataflow 节点与约束系统"]
+sources: []
 ---
-
 布料资产的构建、材料参数和运行时求解属于不同阶段。本文沿 Dataflow 与 Cloth 数据流说明它们如何连接，再按约束类型查阅公式、参数和创建条件。通用柔度与位置修正见[PBD 与 XPBD](/knowledge/pbd-xpbd-math/)，不把某份资产的参数经验当作所有布料的默认值。
 
 > Chaos Cloth 是虚幻引擎 5 的现代布料模拟系统，基于 Chaos 物理引擎的 PBD/XPBD 约束求解框架。它以 **ClothCollection** 数据模型为核心，通过 **Dataflow Graph** 组织从网格导入、拓扑编辑、选择绘制、蒙皮绑定到模拟配置的完整流水线，最终由终端节点生成可挂载到 SkeletalMeshComponent 的布料资产。运行时，布料模拟通过一组位置约束（拉伸、弯曲、面积、长程附着、最大距离、后挡板、动画驱动、自碰撞）在 PBD 或力基求解器中迭代求解。
 >
-> 本文基于 `ChaosClothAssetDataflowNodes` 插件源码与 `ChaosCloth` 约束系统源码，完整梳理布料物理属性与推荐值、全部非废弃 Dataflow 节点的功能与参数、以及 Cloth Constraint 的数学原理与创建逻辑。阅读前建议回顾本站&#12298;[位置约束求解：PBD 与 XPBD](/knowledge/pbd-xpbd-math/)&#12299;的约束求解框架，以及&#12298;[数值积分：方法、误差与稳定性](/knowledge/numerical-integration-methods/)&#12299;的半隐式欧拉积分流水线——Chaos Cloth 的求解器循环正是这些方法在布料领域的工程落地。
+> 本文基于 `ChaosClothAssetDataflowNodes` 插件源码与 `ChaosCloth` 约束系统源码，完整梳理布料物理属性与推荐值、全部非废弃 Dataflow 节点的功能与参数、以及 Cloth Constraint 的数学原理与创建逻辑。阅读前建议回顾本站《[位置约束求解：PBD 与 XPBD](/knowledge/pbd-xpbd-math/)》的约束求解框架，以及《[数值积分：方法、误差与稳定性](/knowledge/numerical-integration-methods/)》的半隐式欧拉积分流水线——Chaos Cloth 的求解器循环正是这些方法在布料领域的工程落地。
 
 ---
 
-## 一、Chaos Cloth 架构概述
+## Chaos Cloth 架构概述
 
-### 1.1 ClothCollection 数据模型
+### ClothCollection 数据模型
 
 Chaos Cloth 的核心数据结构是 **ClothCollection**（基于 `FManagedArrayCollection`），它将布料资产组织为以下层次：
 
@@ -39,7 +51,7 @@ Chaos Cloth 的核心数据结构是 **ClothCollection**（基于 `FManagedArray
 - **Weight Maps（权重图）**：逐顶点的浮点权重数组，用于控制刚度、阻尼等参数的空间分布。
 - **Skinning Data（蒙皮数据）**：将布料网格绑定到骨骼的蒙皮权重。
 
-### 1.2 Sim Mesh 与 Render Mesh 的关系
+### Sim Mesh 与 Render Mesh 的关系
 
 Chaos Cloth 将模拟网格与渲染网格分离，这是其核心设计理念：
 
@@ -51,22 +63,22 @@ Chaos Cloth 将模拟网格与渲染网格分离，这是其核心设计理念�
 
 模拟完成后，需要把 Sim Mesh 的运动"驱动"到 Render Mesh 上，这一步通过 **Proxy Deformation**（代理变形）实现。Proxy Deformer 节点定义 Render Mesh 如何跟随 Sim Mesh 运动——如果使用多三角形影响（`bUseMultipleInfluences`），则在 `InfluenceRadius` 范围内搜索所有模拟网格三角形来影响渲染顶点位置。
 
-### 1.3 Dataflow Graph 工作流
+### Dataflow Graph 工作流
 
 布料资产的构建通过 **Dataflow Graph**（数据流图）完成。图中的节点按拓扑序执行，数据以 `FManagedArrayCollection`（ClothCollection）的形式在节点间传递。典型工作流：
 
-```
+```text
 导入节点 → 网格操作节点 → 选择/权重节点 → 蒙皮节点 → 模拟配置节点 → 终端节点
 ```
 
 所有模拟配置节点继承自 `FChaosClothAssetSimulationBaseConfigNode`，通过 `AddProperties(FPropertyHelper&)` 虚函数将自身属性写入 ClothCollection，最终由终端节点（TerminalNode）汇总生成布料资产。
 
 ---
-## 二、Dataflow 节点详解
+## Dataflow 节点详解
 
 > 以下节点均来自 `ChaosClothAssetDataflowNodes` 插件源码（路径：`Engine/Plugins/ChaosClothAssetDataflowNodes/Source/ChaosClothAssetDataflowNodes`）。所有标记为 `Deprecated` 的节点（如 `AddWeightMapNode`、`AttributeNode`、`DatasmithImportNode`、`MergeClothCollectionsNode`、`SimulationLongRangeAttachmentConfigNode`、`SimulationMultiResConfigNode`、全部 PBD 专用约束配置节点、全部 XPBD 专用约束配置节点等）均不在此文档范围内。
 
-### 2.1 导入节点
+### 导入节点
 
 #### ImportNode — 布料资产导入
 
@@ -124,7 +136,7 @@ Chaos Cloth 将模拟网格与渲染网格分离，这是其核心设计理念�
 | bRecalculateNormals | `bool` | true | 基于导入位置重计算模拟法线 |
 | bUpdateRenderMesh | `bool` | false | 通过代理变形器数据更新渲染网格 |
 
-### 2.2 终端节点
+### 终端节点
 
 #### TerminalNode — 布料终端节点
 
@@ -135,7 +147,7 @@ Dataflow 图的终端节点，从 ClothCollection 生成布料资产。
 | CollectionLods | `TArray<FManagedArrayCollection>` | 每个 LOD 的输入布料集合 |
 | Refresh | `FDataflowFunctionProperty` | 手动刷新资产（开发调试用，Dataflow 变更时自动刷新） |
 
-### 2.3 网格操作节点
+### 网格操作节点
 
 #### RemeshNode — 重新网格化
 
@@ -242,7 +254,7 @@ Dataflow 图的终端节点，从 ClothCollection 生成布料资产。
 | bStripUnusedRenderWeightMaps | `bool` | true | 剥离未使用的渲染权重图（仅影响未 Cook 资产） |
 | bCopyAllUserAttributesToSimModel | `bool` | true | 将所有用户属性传输到内部模拟模型 |
 
-### 2.4 DynamicMesh 交互节点
+### DynamicMesh 交互节点
 
 > 以下节点标记为 `Experimental`，用于 ClothCollection 与 GeometryFramework 的 `UDynamicMesh` 之间的交互。
 
@@ -279,7 +291,7 @@ Dataflow 图的终端节点，从 ClothCollection 生成布料资产。
 
 从 ClothCollection 中提取选择集。目前仅支持 SimVertices3D 和 RenderVertices 集合。
 
-### 2.5 选择与权重节点
+### 选择与权重节点
 
 #### SelectionNode — 选择节点
 
@@ -366,7 +378,7 @@ Dataflow 图的终端节点，从 ClothCollection 生成布料资产。
 - **2D vertices**：通常在 UV 空间或拓扑空间选择顶点（如布料 UV 展开上的一条缝边），系统根据拓扑顺序自动形成缝合链，常用于缝衣服的两条边。
 - **3D vertices**：直接在三维空间选择一组顶点（无拓扑顺序），通常直接合并为单一顶点，用于将某块布料的若干点收拢成一个固定点（如打结、固定在某个位置）。
 
-### 2.6 蒙皮与代理变形节点
+### 蒙皮与代理变形节点
 
 #### ProxyDeformerNode — 代理变形器
 
@@ -467,7 +479,7 @@ Dataflow 图的终端节点，从 ClothCollection 生成布料资产。
 | AccessoryMeshName | `FString` | "AccessoryMesh" | 附件网格名称 |
 | bUseSimImportVertexID | `bool` | true | 使用 SimImportVertexID 匹配顶点 |
 
-### 2.7 体型适配节点
+### 体型适配节点
 
 > 以下节点标记为 `Experimental`，用于 ChaosOutfitAsset 的可缩放服装功能。
 
@@ -499,7 +511,7 @@ Dataflow 图的终端节点，从 ClothCollection 生成布料资产。
 
 启用 ChaosOutfitAsset 可缩放服装使用的 UV 缩放。此节点无自定义属性，仅继承基类配置。
 
-### 2.8 模拟配置节点
+### 模拟配置节点
 
 所有模拟配置节点继承自 `FChaosClothAssetSimulationBaseConfigNode`，共享 `Collection` 输入/输出通道和 `bWarnDuplicateProperty` 属性。各节点通过 `AddProperties()` 虚函数将属性写入 ClothCollection，支持运行时通过 Cloth Interactor 动态修改。
 
@@ -758,11 +770,11 @@ Dataflow 图的终端节点，从 ClothCollection 生成布料资产。
 - `AllSourceToAllTargets`：所有源点连接所有目标点
 
 ---
-## 三、Cloth Constraint 约束系统详解
+## Cloth Constraint 约束系统详解
 
 > 以下分析基于 `ChaosCloth` 插件源码（路径：`Engine/Plugins/ChaosCloth/Source/ChaosCloth`）和 Chaos 核心物理引擎约束类。
 
-### 3.1 约束创建前提条件
+### 约束创建前提条件
 
 Chaos Cloth 中的粒子分为两类：
 
@@ -779,7 +791,7 @@ Chaos Cloth 中的粒子分为两类：
 
 原因：运动学粒子位置由动画锁定，在它们之间创建约束没有物理意义——约束无法改变它们的位置，只会浪费计算资源。
 
-### 3.2 PBD 与 XPBD 求解器
+### PBD 与 XPBD 求解器
 
 Chaos Cloth 支持两种约束求解模式，由 `SimulationStretchConfigNode` 和 `SimulationBendingConfigNode` 上的 `SolverType` 属性控制：
 
@@ -793,9 +805,9 @@ Chaos Cloth 支持两种约束求解模式，由 `SimulationStretchConfigNode` �
 | 性能 | 更快 | 略慢（额外乘子状态） |
 | 推荐场景 | 简单布料、性能优先 | 需要物理精确性、帧率一致性 |
 
-关于 PBD/XPBD 的完整数学推导，参见本站&#12298;[位置约束求解：PBD 与 XPBD](/knowledge/pbd-xpbd-math/)&#12299;。
+关于 PBD/XPBD 的完整数学推导，参见本站《[位置约束求解：PBD 与 XPBD](/knowledge/pbd-xpbd-math/)》。
 
-### 3.3 Isotropic 与 Anisotropic 分布
+### Isotropic 与 Anisotropic 分布
 
 | 特性 | Isotropic（各向同性） | Anisotropic（各向异性） |
 |------|---------------------|----------------------|
@@ -812,7 +824,7 @@ Chaos Cloth 支持两种约束求解模式，由 `SimulationStretchConfigNode` �
 
 各向异性允许织物在不同方向表现出不同的抗拉伸/弯曲特性——例如真实织物沿经纬方向更硬、沿斜向更软。`WarpScale` 和 `WeftScale` 可独立调整各方向的静止长度缩放。
 
-### 3.4 拉伸约束（Stretch / Edge Constraint）
+### 拉伸约束（Stretch / Edge Constraint）
 
 拉伸约束防止布料被过度拉长，作用于网格边的两个顶点之间。
 
@@ -855,7 +867,7 @@ $$
 
 **三角形元素拉伸**（`FXPBDStretchBiasElementConstraints`）在三角形级别通过 UV 空间变形梯度计算拉伸，连接 3 个粒子，计算 $\partial X / \partial U$ 和 $\partial X / \partial V$，分别应用 Warp（U）/ Weft（V）/ Bias（对角）刚度。
 
-### 3.5 弯曲约束（Bending Constraint）
+### 弯曲约束（Bending Constraint）
 
 弯曲约束控制布料抵抗弯折的能力，决定褶皱和波纹的形成。
 
@@ -914,7 +926,7 @@ $$
 | FlatnessRatio | 作为完全平坦 vs 3D 静止角度的比值计算。0=Use3DRestAngles，1=静止角度为 0（完全平坦） |
 | RestAngle | 使用显式值（度）。0=平坦，正值远离边法线折叠，负值朝边法线折叠 |
 
-### 3.6 屈曲机制（Buckling）
+### 屈曲机制（Buckling）
 
 屈曲是弯曲约束的核心特性，模拟织物在折叠超过一定阈值后抵抗力骤降的行为。
 
@@ -950,7 +962,7 @@ bool AngleIsBuckled(const FSolverReal Angle, const int32 ConstraintIndex) const
 
 `IsBuckled[]` 在每个子步的 `Init()` 中从当前状态重新计算。
 
-### 3.7 面积约束（Area Constraint）
+### 面积约束（Area Constraint）
 
 面积约束保持三角形面积，防止布料过度剪切变形。
 
@@ -964,7 +976,7 @@ bool AngleIsBuckled(const FSolverReal Angle, const int32 ConstraintIndex) const
 
 面积约束在 `SimulationStretchConfigNode` 中通过 `bAddAreaConstraint` 启用（仅 Isotropic 分布），刚度由 `AreaStiffness` 控制。
 
-### 3.8 长程附着约束（Long Range Attachment / Tether）
+### 长程附着约束（Long Range Attachment / Tether）
 
 长程附着约束连接运动学粒子到动力学粒子，用于加速约束收敛——每个动力学粒子寻找最近的运动学粒子并建立约束。
 
@@ -992,7 +1004,7 @@ $$
 - `TetherScale`：栓系长度缩放（0.01-10，乘以网格缩放）
 - `UseGeodesicTethers`：是否使用测地线距离计算栓系长度
 
-### 3.9 最大距离约束（MaxDistance）
+### 最大距离约束（MaxDistance）
 
 最大距离约束限制每个动力学粒子到其动画蒙皮位置的最大距离。值为 0 的粒子变为运动学体。
 
@@ -1010,7 +1022,7 @@ $$
 
 将粒子硬性拉回以动画位置为中心、$R$ 为半径的球内。
 
-### 3.10 后挡板约束（Backstop）
+### 后挡板约束（Backstop）
 
 后挡板约束防止布料穿透到身体的背面。每个粒子有一个沿动画法线偏移的碰撞球。
 
@@ -1030,7 +1042,7 @@ $$
 
 Legacy 模式（`UseLegacyBackstop`）从距离中排除半径，匹配旧 PhysX/NvCloth 行为。
 
-### 3.11 动画驱动约束（AnimDrive）
+### 动画驱动约束（AnimDrive）
 
 动画驱动约束驱动布料粒子向其动画蒙皮位置移动。
 
@@ -1048,7 +1060,7 @@ $$
 \vec{V}_{rel} = (\vec{P} - \vec{X}) - \vec{V}_{anim} \cdot \Delta t, \quad \vec{P} \mathrel{-}= D \cdot \vec{V}_{rel}
 $$
 
-### 3.12 自碰撞约束（Self-Collision）
+### 自碰撞约束（Self-Collision）
 
 自碰撞约束防止布料与自身相交，由三个协作类组成：
 
@@ -1074,11 +1086,11 @@ $$
 
 **自碰撞层**（`SelfCollisionLayers`）：面整数图，-1=正常碰撞，其他数字=层数。高层数面保持在低层数面的外侧（前向法线方向）。用于控制多层布料的碰撞行为。
 
-### 3.13 极端形变检测（Extreme Deformation）
+### 极端形变检测（Extreme Deformation）
 
 极端形变不是约束，而是一个检测器。存储交叉边、静止长度和顶点选择集，当任何边的当前/静止长度比超过 `ExtremeDeformationEdgeRatioThreshold` 时返回 true。不添加约束规则，仅用于诊断和可视化。
 
-### 3.14 压力与气动力（Pressure & Aerodynamics）
+### 压力与气动力（Pressure & Aerodynamics）
 
 压力与气动力作为外力（非位置约束）施加，仅力基求解器支持。
 
@@ -1089,7 +1101,7 @@ $$
 
 其中 $\rho$ 为流体密度，$A$ 为三角形面积，$C_d$/$C_l$/$C_p$ 分别为阻力/升力/压力系数。支持 Inner/Outer 变体用于双面布料。可选 `FBuoyancyField` 添加水中阻力和浮力。
 
-### 3.15 约束系统总表
+### 约束系统总表
 
 | 约束类型 | 约束类 | 拓扑 | 求解器 | 关键参数 |
 |---------|--------|------|--------|---------|
@@ -1115,7 +1127,7 @@ $$
 | 压力/气动 | FVelocityAndPressureField | 每三角形力 | 力基 | Drag, Lift, Pressure, FluidDensity |
 
 ---
-## 四、调试 CVAR
+## 调试 CVAR
 
 以下 CVAR 在布料调试中常用（来源于参考文档）：
 
@@ -1128,11 +1140,11 @@ $$
 | `p.Chaos.Cloth.EnableBuoyancy` | — | 启用浮力场 |
 
 ---
-## 五、布料物理属性、应用举例与参数推荐
+## 布料物理属性、应用举例与参数推荐
 
 不同类型的布料（丝绸、棉麻、皮革、毛呢等）在物理模拟中具有各自的物理属性差异，这些属性决定了布料的下垂感、褶皱方式、摆动幅度、回弹速度等动态行为。
 
-### 5.1 常见布料类型物理属性对比
+### 常见布料类型物理属性对比
 
 | 布料类型 | 拉伸刚度 | 弯曲刚度 | 剪切刚度 | 摩擦力 | 阻尼 | 特点 |
 |---------|---------|---------|---------|--------|------|------|
@@ -1144,7 +1156,7 @@ $$
 | 薄纱 / 雪纺 / 蕾丝 | 极低 | 极低 | 极低 | 低 | 极低 | 极轻盈，风中飘动剧烈，可产生丰富波浪 |
 | 尼龙 / 运动衣料 | 中高 | 低 | 中 | 中 | 中 | 有弹性、轻盈、快速反弹，适合紧身服饰 |
 
-### 5.2 关键物理属性解释
+### 关键物理属性解释
 
 | 属性 | 含义 | 对模拟的影响 |
 |------|------|-------------|
@@ -1156,7 +1168,7 @@ $$
 | 密度 / 质量 (Mass Density) | 单位面积的重量 | 决定飘动感 vs 沉重感，是布料惯性的基础 |
 | 空气阻力 (Air Drag) | 空气对运动布料的阻力 | 高→随风飘、缓慢下落；低→快速贴合或坠落 |
 
-### 5.3 弯曲（Bending）与屈曲（Buckling）
+### 弯曲（Bending）与屈曲（Buckling）
 
 "弯曲"和"屈曲"虽然都涉及物体形变，但在工程力学和布料模拟中是不同的概念：
 
@@ -1170,7 +1182,7 @@ $$
 
 在 Chaos Cloth 中，弯曲刚度控制布料柔软程度，决定波浪是否容易产生；屈曲则通过 **BucklingRatio** 参数间接建模——当布料折叠超过静止角度的一定比例后，切换到较低的屈曲刚度，模拟织物在受压折叠后抵抗力骤降的行为。详见第三节约束系统中的屈曲机制分析。
 
-### 5.4 应用举例
+### 应用举例
 
 #### 丝绸披风
 
@@ -1188,7 +1200,7 @@ $$
 
 极高拉伸和弯曲刚度，基本无飘动，形状保持强；需要高迭代次数保证刚度收敛。
 
-### 5.5 模拟参数默认值
+### 模拟参数默认值
 
 以下为源码中的默认值，对应参考 docx 中的参数配置（UE 5.5+）：
 
@@ -1242,15 +1254,15 @@ $$
 | SelfCollisionStiffness | 0.5 | 自碰撞刚度 |
 | SelfCollisionSphereRadius | 0.5 | 自碰撞球体半径 |
 
-### 5.6 不同布料类型推荐参数
+### 布料参数的试调起点
 
-下表汇总了各布料类型的关键模拟参数推荐范围。密度参考值来源于源码 `SimulationMassConfigNode.h` 中 `Density` 属性注释（单位 kg/m²），其余参数基于应用场景与最佳实践：
+下表保留为未标定的试调起点，不是按材质名称即可复用的物理材料库。密度单位为 kg/m²；拉伸与弯曲参数还依赖约束模型、网格、资产缩放和子步，不能把这些数值同时用于 PBD 与 XPBD。实际值应由样片或目标场景验证。
 
 | 布料类型 | Stretch Stiffness | Bend Stiffness | Density (kg/m²) | Damping | Drag | Friction | 说明 |
 |---------|-------------------|----------------|-----------------|---------|------|----------|------|
 | 丝绸 | 10-50 | 1-10 | 0.1 | 0.01 | 0.05-0.1 | 0.0-0.2 | 极度柔软、易飘动，需高空气阻力防穿模 |
 | 棉布 | 50-100 | 20-50 | 0.2 | 0.02 | 0.035 | 0.3-0.5 | 稍挺、折叠明显，抗拉性强 |
-| 皮革 | 500-1000 | 100-200 | 0.6 | 0.1 | 0.02 | 0.8 | 很厚重，需高迭代次数（6-8）保证收敛 |
+| 皮革 | 500-1000 | 100-200 | 0.6 | 0.1 | 0.02 | 0.8 | 较厚重；按网格、子步与残差调整预算 |
 | 牛仔布 | 200-500 | 50-100 | 0.4 | 0.05 | 0.035 | 0.5-0.8 | 结实挺括，折痕硬朗 |
 | 羊毛呢 | 100-200 | 50-100 | 0.7 | 0.05-0.1 | 0.035 | 0.5-0.8 | 厚重下垂、吸收动能、动作迟缓 |
 | 薄纱 | 5-20 | 1-5 | 0.05-0.1 | 0.005 | 0.05-0.1 | 0.0-0.1 | 极轻盈，风中飘动剧烈 |
@@ -1258,7 +1270,7 @@ $$
 
 > 其他织物密度参考（源码注释）：Polyurethane（聚氨酯）0.5、Light Leather（轻皮革）0.3。完整密度对照：Melton Wool 0.7 > Heavy Leather 0.6 > Polyurethane 0.5 > Denim 0.4 > Light Leather 0.3 > Cotton 0.2 > Silk 0.1。
 
-### 5.7 性能优化建议
+### 性能优化建议
 
 1. **Sim Mesh 分辨率**：保持模拟网格低多边形（通常 500-3000 三角形），渲染网格高多边形由 Proxy Deformer 驱动。
 

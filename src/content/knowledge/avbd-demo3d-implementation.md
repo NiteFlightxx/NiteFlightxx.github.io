@@ -1,26 +1,37 @@
 ---
-title: "avbd-demo3d：刚体求解器实现"
-excerpt: "沿原生 AVBD 项目追踪惯性预测、刚体块更新、接触流形与热启动。"
-date: "2026-07-03"
-category: "Physics"
-subtopic: "ConstraintSolver"
-tags: ["AVBD", "刚体动力学", "增广拉格朗日", "约束求解", "碰撞检测", "源码精读"]
-readTime: "阅读约55分钟"
+title: avbd-demo3d：刚体求解器实现
+excerpt: 沿原生 AVBD 项目追踪惯性预测、刚体块更新、接触流形与热启动。
+date: '2026-07-03'
+category: Physics
+subtopic: ConstraintSolver
+tags:
+  - AVBD
+  - 刚体动力学
+  - 增广拉格朗日
+  - 约束求解
+  - 碰撞检测
+  - 源码精读
+readTime: 阅读约35分钟
+kind: source
+level: advanced
+pageType: source-analysis
+aliases:
+  - AVBD 工程实现详解 — 从变分原理到刚体增广拉格朗日求解器（avbd-demo3d 源码精读）
+prerequisites:
+  - vbd-avbd-math
+nextArticles:
+  - three-avbd-gpu-solver
+related: []
 topics:
-  - id: "ue-chaos-physics"
-    stage: "constraint"
-    role: "practice"
+  - id: ue-chaos-physics
+    stage: constraint
+    role: practice
     order: 40
-kind: "practice"
-level: "advanced"
-prerequisites: ["vbd-avbd-math"]
-nextArticles: ["three-avbd-gpu-solver"]
-aliases: ["AVBD 工程实现详解 — 从变分原理到刚体增广拉格朗日求解器（avbd-demo3d 源码精读）"]
+sources: []
 ---
-
 这里讨论的是 avbd-demo3d 的具体刚体实现，不是通用 AVBD 的另一份完整推导。阅读主线是一次时间步中数据如何从预测状态进入六自由度块更新，再经接触与对偶状态完成迭代。理论目标见[VBD 与 AVBD](/knowledge/vbd-avbd-math/)，GPU 排程另见[three-avbd](/knowledge/three-avbd-gpu-solver/)。
 
-> 本站已有&#12298;[变分物理求解：VBD 与 AVBD](/knowledge/vbd-avbd-math/)&#12299;一文，从变分隐式积分出发推导了 VBD 的能量泛函、块坐标下降（BCD）、约束梯度/海森，以及 AVBD 用增广拉格朗日（ALM）化解硬约束刚性的原理。那篇是**理论骨架**——以布料/软体的**逐顶点 3×3 牛顿步**为主视角。
+> 本站已有《[变分物理求解：VBD 与 AVBD](/knowledge/vbd-avbd-math/)》一文，从变分隐式积分出发推导了 VBD 的能量泛函、块坐标下降（BCD）、约束梯度/海森，以及 AVBD 用增广拉格朗日（ALM）化解硬约束刚性的原理。那篇是**理论骨架**——以布料/软体的**逐顶点 3×3 牛顿步**为主视角。
 >
 > 本文是它的**工程对照面**：以开源项目 `avbd-demo3d` 为锚，精读一个把 AVBD 落到**刚体 6 自由度**上的完整实现。刚体推广带来三个本质变化——块从"顶点（3 DOF）"变成"刚体（6 DOF）"，牛顿步从 3×3 变成 6×6，角向惯性用四元数 log/exp 而非线性位置差。更重要的是，工程实现为了**实时与稳定**做出了若干与论文教科书不同的取舍：对偶变量每轮迭代交替更新（而非外层独立收敛）、罚参数按违反量比例增长（而非几何增长）、固定迭代无收敛早停、跨帧热启动作为稳定性核心。
 >
@@ -28,11 +39,11 @@ aliases: ["AVBD 工程实现详解 — 从变分原理到刚体增广拉格朗�
 
 ---
 
-## 一、avbd-demo3d 项目概览
+## avbd-demo3d 项目概览
 
 `avbd-demo3d` 是一个单进程、单线程的 AVBD 刚体物理演示引擎，用 SDL2 + 固定管线 OpenGL 渲染、ImGui 调参，可原生编译也可经 Emscripten 编为 WebAssembly 在浏览器运行（触屏适配齐全）。它不是一个产品级引擎，而是一份**可读、可调、可对照论文**的参考实现——代码总量不足 3000 行，却完整覆盖了 AVBD 的全部核心机制。
 
-### 1.1 源码文件分工
+### 源码文件分工
 
 | 文件 | 行数 | 职责 |
 |---|---|---|
@@ -48,9 +59,9 @@ aliases: ["AVBD 工程实现详解 — 从变分原理到刚体增广拉格朗�
 | `scenes.h` | 352 | 14 个演示场景（金字塔、绳、桥、软体晶格、可断裂梁…） |
 | `main.cpp` | 1043 | 主循环、SDL/GL/ImGui 初始化、相机、输入、渲染、阴影 |
 
-### 1.2 类层次
+### 类层次
 
-```
+```text
 Solver                       顶层仿真器：步进、调参、拾取
  ├─ Rigid  (侵入式单链表)    单个刚体：6 DOF 状态 + 质量/惯量
  │    └─ Force* forces       该体上的约束链表头
@@ -79,13 +90,13 @@ struct Force {
 
 ---
 
-## 二、AVBD 的物理数学原理（刚体推广版）
+## AVBD 的物理数学原理（刚体推广版）
 
 本节是理论文档的精炼，并补上**角向推广**——理论文以布料顶点（3 DOF）为主，本实现面向刚体（6 DOF），惯性项与海森都要扩展。
 
-### 2.1 变分隐式欧拉：积分即最小化
+### 变分隐式欧拉：积分即最小化
 
-隐式欧拉 $\mathbf{M}\dot{\mathbf{v}}=\mathbf{f}(\mathbf{x})$ 经离散化与整理（见理论文 §1.1），等价于最小化：
+隐式欧拉 $\mathbf{M}\dot{\mathbf{v}}=\mathbf{f}(\mathbf{x})$ 经离散化与整理（见[VBD/AVBD 的时间步目标](/knowledge/vbd-avbd-math/#时间步模型与符号)），等价于最小化：
 
 $$
 E(\mathbf{x}) = \underbrace{\frac{1}{2h^2}\|\mathbf{x}-\mathbf{y}\|_{\mathbf{M}}^2}_{\text{惯性势能}} + \underbrace{W(\mathbf{x})}_{\text{约束/弹性势能}}
@@ -93,7 +104,7 @@ $$
 
 其中惯性预测点 $\mathbf{y}=\mathbf{x}^n+h\mathbf{v}^n+h^2\mathbf{g}$ 是无约束自由运动外推。**一步积分 = 一步能量最小化**——这是 VBD 的变分根基。
 
-### 2.2 刚体的 6 自由度惯性项
+### 刚体的 6 自由度惯性项
 
 布料顶点只有 3 个平移 DOF，惯性项是标量 $\frac{m}{2h^2}\|\mathbf{x}-\mathbf{y}\|^2$。刚体有 3 平移 + 3 旋转 = 6 DOF。设刚体位置 $\mathbf{x}$、朝向四元数 $\mathbf{q}$、质量 $m$、转动惯量张量 $\mathbf{I}$（对角化为 $\text{diag}(I_{xx},I_{yy},I_{zz})$），惯性预测：
 
@@ -115,9 +126,9 @@ $$
 
 这是一个 6×6 对角块矩阵——平移块 $m/h^2\cdot\mathbf{I}_3$、角向块 $\mathbf{I}/h^2$、无平移-角向耦合（`lhsCross` 初始为零）。**惯性海森是对角正定的**，这正是 VBD 数值稳定性的核心：即使约束海森退化，惯性项也保证 6×6 系统正定可解。
 
-### 2.3 增广拉格朗日：硬约束的对偶解法
+### 增广拉格朗日：硬约束的对偶解法
 
-AVBD 把硬约束 $c(\mathbf{x})=0$ 的纯罚形式 $\frac{k}{2}c^2$（$k\to\infty$ 时条件数爆炸）替换为增广拉格朗日泛函（见理论文 §5.2）：
+AVBD 把硬约束 $c(\mathbf{x})=0$ 的纯罚形式 $\frac{k}{2}c^2$（$k\to\infty$ 时条件数爆炸）替换为增广拉格朗日泛函（见[VBD/AVBD 的增广机制](/knowledge/vbd-avbd-math/#avbd-的增广拉格朗日机制)）：
 
 $$
 \mathcal{L}(\mathbf{x},\boldsymbol\lambda) = E_{\text{inertia}}(\mathbf{x}) + \sum_j\Bigl[\boldsymbol\lambda_j\,c_j(\mathbf{x}) + \frac{\rho_j}{2}\,c_j(\mathbf{x})^2\Bigr]
@@ -140,7 +151,7 @@ $$
 
 即实现中的 `lhsLin += jLinT * K * jLin` 等秩 1 外积累加。
 
-### 2.4 块坐标下降：逐体牛顿步
+### 块坐标下降：逐体牛顿步
 
 BCD 把全局最小化切成**逐块**下降。本实现的"块"是一个**完整刚体**的 6 DOF（不是布料的单顶点 3 DOF）。每轮迭代：
 
@@ -151,11 +162,11 @@ BCD 把全局最小化切成**逐块**下降。本实现的"块"是一个**完�
 
 ---
 
-## 三、数学原语（maths.h）
+## 数学原语（maths.h）
 
 实现不用任何线性代数库，全部手写。几个对 AVBD 至关重要的原语：
 
-### 3.1 四元数 log / exp：角向增量的载体
+### 四元数 log / exp：角向增量的载体
 
 角速度是 3 维旋转向量 $\boldsymbol\omega$，而朝向是单位四元数 $\mathbf{q}$。两者间的转换靠两个重载运算符：
 
@@ -178,7 +189,7 @@ quat operator+(quat a, float3 b) {
 
 > **为何用 log/exp 而非欧拉角**：欧拉角有万向锁、旋转顺序歧义；旋转向量 $\boldsymbol\omega\in\mathbb{R}^3$ 是 $\mathfrak{so}(3)$ 的切空间坐标，可线性叠加、无奇异（小角范围内），正好适配牛顿法的线性求解。代价是大角度旋转时一阶近似误差累积，故实现固定迭代 + 小时间步控制误差。
 
-### 3.2 skew 与 outer：雅可比的矩阵化
+### skew 与 outer：雅可比的矩阵化
 
 ```cpp
 // skew(r) —— 叉积的矩阵形式：skew(r)·v = cross(r, v)
@@ -197,7 +208,7 @@ float3x3 outer(float3 a, float3 b) {
 - `skew(r)` 把"角速度产生的线速度" $\mathbf{v}=\boldsymbol\omega\times\mathbf{r}$ 写成矩阵乘 $\text{skew}(\mathbf{r})^{\mathsf T}\boldsymbol\omega$。约束雅可比的角向块正是 $\pm\text{skew}(\mathbf{r}_{\text{world}})$——接触点偏移 $\mathbf{r}$ 绕质心旋转产生的线速度。
 - `outer(jLin, jLin)*stiffness` 直接构造 Gauss-Newton 海森 $\rho\,\nabla c\,\nabla c^{\mathsf T}$。
 
-### 3.3 6×6 LDLᵀ 求解器：逐体牛顿步的内核
+### 6×6 LDLᵀ 求解器：逐体牛顿步的内核
 
 这是实现的心脏。每个刚体的牛顿系统是 6×6 对称正定（SPD）：
 
@@ -221,15 +232,15 @@ void solve(float3x3 aLin, float3x3 aAng, float3x3 aCross,
 }
 ```
 
-> **为何不用 3×3**：布料顶点只有平移，海森是 3×3，可用 Sherman-Morrison 公式解析求逆（理论文 §4.1）。刚体有 6 DOF 且平移-角向耦合，系统是 6×6，需通用 SPD 求解。LDLᵀ 是 SPD 系统的最优解法（不需求逆、数值稳定、可手写展开），6×6 规模下展开后的常数折叠效率极高。
+> **为何不用 3×3**：布料顶点只有平移，海森是 3×3，可用 Sherman-Morrison 公式解析求逆，具体形式取决于局部能量。刚体有 6 DOF 且平移-角向耦合，系统是 6×6，需通用 SPD 求解。LDLᵀ 是此处采用的小矩阵分解方法（不需求逆、数值稳定、可手写展开），6×6 规模下展开后的常数折叠效率极高。
 
 ---
 
-## 四、求解器主循环（Solver::step）
+## 求解器主循环（Solver::step）
 
 `step()` 是 AVBD 的完整一帧，分五个相位。下表是 548 行 `maths.h` 与 243 行 `solver.cpp` 浓缩成的算法骨架，所有默认值来自 `defaultParams()`：
 
-```
+```text
 默认参数：dt=1/60, gravity=-10, iterations=10,
           betaLin=10000, betaAng=100, alpha=0.99, gamma=0.999
 ```
@@ -245,7 +256,7 @@ for (A : bodies) for (B : bodies after A) {
 }
 ```
 
-`constrainedTo` 跳过已有约束连接的体对（如软体晶格内部），避免冗余碰撞。碰撞流形每帧重建——但 `Manifold::initialize` 会通过 `FeaturePair` 特征键把上一帧的 $\lambda/\rho/\text{stick}$ 迁移过来（见 §6.3）。
+`constrainedTo` 跳过已有约束连接的体对（如软体晶格内部），避免冗余碰撞。碰撞流形每帧重建——但 `Manifold::initialize` 会通过 `FeaturePair` 特征键把上一帧的 $\lambda/\rho/\text{stick}$ 迁移过来（见下文的接触流形缓存）。
 
 ### Phase B — 约束初始化与热启动
 
@@ -344,11 +355,11 @@ for (body : bodies) {
 
 ---
 
-## 五、约束实现详解
+## 约束实现详解
 
 三个 `Force` 子类展示 AVBD 的三种约束范式。
 
-### 5.1 Joint：球铰 + 角约束 + 断裂（完整 ALM）
+### Joint：球铰 + 角约束 + 断裂（完整 ALM）
 
 球铰约束两体的一个锚点重合，并可附加朝向对齐与断裂阈值。
 
@@ -396,7 +407,7 @@ float3x3 H = geometricStiffnessBallSocket(0,r)*F[0]
 lhsAng += diagonalize(H);    // 对角近似，保证正定
 ```
 
-这是比纯 Gauss-Newton 更精确的牛顿步——理论文 §3.1 提到的"法向曲率修正"在球铰里的对应物，但实现取对角近似以保正定与效率。
+这是比纯 Gauss-Newton 更精确的牛顿步——通用能量模型中的"法向曲率修正"在球铰里的对应物，但实现取对角近似以保正定与效率。
 
 **角向约束**（朝向对齐）：$\mathbf{C}_{\text{ang}}=(\mathbf{q}_A\ominus\mathbf{q}_B)\cdot\text{torqueArm}$，雅可比 $\mathbf{J}_{\text{ang}}=\pm\text{torqueArm}\cdot\mathbf{I}_3$，海森 $\text{torqueArm}^2\cdot\mathbf{K}_{\text{ang}}$。`torqueArm` 把四元数差的量纲（无量纲旋转向量）缩放到与线位移可比，使线性+角向罚参数可统一调度。
 
@@ -418,7 +429,7 @@ penaltyLin = min(penaltyLin + abs(C) * betaLin, min(stiffnessLin, PENALTY_MAX));
 
 **断裂**：当角向乘子模长超过阈值 $\|\boldsymbol\lambda_{\text{ang}}\|>\text{fracture}$，清零全部 $\lambda/\rho$、置 `broken=true`，下帧 `initialize()` 返回 false 被删除。场景 13（Breakable）演示梁在重物冲击下逐段断裂。
 
-### 5.2 Spring：纯原罚函数（无对偶）
+### Spring：纯原罚函数（无对偶）
 
 ```cpp
 struct Spring : Force {
@@ -430,7 +441,7 @@ struct Spring : Force {
 
 > **为何弹簧不用 ALM**：弹簧是**软约束**，$k$ 有限，不存在 $k\to\infty$ 的刚性病。ALM 的对偶 machinery 是为硬约束准备的，软弹性力用纯罚更直接、更省内存。这揭示一个工程原则：**AVBD 求解器允许纯罚与 ALM 混用**——同一场景里弹簧（纯罚）与球铰（ALM）共存，各自取最合适的约束范式。理论文把 AVBD 描述为"全 ALM"，实现做了更务实的混合。
 
-### 5.3 Manifold：接触 + 库仑摩擦（单边 ALM）
+### Manifold：接触 + 库仑摩擦（单边 ALM）
 
 碰撞接触是最复杂的约束，融合了**单边不等式**（不穿透）、**库仑摩擦锥**、**多接触点流形**、**特征持久化热启动**。
 
@@ -484,9 +495,9 @@ if (fs > bounds && fs > 0) {                    // 超出摩擦锥
 
 ---
 
-## 六、碰撞检测（collide.cpp）
+## 碰撞检测（collide.cpp）
 
-### 6.1 SAT 15 轴分离测试
+### SAT 15 轴分离测试
 
 OBB-OBB 碰撞用分离轴定理（SAT）测试 15 个候选轴：A 的 3 面轴、B 的 3 面轴、9 个边叉积轴 $\mathbf{a}_i\times\mathbf{b}_j$。每轴投影两体，若任一轴分离则无碰撞（早退）；否则记录最小穿透轴：
 
@@ -498,7 +509,7 @@ if (!best.valid || separation > best.separation) best = {type, idxA, idxB, separ
 
 `best` 是穿透最浅（`separation` 最大即最不负）的轴。面轴 vs 边轴有容差仲裁（`edgeRelTol=0.95`、`edgeAbsTol=0.01`）：当边轴穿透接近面轴时优先选边，避免面接触在退化姿态下翻转抖动。
 
-### 6.2 Sutherland-Hodgman 流形裁剪
+### Sutherland-Hodgman 流形裁剪
 
 面接触：选参考面（穿透最浅的面），建入射面（对方最朝参考法向的面），用参考面 4 个侧平面 `clipPolygonAgainstPlane` 裁剪入射面 4 顶点，保留参考面内侧的顶点为接触点（最多 8 个，按中点距离去重）：
 
@@ -514,13 +525,13 @@ for (p : clippedVertices) {
 
 边接触：两支撑边的最近点对（Ericson 线段-线段最近点算法），单接触点。
 
-### 6.3 接触基与法向约定
+### 接触基与法向约定
 
 `basisOut = orthonormal(-best.normalAB)`——`normalAB` 是 B 指向 A，取负后行 0 是 A 指向 B 的法向。行 1/2 是正交切向。所有接触约束量在此基下表示，法向在第 0 分量、切向在第 1/2 分量，便于单边钳制与摩擦锥投影。
 
 ---
 
-## 七、稳定性与调参（基于真实默认值）
+## 稳定性与调参（基于真实默认值）
 
 实现的 `defaultParams()` 给出一组经过验证的默认值，与理论文的建议有差异：
 
@@ -542,7 +553,7 @@ for (p : clippedVertices) {
 
 ---
 
-## 八、场景与可视化
+## 场景与可视化
 
 14 个场景覆盖 AVBD 的典型用例，全部通过 `scenes.h` 的工厂函数注册：
 
@@ -569,101 +580,20 @@ for (p : clippedVertices) {
 
 ---
 
-## 九、与理论文档的对比与勘误
+## 实现与通用模型的对应
 
-本节是核心——把 `vbd-avbd-math.md` 的论断逐条对照实现，标注 confirmed（确认）、nuance（需细化）、**error（需更正）**。
+这份实现按刚体而非粒子顶点建立局部块，使用三个平移和三个局部旋转自由度。通用目标与导数见[VBD/AVBD](/knowledge/vbd-avbd-math/)，本文保留具体数据结构、局部矩阵和执行链。
 
-### 9.1 ✅ 确认无误的论断
+本仓库的 native/avbd/source/solver.cpp:134 起可以对照 Solver::step，:191 起的循环每轮执行原问题与对偶更新；默认 iterations 在 :113 为 10。固定预算表示实际采用有限迭代近似，不等于目标已经收敛，也不能证明任意场景确定性。
 
-| 理论文论断 | 实现印证 |
-|---|---|
-| 隐式欧拉 = 能量最小化 $\min E_{\text{inertia}}+W$ | `step()` Phase C/D 完全照此：惯性预测 $\mathbf{y}$、惯性海森 $M/h^2$、原步牛顿 |
-| 惯性项海森 $m/h^2\cdot\mathbf{I}$ 保证正定 | `lhsLin = diagonal(mass)/(dt*dt)`，`lhsAng = diagonal(moment)/(dt*dt)` |
-| 牛顿步 $\Delta\mathbf{x}=-\mathbf{H}^{-1}\nabla E$ | `solve(lhs, -rhs, dx); position += dx` |
-| ALM 形式 $\lambda c+\frac{\rho}{2}c^2$，梯度 $(\lambda+\rho c)\nabla c$ | `F = K*C + lambda; rhs += Jᵀ F`（$\mathbf{K}=\rho$，$\mathbf{C}=c$） |
-| Gauss-Newton 海森 $\rho\,\nabla c\,\nabla c^{\mathsf T}=\mathbf{J}^{\mathsf T}\mathbf{K}\mathbf{J}$ | `lhs += transpose(J) * K * J`（秩 1 外积） |
-| "A" = 增广拉格朗日，非动量 | 确认：$\lambda$ 对偶上升 + 罚调度是核心，无任何动量预测项（Phase C 的自适应热启动是位置预测，非优化动量） |
-| BDF1 速度 $\mathbf{v}=(\mathbf{x}^{n+1}-\mathbf{x}^n)/h$ | Phase E 完全一致 |
-| 硬约束 $\lambda\leftarrow\lambda+\rho c$ | Joint 硬约束 `lambdaLin = K*C + lambdaLin`（即 $\lambda+\rho C$） |
+joint.cpp:42–45 在初始化中对乘子与罚参数使用热启动缩放；:143 和 :166 依据当前违反量与 betaLin/betaAng 增长罚参数并封顶。gamma 在这条路径中参与衰减，不应复用为通用 ALM 讲解里的增长因子。
 
-### 9.2 ⚠️ 需细化的论断（nuance）
+这些是具体实现选择：逐体顺序更新、有限轮原对偶交替、约束各自提供局部导数与边界。它们不要求代码必须使用 GPU 或图染色；也不能借用精确块最小化或完全求解原问题的理论条件，宣称当前有限预算循环必然单调下降、无条件稳定或精确满足硬约束。
 
-**① "块 = 顶点，3×3 牛顿步"**
+## 验证与继续阅读
 
-理论文 §4.1 反复强调"VBD 的块是一个顶点"、牛顿步是 3×3。这对**布料/软体**（顶点 3 DOF）成立。但本实现面向**刚体**（6 DOF），块是一个完整刚体，牛顿步是 **6×6 LDLᵀ**。这不是错误——VBD/AVBD 是个**框架**，"块"的粒度随应用域变：布料逐顶点 3×3、刚体逐体 6×6、理论上还能逐粒子簇 N×N。理论文以布料为主视角，未覆盖刚体推广；本文补上 6×6 与角向四元数 log/exp 这一层。
+本轮复读了随仓库保存的 solver.cpp 与 joint.cpp 相关控制流程，未编译 native 示例，也未重跑堆叠、链桥或断裂场景。前文场景与参数是实现资料，不能被解释为本轮运行验收。
 
-**② "图染色是 VBD 并行优势的核心"**
+检查时分别记录局部线性系统残差、约束违反、原对偶状态、接触特征和总步耗时。固定轮数、子步数、热启动、罚参数和实际误差需要一起比较，不给出没有场景依据的性能或稳定性保证。
 
-理论文 §7 把图染色作为 VBD 高性能的关键。实现**完全没用图染色**——单线程顺序 BCD（链表遍历）。这说明：图染色是 VBD **可选的并行化策略**（GPU/多核场景才需要），不是 VBD **定义性特征**。顺序 BCD 一样收敛、一样是 VBD。理论文把"可并行"与"必须并行"混淆了。实现证明了 AVBD 的本质是**变分能量 + BCD + ALM**，并行只是工程加速。
-
-**③ "收敛保证 / 收敛早停"**
-
-理论文 §4.3 伪代码有 `if ‖∇E‖ < ε: break`（收敛早停），§9.2 表格标 VBD/AVBD"✅ 收敛保证"。实现**无任何收敛检查**——固定 10 轮跑满。BCD 的能量单调下降理论保证成立（每步下降），但"早停"是工程优化项，实现选择确定性（固定轮数）而非自适应。这不算错误，但理论文应说明"早停可选，实践中常用固定轮数"。
-
-### 9.3 ❌ 需更正的论断（error）
-
-**① 罚参数调度：几何增长 vs 违反比例增长**
-
-理论文 §5.2 写 $\rho\leftarrow\gamma\rho$（$\gamma>1$ 几何增长），§8.2 给典型 $\gamma=1.5\sim2.0$。
-
-实现用 $\rho\leftarrow\min(\rho+\beta\cdot|\mathbf{C}|,\,\rho_{\max})$——**按违反量比例增长**，非几何增长。这是更现代的自适应罚调度（类 Goldfarb 罚策略）：违反大的约束罚参数涨得快，自动聚焦瓶颈；几何增长则对所有约束一视同仁，可能让已满足的约束罚参数无谓膨胀。
-
-更关键的是符号冲突：实现里 `gamma=0.999` 是**热启动衰减因子**（`initialize` 中 $\rho\leftarrow\rho\cdot\gamma$，$\gamma<1$ 衰减），方向与理论文 $\gamma>1$ 增长**完全相反**。两者用同一字母 $\gamma$ 却是相反操作——读者对照两文会困惑。**建议理论文将增长因子改名 $\eta$ 或明确区分"增长 $\gamma_{\uparrow}$"与"衰减 $\gamma_{\downarrow}$"。**
-
-**② 对偶更新结构：嵌套外/内层 vs 交替原对偶**
-
-理论文 §5.3 伪代码是**嵌套结构**：
-
-```
-外层（对偶）for k = 1..N_outer:
-  内层（VBD）固定 λ,ρ，逐顶点最小化至收敛:
-    for iter = 1..N_inner: ...   ← 原步收敛后才更新对偶
-  对偶更新: λ ← λ + ρc
-```
-
-实现是**交替结构**（单层循环）：
-
-```
-for it = 1..iterations:           ← 每轮都更新原与对偶
-  原步（遍历所有体，各做一次牛顿步）
-  对偶步（遍历所有约束，各更新一次 λ/ρ）
-```
-
-这是本质差异。理论文的结构保证内层原步收敛后再对偶上升——这是 ALM 经典理论收敛性证明的前提。实现的交替法每轮都动 $\lambda$，原步未收敛就更新对偶——**经典 ALM 收敛性证明不直接适用**。实践中交替法靠热启动 + 罚调度仍稳定，但理论保证较弱。理论文应注明"工程实现常交替更新以省内层迭代，代价是失去严格的 ALM 收敛证明"。
-
-**③ "VBD 无 Lagrange 乘子累积，乘子累积是 XPBD 机制"**
-
-理论文 §4.2 关键点 3 写"VBD 把约束以罚函数直接写入能量...无 $\lambda$ 累积...乘子累积是 XPBD 机制"。§5.4 又澄清"AVBD 的 $\lambda$ 是 ALM 对偶变量，不是 XPBD 内层累积"。
-
-实现表明这个二分法**过于绝对**。AVBD 的 $\lambda$ **既跨迭代累积也跨帧累积**（`initialize` 热启动迁移、`updateDual` 每轮 `lambda = F` 累加）。它与 XPBD $\lambda$ 的区别不在"是否累积"，而在**累积的语义**：XPBD $\lambda$ 累积是为消除迭代次数依赖（柔度 $\tilde\alpha=1/(kh^2)$）；AVBD $\lambda$ 累积是为精确逼近真实约束力（ALM 对偶上升）。两者都"累积"，只是目的不同。理论文 §5.4 的澄清方向对，但"不是内层累积"的表述会误导读者以为 AVBD $\lambda$ 不在迭代间累积——实际上它每轮 `updateDual` 都在累积。
-
-**④ 子步的必要性**
-
-理论文 §8.1 强调子步（典型 2–8）满足 CFL 条件。实现**无子步**——main 每帧单步 `solver->step(dt=1/60)`。这靠 AVBD 的隐式特性（无条件稳定）+ 罚调度 + 稳定化 $\alpha$ 在大步长下维持稳定。理论文应说明"子步是显式/半隐式方法的稳定手段，VBD/AVBD 的隐式变分结构允许更大步长，子步非必需"。
-
-### 9.4 理论文未覆盖的实现要点
-
-| 要点 | 实现位置 | 作用 |
-|---|---|---|
-| **稳定化参数 $\alpha$** | `step`/`updatePrimal`/`updateDual` 全程传递 | Baumgarte 位置修正 + 热启动衰减，AVBD 稳定的关键旋钮 |
-| **跨帧热启动** | `initialize` 迁移 $\lambda/\rho$ | 乘子跨帧累积，大幅减少收敛迭代，是实时性的核心 |
-| **自适应重力热启动** | Phase C `accelWeight` | 估计外力占比，加权预施重力，减少原步迭代 |
-| **纯罚与 ALM 混用** | Spring 无对偶 vs Joint/Manifold 有对偶 | 软弹性用纯罚、硬约束用 ALM，同场景共存 |
-| **单边 + 摩擦锥投影** | Manifold `F[0]=min(F[0],0)` + 锥钳制 | ALM 处理不等式约束的工程做法 |
-| **几何刚度对角近似** | Joint `diagonalize(H)` | 球铰二阶项保正定的实用近似 |
-| **接触特征持久化** | `FeaturePair.key` 匹配 | 接触点坐标变但拓扑同则继承乘子 |
-| **6×6 LDLᵀ 手写展开** | `maths.h::solve` | 刚体 6 DOF 牛顿步的高效内核 |
-
----
-
-## 十、总结
-
-> **avbd-demo3d 证明了什么**：AVBD 不需要 GPU、不需要图染色、不需要子步、不需要收敛检查，也能在 1/60 秒内稳定模拟 16 层金字塔堆叠、40 节链桥、可断裂梁。它的稳定性的真正来源是——（1）变分隐式欧拉把惯性写进能量（无条件稳定）；（2）增广拉格朗日用 $\lambda$ 精确施加硬约束力（避免 $k\to\infty$ 病态）；（3）跨帧热启动让乘子累积（每帧从近最优起点出发）；（4）稳定化 $\alpha$ 温和清除残余误差。
-
-> **与理论文的关系**：理论文给出 VBD/AVBD 的数学骨架（变分原理、BCD、ALM、收敛理论），实现给出工程肉身（6×6 求解、交替原对偶、违反比例罚调度、热启动、单边投影）。两者互补：理论告诉你"为什么对"，实现告诉你"怎么跑起来"。本文第九节列出的差异不是理论文"错了"——多数是**理论做了简化假设以利推导，实现做了务实裁剪以利实时**。理解这层张力，才能既不被论文的理想结构束缚，也不被实现的工程妥协误导。
-
-> **代码层面的一句话总结**：AVBD 求解器 = 每帧重建约束图 → 热启动迁移乘子 → 10 轮「逐体 6×6 牛顿步 + 逐约束对偶上升」交替 → BDF1 提速度。每个 `Force` 子类只负责把自己的 $\mathbf{J}^{\mathsf T}\mathbf{K}\mathbf{J}$ 与 $\mathbf{J}^{\mathsf T}\mathbf{F}$ 累加进所在体的 6×6 系统，求解器负责组装与求解。这种"约束自治、求解器统一"的架构，正是 AVBD 可扩展性的工程体现。
-
----
-
-*本文基于 `avbd-demo3d` 源码（11 文件、约 3000 行）逐行精读整理，所有公式、代码、参数均对应实际实现。理论对照部分基于本站&#12298;[变分物理求解：VBD 与 AVBD](/knowledge/vbd-avbd-math/)&#12299;。*
+理论见[VBD/AVBD](/knowledge/vbd-avbd-math/)，GPU 版本见[three-avbd](/knowledge/three-avbd-gpu-solver/)，UE 宿主与提交边界见[GPUPhysicsLab](/knowledge/gpu-physics-plugin/)。

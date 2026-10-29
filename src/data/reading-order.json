@@ -1,30 +1,295 @@
 [
-  {"id":"engineering-math","domain":"mathematics","title":"工程数学","sections":[
-    {"title":"数学语言与空间","articles":["mathematical-notation-reference","ue-linear-algebra-guide"]},
-    {"title":"变化与数值方法","articles":["calculus-foundations","differential-equations","jacobian-matrix","iterative-linear-solvers","hessian-matrix","partial-differential-equations"]}
-  ]},
-  {"id":"rigid-body-physics","domain":"physics","title":"实时刚体物理","sections":[
-    {"title":"运动与时间推进","articles":["classical-mechanics","numerical-integration-methods"]},
-    {"title":"碰撞与接触","articles":["collision-detection-gjk-epa-sat","gjk-collision-detection"]},
-    {"title":"构建引擎与约束求解","articles":["2d-physics-engine","physics_constraints_deep_dive","pbd-xpbd-math"]},
-    {"title":"变分求解与 GPU 实现","articles":["vbd-avbd-math","avbd-demo3d-implementation","three-avbd-gpu-solver","gpu-physics-plugin"]},
-    {"title":"Chaos 引擎实现","articles":["ue-chaos-physics-engine","chaos-kinematic-sync"]}
-  ]},
-  {"id":"character-animation","domain":"animation","title":"角色动画系统","sections":[
-    {"title":"骨骼、空间与姿态","articles":["ue-animation-node-math"]},
-    {"title":"IK 与重定向","articles":["ue-fullbody-ik-math","predictive-foot-ik","ik-retargeter-ops-math"]},
-    {"title":"Motion Matching","articles":["motion-matching-pose-search-source-guide"]}
-  ]},
-  {"id":"deformables","title":"可变形体","sections":[
-    {"title":"布料、弹性杆与弹性体","articles":["chaos-cloth","position-based-elastic-rods","jgs2-gpu-elastodynamics"]}
-  ]},
-  {"id":"fluids","title":"流体模拟","sections":[
-    {"title":"粒子流体","articles":["sph-fluid-simulation","pbf-fluid-simulation"]}
-  ]},
-  {"id":"flight-control","title":"无人机与飞行控制","sections":[
-    {"title":"动力学与控制实现","articles":["quadcopter-basics-interactive","quadcopter-flight-control-math"]}
-  ]},
-  {"id":"engine","domain":"engine","title":"引擎与渲染","sections":[
-    {"title":"Niagara","articles":["ue-niagara-parameters"]}
-  ]}
+  {
+    "id": "simulation-foundations",
+    "domain": "physics",
+    "title": "物理模拟共同基础",
+    "description": "从状态与守恒进入连续介质，随后平行选择刚体、软体或流体。",
+    "sections": [
+      {
+        "title": "共同概念主线",
+        "mode": "sequence",
+        "articles": [
+          "physics-simulation-overview",
+          "particle-dynamics",
+          "continuum-mechanics"
+        ],
+        "notes": {
+          "physics-simulation-overview": "先看共同基础、三类模型和共享数值工具的关系。",
+          "particle-dynamics": "先建立状态、动量、功与能量；这些规律同样服务于固体与流体。",
+          "continuum-mechanics": "把单个运动对象扩展为材料场，从守恒、应力与本构进入各模型分支。"
+        }
+      }
+    ]
+  },
+  {
+    "id": "rigid-body-physics",
+    "title": "刚体动力学",
+    "description": "保持内部形状的模型分支：从整体运动到接触，再到时间步实现。",
+    "sections": [
+      {
+        "title": "刚体模型与接触",
+        "mode": "sequence",
+        "articles": [
+          "rigid-body-dynamics",
+          "contact-response-and-manifolds",
+          "2d-physics-engine"
+        ],
+        "notes": {
+          "rigid-body-dynamics": "共同基础之后的刚体分支；只讨论保持形状的整体平移与转动。",
+          "contact-response-and-manifolds": "在刚体点速度与动量变化上加入接触、支撑和摩擦。",
+          "2d-physics-engine": "将刚体、接触、时间积分与共同约束工具连接为一个小型时间步。"
+        }
+      }
+    ]
+  },
+  {
+    "id": "deformables",
+    "title": "可变形体／软体动力学",
+    "description": "先建立形变与材料模型，再按体积、布料、壳或杆选择分支。",
+    "sections": [
+      {
+        "title": "形变与材料主文",
+        "mode": "reference",
+        "articles": [
+          "deformable-body-dynamics"
+        ],
+        "notes": {
+          "deformable-body-dynamics": "连续介质之后的软体分支；先建立应变、能量、内力与离散的关系。"
+        }
+      },
+      {
+        "title": "布料",
+        "mode": "reference",
+        "articles": [
+          "chaos-cloth"
+        ]
+      },
+      {
+        "title": "弹性杆",
+        "mode": "reference",
+        "articles": [
+          "position-based-elastic-rods"
+        ]
+      },
+      {
+        "title": "GPU 弹性体算法",
+        "mode": "reference",
+        "articles": [
+          "jgs2-gpu-elastodynamics"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "fluids",
+    "title": "流体动力学",
+    "sections": [
+      {
+        "title": "共同模型与粒子深入",
+        "mode": "sequence",
+        "articles": [
+          "fluid-dynamics",
+          "sph-fluid-simulation",
+          "pbf-fluid-simulation"
+        ],
+        "notes": {
+          "fluid-dynamics": "先理解守恒、平流、压力、黏性与边界，再选择离散路线。",
+          "sph-fluid-simulation": "在流体共同模型上，深入粒子核插值、压力与边界。",
+          "pbf-fluid-simulation": "在粒子密度离散上，用位置约束组织不可压缩修正。"
+        }
+      }
+    ],
+    "description": "从流动、压力与边界进入网格、粒子和混合路线，粒子算法是其中一条深入分支。"
+  },
+  {
+    "id": "multiphysics",
+    "title": "多物理耦合",
+    "description": "不同模型相遇时，明确界面、反作用与时间排程。",
+    "sections": [
+      {
+        "title": "界面与动量交换",
+        "mode": "reference",
+        "articles": [
+          "multiphysics-coupling"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "physics-methods",
+    "title": "共享理论与数值方法",
+    "description": "各模型共同查阅的方程表述、时间积分、约束与求解工具。",
+    "sections": [
+      {
+        "title": "分析力学",
+        "mode": "reference",
+        "articles": [
+          "classical-mechanics"
+        ],
+        "notes": {
+          "classical-mechanics": "质点与刚体主线之后，用同一个单摆理解广义坐标、拉格朗日和哈密顿表述。"
+        }
+      },
+      {
+        "title": "时间推进与约束",
+        "mode": "reference",
+        "articles": [
+          "numerical-integration-methods",
+          "physics_constraints_deep_dive"
+        ],
+        "notes": {
+          "numerical-integration-methods": "质点、刚体、软体与流体都需要时间离散；这里集中比较方法与稳定性。",
+          "physics_constraints_deep_dive": "接触、关节和材料约束共享局部变化、有效质量与耦合求解语言。"
+        }
+      },
+      {
+        "title": "凸体几何",
+        "mode": "reference",
+        "articles": [
+          "collision-detection-gjk-epa-sat"
+        ]
+      },
+      {
+        "title": "位置与变分方法",
+        "mode": "reference",
+        "articles": [
+          "pbd-xpbd-vbd-avbd-comparison",
+          "pbd-xpbd-math",
+          "vbd-avbd-math"
+        ],
+        "notes": {
+          "pbd-xpbd-vbd-avbd-comparison": "先对齐目标、更新块和乘子，再按需要进入约束投影或变分块求解的专文。"
+        }
+      }
+    ]
+  },
+  {
+    "id": "engineering-math",
+    "domain": "mathematics",
+    "title": "数学参考",
+    "description": "带着主线中的具体问题，查阅空间、变化和求解工具。",
+    "sections": [
+      {
+        "title": "空间与连续模型",
+        "mode": "reference",
+        "articles": [
+          "ue-linear-algebra-guide",
+          "calculus-foundations",
+          "differential-equations"
+        ],
+        "notes": {
+          "ue-linear-algebra-guide": "刚体中的局部点、世界惯性和接触力臂都依赖空间约定；本篇展开这些计算工具。",
+          "calculus-foundations": "力改变动量，速度改变位置；本篇解释变化率、累积与局部近似。",
+          "differential-equations": "刚体运动是状态随时间演化的一个例子；本篇展开一般初值问题与动力系统。"
+        }
+      },
+      {
+        "title": "线性化与数值求解",
+        "mode": "reference",
+        "articles": [
+          "jacobian-matrix",
+          "iterative-linear-solvers",
+          "hessian-matrix",
+          "partial-differential-equations"
+        ],
+        "notes": {
+          "jacobian-matrix": "接触约束用 Jacobian 将刚体速度映射为接触点的相对运动；本篇深入局部线性化。",
+          "iterative-linear-solvers": "物理约束会产生耦合方程；本篇解释冻结线性系统的更新顺序、残差与收敛，接触投影另见约束主文。",
+          "hessian-matrix": "变分与隐式方法需要目标的局部曲率；本篇连接二阶近似、Newton 与优化。",
+          "partial-differential-equations": "从单个刚体转向弹性体和流体时，状态分布在空间中；本篇解释场与空间离散。"
+        }
+      },
+      {
+        "title": "符号速查",
+        "mode": "reference",
+        "articles": [
+          "mathematical-notation-reference"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "physics-implementations",
+    "title": "物理引擎与 GPU 实现",
+    "description": "将主线中的职责映射到具体引擎的数据和执行过程。",
+    "sections": [
+      {
+        "title": "CPU 与 Chaos 源码",
+        "mode": "reference",
+        "articles": [
+          "avbd-demo3d-implementation",
+          "ue-chaos-physics-engine",
+          "gjk-collision-detection",
+          "chaos-kinematic-sync"
+        ]
+      },
+      {
+        "title": "从 GPU 参考到 UE 宿主",
+        "mode": "sequence",
+        "articles": [
+          "three-avbd-gpu-solver",
+          "gpu-physics-plugin"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "character-animation",
+    "domain": "animation",
+    "title": "角色动画专题",
+    "description": "围绕姿态、落脚、重定向和动作选择查阅。",
+    "sections": [
+      {
+        "title": "姿态与节点参考",
+        "mode": "reference",
+        "articles": [
+          "ue-animation-node-math"
+        ]
+      },
+      {
+        "title": "IK、落脚与重定向",
+        "mode": "reference",
+        "articles": [
+          "ue-fullbody-ik-math",
+          "predictive-foot-ik",
+          "ik-retargeter-ops-math"
+        ]
+      },
+      {
+        "title": "动作选择",
+        "mode": "reference",
+        "articles": [
+          "motion-matching-pose-search-source-guide"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "flight-control",
+    "title": "无人机与飞行控制",
+    "sections": [
+      {
+        "title": "动力学与控制实现",
+        "mode": "sequence",
+        "articles": [
+          "quadcopter-basics-interactive",
+          "quadcopter-flight-control-math"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "engine",
+    "domain": "engine",
+    "title": "引擎接口参考",
+    "sections": [
+      {
+        "title": "Niagara",
+        "mode": "reference",
+        "articles": [
+          "ue-niagara-parameters"
+        ]
+      }
+    ]
+  }
 ]

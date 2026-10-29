@@ -1,38 +1,57 @@
 ---
-title: "GPUPhysicsLab：UE GPU 物理实现"
-excerpt: "追踪 UE 宿主、RDG 资源、AVBD 状态提交与 Niagara 发布，区分移植与独立扩展。"
-date: "2026-10-18"
-category: "Physics"
-subtopic: "ConstraintSolver"
-tags: ["GPUPhysicsLab", "AVBD", "Unreal Engine", "RDG", "碰撞检测", "源码精读"]
-readTime: "阅读约60分钟"
-kind: "source"
-level: "advanced"
-pageType: "source-analysis"
-aliases: ["GPU Physics","three-avbd UE 移植","GPUPhysicsLab AVBD","GPUPhysicsLab 插件详解 — three-avbd 的 Unreal RDG 移植、GPU AVBD 与工程扩展"]
-prerequisites: ["three-avbd-gpu-solver", "vbd-avbd-math"]
+title: GPUPhysicsLab：UE GPU 物理实现
+excerpt: 追踪 UE 宿主、RDG 资源、AVBD 状态提交与 Niagara 发布，区分移植与独立扩展。
+date: '2026-10-18'
+category: Physics
+subtopic: ConstraintSolver
+tags:
+  - GPUPhysicsLab
+  - AVBD
+  - Unreal Engine
+  - RDG
+  - 碰撞检测
+  - 源码精读
+readTime: 阅读约60分钟
+kind: source
+level: advanced
+pageType: source-analysis
+aliases:
+  - GPU Physics
+  - three-avbd UE 移植
+  - GPUPhysicsLab AVBD
+  - GPUPhysicsLab 插件详解 — three-avbd 的 Unreal RDG 移植、GPU AVBD 与工程扩展
+prerequisites:
+  - three-avbd-gpu-solver
+  - vbd-avbd-math
 nextArticles: []
-related: ["avbd-demo3d-implementation", "collision-detection-gjk-epa-sat", "jacobian-matrix", "numerical-integration-methods"]
+related:
+  - avbd-demo3d-implementation
+  - collision-detection-gjk-epa-sat
+  - jacobian-matrix
+  - numerical-integration-methods
 topics:
-  - id: "ue-chaos-physics"
-    stage: "parallel"
-    role: "source"
+  - id: ue-chaos-physics
+    stage: parallel
+    role: source
     order: 40
 sources:
-  - title: "GPUPhysicsLab 参考版本与移植范围"
-    url: "https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Doc/Porting/REFERENCE.lock.json"
-  - title: "GPUPhysicsLab RDG 求解主链路"
-    url: "https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Source/GPUPhysicsLab/Private/CSDispatch/GPUPhysicsLabSolverPasses.cpp"
-  - title: "GPUPhysicsLab 版本发布与失败恢复"
-    url: "https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Source/GPUPhysicsLab/Private/Simulation/GPUPhysicsLabSimulation.cpp"
-  - title: "GPUPhysicsLab 历史验收范围"
-    url: "https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Doc/Porting/P32_RESULTS.json"
+  - title: GPUPhysicsLab 参考版本与移植范围
+    url: >-
+      https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Doc/Porting/REFERENCE.lock.json
+  - title: GPUPhysicsLab RDG 求解主链路
+    url: >-
+      https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Source/GPUPhysicsLab/Private/CSDispatch/GPUPhysicsLabSolverPasses.cpp
+  - title: GPUPhysicsLab 版本发布与失败恢复
+    url: >-
+      https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Source/GPUPhysicsLab/Private/Simulation/GPUPhysicsLabSimulation.cpp
+  - title: GPUPhysicsLab 历史验收范围
+    url: >-
+      https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Doc/Porting/P32_RESULTS.json
 featured: false
 ---
-
 GPUPhysicsLab 的重点不仅是把公式写成 shader，还包括 GT/RT 所有权、RDG 依赖、有效状态提交与失败恢复。本文区分来自[three-avbd](/knowledge/three-avbd-gpu-solver/)的设计、UE 宿主适配以及独立扩展；曲面接触和布料的实际算法分别说明，不把所有 GPU pass 都归为统一 AVBD。
 
-## 一、先给结论：这不是旧 PBD 插件的换名介绍
+## 范围与核心机制：这不是旧 PBD 插件的换名介绍
 
 当前 GPUPhysicsLab 是以锁定 three-avbd 三维 GPU 实现为基础、使用 UE C++、HLSL、RDG/RHI 重写的独立物理运行时。核心是**按刚体分块的六维 AVBD 原对偶求解**，不是旧版文章所描述的“十五个 Compute Shader 的 PBD 系统”。[参考锁:1–36](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Doc/Porting/REFERENCE.lock.json#L1-L36) [求解调度:141–242](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Source/GPUPhysicsLab/Private/CSDispatch/GPUPhysicsLabSolverPasses.cpp#L141-L242)
 
@@ -50,7 +69,7 @@ GPUPhysicsLab 的重点不仅是把公式写成 shader，还包括 GT/RT 所有�
 - 布料实际是弹簧力、罚接触与速度—位置积分；尚不是计划中与刚体统一的 AVBD CSR/染色迭代。[布料弹簧:10–49](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Shaders/Private/Cloth/ApplySprings.usf#L10-L49) [布料积分:11–38](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Shaders/Private/Cloth/IntegrateParticles.usf#L11-L38)
 - 课程和局部测试有明确未验收项。源码存在、单项通过、完整产品可用、长期稳定和性能达标，是不同层级。
 
-### 1.1 本文版本与证据口径
+### 本文版本与证据口径
 
 分析目录为 E:\UnrealProjects\GASP57\Plugins\GPUPhysicsLab，读取分支为 three-avbd-rewrite，基线 HEAD：
 
@@ -76,9 +95,9 @@ three-avbd 0.3.0
 - **历史证据**：仓库记录的测试结果，本轮没有重新运行 UE。
 - **待验证**：真实场景、长时间运行、跨 GPU、Cook/Shipping 与视觉验收。
 
-## 二、它具体借鉴了 three-avbd 的什么
+## 它具体借鉴了 three-avbd 的什么
 
-### 2.1 继承的是数据契约和执行模型，不只是 AVBD 名词
+### 继承的是数据契约和执行模型，不只是 AVBD 名词
 
 参考锁明确列出 solver.ts、layout.ts、wgsl-solve、wgsl-collision、wgsl-hull，以及共享 topology/scan 等来源。Body、Joint、Manifold、Contact 的字段尺寸与标志位也被固定。[参考锁:8–36](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Doc/Porting/REFERENCE.lock.json#L8-L36)
 
@@ -93,7 +112,7 @@ three-avbd 0.3.0
 
 如果只复制能量公式，却改成先预测再碰撞、每轮重新生成接触、或统一 Jacobi，就已经改变执行模型。
 
-### 2.2 参考算子到 UE 文件的对应
+### 参考算子到 UE 文件的对应
 
 最重要的几个映射是：
 
@@ -107,7 +126,7 @@ three-avbd 0.3.0
 
 对应入口见 [求解调度:44–242](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Source/GPUPhysicsLab/Private/CSDispatch/GPUPhysicsLabSolverPasses.cpp#L44-L242)、[帧提交:386–493](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Source/GPUPhysicsLab/Private/Simulation/GPUPhysicsLabSimulation.cpp#L386-L493)。详细理论不再重复，参考 [three-avbd 全流水线](/knowledge/three-avbd-gpu-solver/)。
 
-### 2.3 哪些属于 UE 自己增加的设计
+### 哪些属于 UE 自己增加的设计
 
 three-avbd 的 JavaScript World 不等于 UE 的 Game Thread/Render Thread。下面这些是宿主工程，不是参考公式：
 
@@ -120,15 +139,15 @@ three-avbd 的 JavaScript World 不等于 UE 的 Game Thread/Render Thread。下
 
 这些适配可以不改变成功步数值，但会改变内存、命令数、延迟和集成方式，必须独立验收。
 
-## 三、模块与线程：谁拥有世界，谁拥有数值
+## 模块与线程：谁拥有世界，谁拥有数值
 
-### 3.1 当前模块
+### 当前模块
 
 GPUPhysicsLab.uplugin 声明两个 Runtime 模块：GPUPhysicsLab 在 PostConfigInit 加载，GPUPhysicsLabExamples 在 Default 加载，并依赖 Niagara。不是旧文中的 GPUPhysics/GPUPhysicsTests 组合。[插件描述:1–35](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/GPUPhysicsLab.uplugin#L1-L35)
 
 核心模块依赖 Engine、RenderCore、RHI、Niagara 等；Editor 构建才额外依赖 UnrealEd。[Build.cs:4–19](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Source/GPUPhysicsLab/GPUPhysicsLab.Build.cs#L4-L19)
 
-### 3.2 Game Thread
+### Game Thread
 
 UGPUPhysicsLabWorldSubsystem：
 
@@ -142,23 +161,23 @@ UGPUPhysicsLabWorldSubsystem：
 
 GT 持有作者配置、句柄和命令队列；它们不能被当作每步最新 GPU 位姿。运动学目标从当前 GPU 姿态计算速度，而不是把延迟 CPU 缓存写回物理。[Simulation:1181–1233](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Source/GPUPhysicsLab/Private/Simulation/GPUPhysicsLabSimulation.cpp#L1181-L1233)
 
-### 3.3 Render Thread
+### Render Thread
 
 RenderState 持有 GPU pooled buffer、回读对象、接触缓冲 parity、状态及显示发布对象。它创建 RDG 图、注册外部资源并调度 shader，不把物理接触逐点交给 GT 求解。[Simulation:88–204、386–493](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Source/GPUPhysicsLab/Private/Simulation/GPUPhysicsLabSimulation.cpp#L88-L493)
 
 FRDGBufferRef 只属于当前图；跨帧保存的是 pooled buffer。把一个旧图的 FRDGBufferRef 缓存在 UObject 中供下一帧使用，违背这里的资源模型。
 
-### 3.4 GPU
+### GPU
 
 GPU 保存并更新真正位姿、速度、乘子、接触、邻接和颜色。CPU 只做作者准备、调度与异步观察，不存在正常运行时 CPU 窄相回退。[求解调度:29–43、141–168](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Source/GPUPhysicsLab/Private/CSDispatch/GPUPhysicsLabSolverPasses.cpp#L29-L168)
 
-### 3.5 关闭阶段可以等待，正常步进不应全量等待
+### 关闭阶段可以等待，正常步进不应全量等待
 
 Shutdown 排队 Release，并通过 FRenderCommandFence 等待 RT 退休后释放共享所有者。它解决对象退出和 GPU 资源生命周期，不是每步调用 FlushRenderingCommands 强制同步。[Simulation:1554–1575](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Source/GPUPhysicsLab/Private/Simulation/GPUPhysicsLabSimulation.cpp#L1554-L1575)
 
-## 四、单位、坐标和形状标签：最容易移植错的一层
+## 单位、坐标和形状标签：最容易移植错的一层
 
-### 4.1 内核 SI，作者位置厘米
+### 内核 SI，作者位置厘米
 
 常规位置和尺寸从厘米乘 $0.01$，惯量若以 $\mathrm{kg\cdot cm^2}$ 给出则乘 $10^{-4}$。角速度保持 $\mathrm{rad/s}$，不是再做长度换算。[数学边界:78–114](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Source/GPUPhysicsLab/Private/Math/GPUPhysicsLabQuaternionMath.h#L78-L114)
 
@@ -170,13 +189,13 @@ $$
 
 其行列式为正；尺寸、主惯量等局部轴标量只置换轴，不应用向量方向的负号。四元数也需对应换基，不能只改位置。[数学边界:62–76、115–129](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Source/GPUPhysicsLab/Private/Math/GPUPhysicsLabQuaternionMath.h#L62-L129)
 
-### 4.2 公共施力接口已经是 SI
+### 公共施力接口已经是 SI
 
 ApplyRuntimeBodyForce 的参数是 ForceN，Impulse 是 Ns，Torque 是 Nm；AddPush 对这些量换基而不乘 $0.01$，作用点 PointCm 才转换为米。[Simulation:1771–1815](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Source/GPUPhysicsLab/Private/Simulation/GPUPhysicsLabSimulation.cpp#L1771-L1815)
 
 因此不能看到某个底层 TryToSolverForce helper，就断言所有公开施力 API 都接收 UE 的厘米量纲。**必须沿实际调用者核对单位。**
 
-### 4.3 公开形状枚举不等于 GPU 标签
+### 公开形状枚举不等于 GPU 标签
 
 公开枚举依次为 Sphere、Capsule、Box、Cylinder、ConvexHull、Sail；内部参考标签为 Box=0、Sphere=1、Sail=2、Hull=3+offset，扩展 Capsule=-1、Cylinder=-2。[作者类型:15–27](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Source/GPUPhysicsLab/Public/Bodies/GPUPhysicsLabBodyDefinition.h#L15-L27) [内核常量:16–21](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Source/GPUPhysicsLab/Private/GPUData/GPUPhysicsLabLimits.h#L16-L21)
 
@@ -184,7 +203,7 @@ ApplyRuntimeBodyForce 的参数是 ForceN，Impulse 是 Ns，Torque 是 Nm；Add
 
 圆柱/胶囊的作者轴是局部 X；Cylinder 长度为平盖间全高，Capsule 长度为中间直段，完整长度还要加两倍半径。不要按 Unreal 某些默认胶囊组件的局部轴习惯直接套用。[作者类型:97–116](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Source/GPUPhysicsLab/Public/Bodies/GPUPhysicsLabBodyDefinition.h#L97-L116)
 
-## 五、ABI：保留参考记录，用旁路结构扩展
+## ABI：保留参考记录，用旁路结构扩展
 
 核心记录仍是：
 
@@ -199,13 +218,13 @@ Body/Step 具有 sizeof、alignof、offsetof 和 trivially-copyable 静态断言
 
 Body 仍保存当前/初始/惯性位姿和速度；一些 w 通道是整数位打包，如参考位姿变更步号和形状标签。数值有限性检查不能将所有位打包通道当作普通 float。[速度更新:26–34](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Shaders/Private/Simulation/Integration/UpdateVelocity.usf#L26-L34)
 
-### 5.1 为什么新增 BodyDynamics 而不改 Body160
+### 为什么新增 BodyDynamics 而不改 Body160
 
 质心、重力倍率、阻尼、静动摩擦和恢复系数进入单独结构，不挤占旧接触历史字段，不破坏既有渲染步长。[Body 数据:34–45](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Source/GPUPhysicsLab/Private/GPUData/GPUPhysicsLabBodyData.h#L34-L45)
 
 代价是每体额外缓冲与读取；收益是参考记录保持稳定、默认值可以明确退回原运算。旁路结构也不能自行形成第二个物理世界。
 
-## 六、完整执行链：从 UE Tick 到接受的 GPU 姿态
+## 完整执行链：从 UE Tick 到接受的 GPU 姿态
 
 当前真实链路如下，布料只在启用时进入：
 
@@ -243,15 +262,15 @@ WorldSubsystem.Tick（GT）
 - 布料当前在刚体 AVBD 前单独推进，不在每轮中与刚体共同收敛。
 - Graph.Execute 返回不等于 CPU 已拿到最新物理状态；异步回读有自己的完成时机。
 
-## 七、固定步与外部输入
+## 固定步与外部输入
 
-### 7.1 时间预算
+### 时间预算
 
 默认固定步为 $1/60$ 秒，MaximumSubsteps=4，Iterations=10。PlanUpdate 累加非负输入，最多执行预算内子步，最后将欠账限制到一个 dt。[Simulation:2067–2082](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Source/GPUPhysicsLab/Private/Simulation/GPUPhysicsLabSimulation.cpp#L2067-L2082) [作者设置:191–209](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Source/GPUPhysicsLab/Public/Bodies/GPUPhysicsLabBodyDefinition.h#L191-L209)
 
 这保持参考 World.update 的时间策略。长帧不会无限追赶，也不能声称真实时间永不丢失。增加 iterations 不能替代增加时间子步。
 
-### 7.2 一次性冲量与持续力
+### 一次性冲量与持续力
 
 GT 为每子步准备合并的 push：
 
@@ -264,25 +283,25 @@ $$
 
 **工程取舍**：CPU 合并同体输入，使 GPU 由单一线程更新该体速度，减少共享写入；但会话何时捕获输入、批量子步之间是否允许 BeforeStep 回调，属于宿主时序，不由 AVBD 公式决定。
 
-### 7.3 运动学不是“每帧强改动态体位置”
+### 运动学不是“每帧强改动态体位置”
 
 目标移动以当前 GPU 位姿、目标和计划时长生成运动学速度，旋转使用短半球差。StepFixed 若有待处理运动学目标，会禁止整体流形复用。[Simulation:1169–1201](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Source/GPUPhysicsLab/Private/Simulation/GPUPhysicsLabSimulation.cpp#L1169-L1201)
 
 Static、Kinematic、Simulated 是作者运动类型；底层固定/运动学仍沿参考质量零和速度通道表达，公开类型不能直接等同于一个质量字段。
 
-## 八、RDG 适配：把资源依赖写对，本身就是算法的一部分
+## RDG 适配：把资源依赖写对，本身就是算法的一部分
 
-### 8.1 持久与临时资源
+### 持久与临时资源
 
 RenderState 将 BodyStorage 等 pooled buffer 注册进当前图；scan 的块和 scratch 则由当前图分配。需要跨帧的显示快照通过 QueueBufferExtraction 取得 pooled 所有权。[帧提交:398–423](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Source/GPUPhysicsLab/Private/Simulation/GPUPhysicsLabSimulation.cpp#L398-L423) [扫描调度:9–29](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Source/GPUPhysicsLab/Private/CSDispatch/GPUPhysicsLabSequencePasses.cpp#L9-L29) [显示发布:16–42](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Source/GPUPhysicsLab/Private/Display/GPUPhysicsLabPosePublication.cpp#L16-L42)
 
-### 8.2 每个 pass 独立参数块
+### 每个 pass 独立参数块
 
 ColoringPasses 为每个 pass 分配独立参数，声明 SRV/UAV/IndirectArgs。RDG 才能看见颜色、计数器、位姿和派发参数之间的读写关系。[染色调度:22–65](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Source/GPUPhysicsLab/Private/CSDispatch/GPUPhysicsLabColoringPasses.cpp#L22-L65)
 
 “我在 C++ 先后调用两个函数”不等于资源依赖已经完整；不能省掉 shader 参数声明，指望裸 RHI buffer 地址自动进入 RDG 追踪。
 
-### 8.3 矩阵与浮点语义适配
+### 矩阵与浮点语义适配
 
 WGSL 的列索引与 HLSL 数学行矩阵表示不同。GPUPhysicsLabRigidBlock 明确交叉块的角/线索引，并按真实元素取值展开 LDLᵀ。[局部块:8–39](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Shaders/Private/Common/Geometry/GPUPhysicsLabRigidBlock.ush#L8-L39)
 
@@ -290,7 +309,7 @@ WGSL 的列索引与 HLSL 数学行矩阵表示不同。GPUPhysicsLabRigidBlock 
 
 结论不是“给所有变量加 precise 更正确”，而是需要对照具体表达式、归约树和参考比较契约。
 
-## 九、宽相：两级网格、配对所有权与分层筛选
+## 宽相：两级网格、配对所有权与分层筛选
 
 CPU PlanBroadphase 对半径使用 Wirth selection，得到 coarse/fine 网格与 large 列表；动态粗体标记决定是否需要补充固定体探测。[宽相调度:46–76](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Source/GPUPhysicsLab/Private/CSDispatch/GPUPhysicsLabBroadphasePasses.cpp#L46-L76)
 
@@ -308,15 +327,15 @@ GPU 随后执行：
 
 候选还经过固定—固定剔除、双向 groups/mask、包围球、世界 AABB、面轴和禁碰撞配对筛选，避免把所有桶内对象直接送进窄相。具体见 [候选 shader:53–107](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Shaders/Private/Broadphase/Pairs/GenerateCandidatePairs.usf#L53-L107)。实现责任与参考相同，见文末源码索引。
 
-### 9.1 scan 如何进入 UE
+### scan 如何进入 UE
 
 一个工作组扫描 512 项，线程数 256；组和递归到更高层，再向下添加偏移。SequencePasses 为每层创建独立 scratch 和 pass，避免层间错误别名。[扫描调度:9–29](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Source/GPUPhysicsLab/Private/CSDispatch/GPUPhysicsLabSequencePasses.cpp#L9-L29) [扫描 shader:1–24](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Shaders/Private/Broadphase/Sort/ScanBlocks.usf#L1-L24)
 
 基础推导见 [three-avbd 前缀和章节](/knowledge/three-avbd-gpu-solver/)。这里新增的是 RDG 生命周期与显式绑定。
 
-## 十、原生窄相与接触缓存
+## 原生窄相与接触缓存
 
-### 10.1 保留 SAT 与多点流形
+### 保留 SAT 与多点流形
 
 原生接触根据形状路由：
 
@@ -327,13 +346,13 @@ GPU 随后执行：
 
 入口：[接触历史:44–65](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Shaders/Private/Common/Contact/GPUPhysicsLabContactHistory.ush#L44-L65)。Box 的十五轴、faceBias 和最多八点裁剪分别落在 [SAT:35–53](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Shaders/Private/Common/Geometry/GPUPhysicsLabConvexSAT.ush#L35-L53) 与 [裁剪:6–36](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Shaders/Private/Common/Contact/GPUPhysicsLabPolyhedronClipping.ush#L6-L36)。这些机制的意义已在 [参考专题](/knowledge/three-avbd-gpu-solver/) 详细解释。
 
-### 10.2 Pair 哈希与原子语义
+### Pair 哈希与原子语义
 
 HashInsert 使用 InterlockedExchange 携带被交换旧值继续线性探测，对应 WGSL atomicExchange。读取 atomic u32 则用 InterlockedOr(...,0) 表达原子读，不仅是普通 UAV load。[流形入口:5–8](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Shaders/Private/Narrowphase/Manifold/UpdateManifolds.usf#L5-L8) [接触历史:19–27](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Shaders/Private/Common/Contact/GPUPhysicsLabContactHistory.ush#L19-L27)
 
 这是跨语言移植中非常具体的差异：类型都叫 uint，不代表原子访问语义相同。
 
-### 10.3 匹配、粘着与两种复用
+### 匹配、粘着与两种复用
 
 接触继承保留参考的 feature 优先、nearest 补救、stick 锚点与乘子/罚参数衰减。reuseContacts 根据参考位姿变更步号判断；reuseManifolds 则沿用整个旧集合。[接触历史:29–42、66 起](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Shaders/Private/Common/Contact/GPUPhysicsLabContactHistory.ush#L29-L66)
 
@@ -344,7 +363,7 @@ HashInsert 使用 InterlockedExchange 携带被交换旧值继续线性探测，
 - 位姿、过滤、拓扑和资源变更必须使整体复用失效。
 - 完整历史验收的 P20 问题仍单列，不因局部公式正确而消失。
 
-## 十一、CSR 与 Jones–Plassmann 染色
+## CSR 与 Jones–Plassmann 染色
 
 CSR 把每个动态体连接的 Joint 与 Manifold 放进紧凑邻接行。Degree→Scan→Fill→Sort 的顺序保持参考；容量区间按 body capacity 分配，而 scan 只覆盖 live bodyCount+1，二者不能混用。[拓扑调度:32–93](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Source/GPUPhysicsLab/Private/CSDispatch/GPUPhysicsLabTopologyPasses.cpp#L32-L93)
 
@@ -352,13 +371,13 @@ JP 染色继续采用 compact、mark、AB/BA 轮次、稳定颜色桶与 GPU 间
 
 图顶点是动态刚体，边来自两动态端点约束；共同接触固定地板不会强迫所有箱子异色。这不是显式连通分量/睡眠岛系统。
 
-### 11.1 染色冲突并不会自动变安全 Jacobi
+### 染色冲突并不会自动变安全 Jacobi
 
 shader 在待处理状态上增加 clashes；adapt 之后可以增加轮数或颜色容量。冲突尚未解决时，同色相邻体的就地读写前提不成立，不能把这种状态命名为“安全并行回退”。[染色 shader:149–165](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Shaders/Private/Solver/Coloring/BuildColors.usf#L149-L165) [自适应:7–22](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Source/GPUPhysicsLab/Private/Simulation/GPUPhysicsLabAdaptation.h#L7-L22)
 
 这是物理正确性约束，不只是性能指标。零 clashes 也是必要诊断项之一，而非整个引擎正确的充分条件。
 
-## 十二、原问题：保留每刚体六维局部系统
+## 原问题：保留每刚体六维局部系统
 
 每体更新平移和小角度旋转：
 
@@ -379,13 +398,13 @@ $$
 
 Acc 保存线、角、交叉块和右端，不建立全场景大矩阵。[局部块:9–24](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Shaders/Private/Common/Geometry/GPUPhysicsLabRigidBlock.ush#L9-L24) [Primal:29–110](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Shaders/Private/Solver/Primal/PrimalSolve.usf#L29-L110)
 
-### 12.1 多 lane 并行的是邻接项
+### 多 lane 并行的是邻接项
 
 1/2/4/8 lane 按颜色桶大小选择，分摊每体 CSR 项；一个流形内部遍历多个点，之后共享内存归约，由 lane 0 解方程和写位姿。[Primal:21–110](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Shaders/Private/Solver/Primal/PrimalSolve.usf#L21-L110)
 
 默认打包阈值仍是 $2^{31}$、$2^{15}$、$2^{12}$，不是所有常见规模下一体一线程。[Step 默认:90–100](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Source/GPUPhysicsLab/Private/GPUData/GPUPhysicsLabStepData.h#L90-L100)
 
-### 12.2 LDLᵀ 与四元数
+### LDLᵀ 与四元数
 
 六维 LDLᵀ 手工展开，第二至第六 pivot 下限为：
 
@@ -397,7 +416,7 @@ $$
 
 qadd 是小角度一阶积分后归一化，qsub 是 $2\operatorname{vec}(ab^{-1})$，不是精确 log/exp。[数学边界:27–37](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Source/GPUPhysicsLab/Private/Math/GPUPhysicsLabQuaternionMath.h#L27-L37)
 
-### 12.3 初值不等于惯性目标
+### 初值不等于惯性目标
 
 默认无额外动力属性时：
 
@@ -407,9 +426,9 @@ $$
 
 没有 $1/2$。startAtRest 仅让慢体从步初位姿开始迭代，目标仍包含重力；它不是睡眠或清零速度。[刚体积分:47–81](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Shaders/Private/Simulation/Integration/IntegrateBodies.usf#L47-L81)
 
-## 十三、接触行与对偶：真正共享的求解数学
+## 接触行与对偶：真正共享的求解数学
 
-### 13.1 接触误差不是每轮重新算几何穿透
+### 接触误差不是每轮重新算几何穿透
 
 接触行沿参考 Taylor 形式：
 
@@ -422,7 +441,7 @@ $$
 
 球与扩展曲面特征域使用 initial rotation 的力臂，Box/Hull 保持当前旋转规则。这样避免滚动旋转在法向线性化中制造虚假分离。[约束数学:91–135](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Shaders/Private/Common/Solver/GPUPhysicsLabRigidConstraint.ush#L91-L135)
 
-### 13.2 法向与摩擦
+### 法向与摩擦
 
 $$
 \mathbf F=\mathbf k\odot\mathbf C^*+\boldsymbol\lambda,\qquad
@@ -434,21 +453,21 @@ $$
 
 Primal 和 Dual 共用 EvaluateBodyContact，保证单体扩展的摩擦与恢复项在两个阶段使用同一评价函数。[Primal:84–87](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Shaders/Private/Solver/Primal/PrimalSolve.usf#L84-L87) [Dual:15–28](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Shaders/Private/Solver/Dual/DualUpdate.usf#L15-L28)
 
-### 13.3 暖启动、罚参数与材料刚度
+### 暖启动、罚参数与材料刚度
 
 跨步乘子乘 $\alpha\gamma$，罚参数乘 $\gamma$ 后夹在数值范围与材料刚度内。硬关节乘子累积，有限刚度与弹簧有自己的分支；不能用一个硬约束公式覆盖全部类型。[关节暖启动:16–77](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Shaders/Private/Common/Solver/GPUPhysicsLabWarmStart.ush#L16-L77)
 
 接触法向实际承载时才增加对应罚参数，切向未超过摩擦边界时才继续加强。massPenalty 从较轻动态质量除以 $h^2$ 给出法向初值下限。[约束数学:137–171](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Shaders/Private/Common/Solver/GPUPhysicsLabRigidConstraint.ush#L137-L171)
 
-### 13.4 塑性、断裂与事件时机
+### 塑性、断裂与事件时机
 
 yield 使角向力受限并迁移 rest，breakBend 比较初始 restStart 与当前 rest 的净偏转，fracture 将刚度/乘子归零。它不是累计疲劳或裂纹扩展。[关节暖启动:29–76](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Shaders/Private/Common/Solver/GPUPhysicsLabWarmStart.ush#L29-L76)
 
 GPU 失效约束后，JavaScript/C++ 层回调尚未到达是正常异步现象。不能把“没有收到回调”直接判为“GPU 仍在施加这条关节”。
 
-## 十四、速度、Finalize 与接受版本
+## 速度、Finalize 与接受版本
 
-### 14.1 从位姿差重建速度
+### 从位姿差重建速度
 
 默认质心零时：
 
@@ -460,13 +479,13 @@ $$
 
 质心偏移非零时，代码还加入旋转质心位移对线速度的贡献。vel.w 保存沿 up 的历史速度。[速度更新:7–25](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Shaders/Private/Simulation/Integration/UpdateVelocity.usf#L7-L25)
 
-### 14.2 非有限值检查不修改物理解
+### 非有限值检查不修改物理解
 
 UpdateVelocity 检查位姿、惯性目标、速度与四元数有效性；发现非法后用 CAS 记录首错，而不是清速度、强行归零位置或自动重试。[速度更新:26–35](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Shaders/Private/Simulation/Integration/UpdateVelocity.usf#L26-L35)
 
 独立 FinalizeCS 在后续 dispatch 才写 Completed/Accepted 版本；不能让速度 kernel 的线程 0 在其他工作组未结束时宣称整步成功。[速度更新:37–46](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Shaders/Private/Simulation/Integration/UpdateVelocity.usf#L37-L46)
 
-### 14.3 三个版本不应混为一谈
+### 三个版本不应混为一谈
 
 - SubmittedSteps：GT 已提交的步数。
 - CompletedSteps：异步状态中确认完成的步数。
@@ -474,9 +493,9 @@ UpdateVelocity 检查位姿、惯性目标、速度与四元数有效性；发�
 
 GT Poll 验证这些数的单调性与范围。显示发布还要把快照版本与状态、Epoch 对齐，而不是只看“GPU buffer 还活着”。[Simulation:1517–1551](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Source/GPUPhysicsLab/Private/Simulation/GPUPhysicsLabSimulation.cpp#L1517-L1551) [发布:43–55](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Source/GPUPhysicsLab/Private/Display/GPUPhysicsLabPosePublication.cpp#L43-L55)
 
-## 十五、接受状态与失败恢复：必须覆盖的不只是 Body
+## 接受状态与失败恢复：必须覆盖的不只是 Body
 
-### 15.1 GPU 备份
+### GPU 备份
 
 每个提交子步开始前，RenderState 在 GPU 内复制当前状态到备份：
 
@@ -489,13 +508,13 @@ GT Poll 验证这些数的单调性与范围。显示发布还要把快照版本
 
 只备份 Body、失败后继续使用新 Contact lambda，不能称为同一物理状态的恢复。
 
-### 15.2 失败后先撤销发布，再恢复
+### 失败后先撤销发布，再恢复
 
 Poll 发现传输、版本或 GPU error 后，清观察快照，Revoke 显示并排队 RestoreAccepted；fence 完成后进入 Faulted。当前路径不在原会话中自动改 dt/增迭代重试。[Simulation:1491–1545](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Source/GPUPhysicsLab/Private/Simulation/GPUPhysicsLabSimulation.cpp#L1491-L1545)
 
 工程收益是错误不会被悄悄修值后混入后续正常步；成本是额外 GPU 存储与每步复制。不能将它描述成 three-avbd 原版不存在成本的“免费回滚”。
 
-### 15.3 不能笼统承诺所有错误都已进入拒绝事务
+### 不能笼统承诺所有错误都已进入拒绝事务
 
 这里要区分代码实际做了什么：
 
@@ -507,15 +526,15 @@ Poll 发现传输、版本或 GPU error 后，清观察快照，Revoke 显示并
 
 同样，多子步批量提交的备份推进、失败步身份与通用版本校验兼容性，都应按真实失败路径验证。局部 rollback 测试不能替代任意阶段、任意批次的事务证明。
 
-## 十六、运行时身份、删除、Reset 与容量
+## 运行时身份、删除、Reset 与容量
 
-### 16.1 句柄是会话、槽位、代际三元组
+### 句柄是会话、槽位、代际三元组
 
 Body/Shape/Joint Handle 都包含 Simulation GUID、Slot 和 Generation。删除再复用槽位，不会让旧句柄复活；跨 World 句柄也不能通用。[作者类型:29–94](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Source/GPUPhysicsLab/Public/Bodies/GPUPhysicsLabBodyDefinition.h#L29-L94) [Simulation:1578–1619](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Source/GPUPhysicsLab/Private/Simulation/GPUPhysicsLabSimulation.cpp#L1578-L1619)
 
 公共 IsValid 只能检查结构形式；是否仍是当前活对象，还要经过 Simulation 的代际/会话检查。
 
-### 16.2 Body 固定容量与接触容量增长是两回事
+### Body 固定容量与接触容量增长是两回事
 
 CreateRuntimeBody 从 FreeRuntimeBodies 取预留槽，耗尽便拒绝，不自动增长 BodyStorage。Shape 可以共享，但一个 Body 仍只有一个 Shape，不是 Compound 追加接口。[Simulation:1622–1659](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Source/GPUPhysicsLab/Private/Simulation/GPUPhysicsLabSimulation.cpp#L1622-L1659)
 
@@ -523,31 +542,31 @@ Pair/Contact/Manifold 容量可通过 RequestSceneCapacityGrowth 与 adapt 增�
 
 “接触能扩容”不表示“运行时刚体无限增加”。
 
-### 16.3 拓扑编辑不是普通数组修改
+### 拓扑编辑不是普通数组修改
 
 删除 Body 会影响关节、形状引用、过滤、历史、显示身份和查询结果。Reset 也不只是将位置数组复制回初始值：旧句柄、事件、已排队回读和 display epoch 都需要失效。
 
 当前代码有相应寿命入口，但历史 P28 明确只验收有界预分配事务；任意动态编辑同时扩容、Hull registry 增长和全部失败注入仍有限制。[P28 验收:1–31](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Doc/Porting/P28_RESULTS.json#L1-L31)
 
-## 十七、查询与异步读回
+## 查询与异步读回
 
-### 17.1 CPU 快照只能观察，不能反向驱动物理
+### CPU 快照只能观察，不能反向驱动物理
 
 诊断、Body、Joint、Raycast、Contact Events 各有请求、RT 回读和 GT 校验流程。它们必须带上请求时身份与版本，防止槽位复用后把旧结果解释成新物体。[Simulation:663–807、1299–1490](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Source/GPUPhysicsLab/Private/Simulation/GPUPhysicsLabSimulation.cpp#L663-L1490)
 
 读回延迟不能通过每步全量拷回再上传来“修复”，否则会失去 GPU 权威状态并引入旧帧覆盖新帧。
 
-### 17.2 射线不是完整空间查询系统
+### 射线不是完整空间查询系统
 
 当前有 Raycast.usf 与最近命中选择/结果阶段；大批量查询是否足够高效、是否覆盖所有混合形状，仍需按具体入口验收。不能从“存在宽相网格”推导“射线已自动沿网格/BVH 加速”。[查询 shader:1 起](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Shaders/Private/Queries/Raycast.usf#L1)
 
-### 17.3 事件不是同步逐点回调
+### 事件不是同步逐点回调
 
 ContactEvents 对比配对集合给出 begin/end，关节状态回读后解码断裂等结果。通知有缓冲容量、watch 配置和异步延迟，不适合作为每轮 primal 的 CPU 反馈控制环。
 
-## 十八、Niagara 发布：GPU 直读不等于整条链零拷贝
+## Niagara 发布：GPU 直读不等于整条链零拷贝
 
-### 18.1 当前发布是不可变快照租约
+### 当前发布是不可变快照租约
 
 PosePublication::Prepare：
 
@@ -561,25 +580,25 @@ Poll 只有在 error=0、completed=step、accepted=step 且 Epoch 相符时才�
 
 所以它避免了 CPU 中转全部位姿，但**并非像 three-avbd BodyMesh 那样直接把持续改写的仿真 buffer 裸露给显示**。这里确实有 GPU→GPU 全体记录复制和保留多个快照的成本。
 
-### 18.2 为什么值得这个成本
+### 为什么值得这个成本
 
 Niagara 可能在不同渲染阶段消费数据；可变 BodyStorage、在途编辑与旧身份若直接组合，容易出现错槽、闪烁或过期资源。不可变 lease 用 Epoch、Step、Slot、Generation 固定一次可观察视图。
 
 **工程取舍**：版本一致性与渲染生命周期安全，交换显存、复制带宽和异步发布延迟。不是简单的“GPU 一定比 CPU 数组显示快”。
 
-### 18.3 不把接口检查当作最终画面验收
+### 不把接口检查当作最终画面验收
 
 GPU DI、CPU 数组显示与用户 Niagara System 资产是三层。函数编译通过、buffer 验证通过，不证明 Burst 数、mesh 轴向、材质、遮挡和实际 PIE 画面都正确。新增只读 Epoch 函数已进入本文冻结提交，但编译/验证通过仍不能替代用户 Niagara 资产的最终画面验收。
 
-## 十九、圆柱与胶囊：独立扩展，不是旧内核复活
+## 圆柱与胶囊：独立扩展，不是旧内核复活
 
-### 19.1 两套几何路由，共用一套物理状态
+### 两套几何路由，共用一套物理状态
 
 原生 permutation 只处理非曲面对；Surface permutation 只处理至少含一个曲面的 pair，共同输出同一 Manifold/Contact，之后进入同一 CSR/JP/Primal/Dual。[接触历史:44–65](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Shaders/Private/Common/Contact/GPUPhysicsLabContactHistory.ush#L44-L65)
 
 没有第二个 SurfaceWorld，也没有 CPU 先生成接触供生产求解的后门。
 
-### 19.2 解析支撑与有界 GJK/EPA
+### 解析支撑与有界 GJK/EPA
 
 曲面支持函数直接表达有限圆柱和胶囊；解析 sphere、轴线/侧壁、poly 接触分支优先，剩余进入 GJK/EPA。[曲面几何:6–28、184–286、292–338](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Shaders/Private/Common/Geometry/GPUPhysicsLabSurfaceCollision.ush#L6-L338)
 
@@ -594,13 +613,13 @@ GPU DI、CPU 数组显示与用户 Niagara System 资产是三层。函数编译
 
 不是旧文档中另一套 EPA 容量。[曲面几何:86–153、317–338](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Shaders/Private/Common/Geometry/GPUPhysicsLabSurfaceCollision.ush#L86-L338) [流形入口:10–19](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Shaders/Private/Narrowphase/Manifold/UpdateManifolds.usf#L10-L19)
 
-### 19.3 为什么曲面使用单线程工作组
+### 为什么曲面使用单线程工作组
 
 普通原生窄相是 64 线程工作组，每线程一对；Surface permutation 则 numthreads(1,1,1)，用二维 groups 覆盖候选容量，保障一对独占 groupshared EPA arena。[流形入口:10–19](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Shaders/Private/Narrowphase/Manifold/UpdateManifolds.usf#L10-L19) [窄相调度:51–54](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Source/GPUPhysicsLab/Private/CSDispatch/GPUPhysicsLabUpdateManifoldsCS.cpp#L51-L54)
 
 它不是 64 个 pair 并发写同一个共享多面体。代价是大规模复杂曲面的占用率、共享内存和调度成本必须单独测量。
 
-### 19.4 接触见证与支撑覆盖
+### 接触见证与支撑覆盖
 
 EPA 共面面可能由多个三角形组成，投影点未必落在第一个三角形内部；代码寻找真正包含投影点的面，而不是用负重心权重外推表面点。[曲面几何:108–133](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Shaders/Private/Common/Geometry/GPUPhysicsLabSurfaceCollision.ush#L108-L133)
 
@@ -608,9 +627,9 @@ EPA 共面面可能由多个三角形组成，投影点未必落在第一个三�
 
 工程判断：几何相交正确、接触点真实、支撑覆盖充分、跨帧历史稳定是四个层次；多点存在也不能直接证明薄盘长期堆叠已稳定。
 
-## 二十、单体动力属性：默认参考路径之外的明确扩展
+## 单体动力属性：默认参考路径之外的明确扩展
 
-### 20.1 质量、主惯量、重力与阻尼
+### 质量、主惯量、重力与阻尼
 
 公开 Dynamics 包含 MassKg、InertiaTensorScale、CenterOfMassOffsetCm、Linear/AngularDamping、GravityScale、Restitution 与独立摩擦。[作者类型:118–161](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Source/GPUPhysicsLab/Public/Bodies/GPUPhysicsLabBodyDefinition.h#L118-L161)
 
@@ -622,7 +641,7 @@ $$
 
 默认 $d=0$，不会暗中加入全局阻尼来稳定参考场景。[刚体积分:47–57](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Shaders/Private/Simulation/Integration/IntegrateBodies.usf#L47-L57)
 
-### 20.2 质心偏移不是移动碰撞几何
+### 质心偏移不是移动碰撞几何
 
 几何原点仍为 $\mathbf x$，质心为：
 
@@ -634,7 +653,7 @@ $$
 
 只改一个 COM 展示点，而不改惯性能量、冲量力臂和速度定义，会让这些环节互相矛盾。
 
-### 20.3 静/动摩擦与恢复系数
+### 静/动摩擦与恢复系数
 
 启用独立摩擦后，两体静/动摩擦分别取几何平均；先检查静摩擦边界，滑动时按动摩擦幅值裁切。恢复系数取双方最大值，法向接近速度超过阈值才加入恢复目标。[材料评价:7–39](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Shaders/Private/Common/Solver/GPUPhysicsLabBodyMaterial.ush#L7-L39)
 
@@ -642,9 +661,9 @@ $$
 
 **边界**：这不是 three-avbd 原版双摩擦/恢复模型；也不是任意完整非对角惯性张量、轴锁定或 Compound 的实现。
 
-## 二十一、布料：必须按当前 shader 讲，不按计划图讲
+## 布料：必须按当前 shader 讲，不按计划图讲
 
-### 21.1 实际解法是弹簧质点
+### 实际解法是弹簧质点
 
 ApplySprings 每线程独占一个粒子，遍历全部 Spring，累加自己相连弹簧的力：
 
@@ -664,7 +683,7 @@ $$
 
 因此计划中“统一 CSR/JP/Primal/Dual”只能作为后续方向，不能作为现状架构图。
 
-### 21.2 当前接触与反作用
+### 当前接触与反作用
 
 布料粒子扫描所有 Body，只处理内部标签为 Box/Sphere 的形状，选最小 gap 的一体，施加法向罚力和阻尼。厚度进入几何 gap，但没有在此看到布料摩擦锥或多接触集合。[布料接触:26–92](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Shaders/Private/Cloth/ApplyRigidContacts.usf#L26-L92)
 
@@ -672,13 +691,13 @@ $$
 
 这实现了最小双向作用，但不能外推为通用精确动量/角动量守恒：当前接触相对速度使用粒子速度减刚体线速度，角向更新直接除主惯量；复杂旋转刚体、偏移质心与各向异性惯量的兼容性需要单独验证。
 
-### 21.3 附件与生命周期
+### 附件与生命周期
 
 ApplyAttachments 将粒子放在刚体局部锚点并设置为固定，提供锚点速度。当前这条路径没有反向写刚体；**附件反作用不同于碰撞反作用，不能混称已完成。**[布料附件:10–21](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Shaders/Private/Cloth/ApplyAttachments.usf#L10-L21)
 
 粒子、弹簧、接触与附件已有独立缓冲和 accepted 备份，但其寿命与刚体共用一个 Simulation；关闭布料不产生另一个物理后端。[帧提交:409–442](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Source/GPUPhysicsLab/Private/Simulation/GPUPhysicsLabSimulation.cpp#L409-L442)
 
-### 21.4 当前复杂度与稳定性限制
+### 当前复杂度与稳定性限制
 
 设粒子数 $N_p$、弹簧数 $N_s$、刚体数 $N_b$：
 
@@ -690,7 +709,7 @@ ApplyAttachments 将粒子放在刚体局部锚点并设置为固定，提供锚
 
 弹簧积分还受到 $h\sqrt{k/m}$ 等无量纲尺度影响；同一 dt 下无限加大刚度不能获得隐式 AVBD 的稳定性。当前代码也未给出布料自碰撞、撕裂、通用曲面碰撞、连续碰撞或网格布料高规模性能保证。
 
-### 21.5 新增的 30×30 布料场景是什么
+### 新增的 30×30 布料场景是什么
 
 冻结提交已增加 cloth/Grid 30x30：900 个粒子、30 点固定边、间距 10cm、跨度 $290\times290$ cm；5102 根弹簧由结构 1740、剪切 1682、隔点距离弯曲 1680 组成。[场景构建:39–73](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Source/GPUPhysicsLabExamples/Private/Scenes/GPUPhysicsLabReferenceScenes.cpp#L39-L73)
 
@@ -700,9 +719,9 @@ Bending 在这里是隔点距离弹簧，不是二面角能量。该预设没有
 
 这比“存在一个布料计划”更进一步，但仍不能写成已交付通用布料引擎。
 
-## 二十二、优化手段与成本：哪些继承，哪些是 UE 新账单
+## 优化手段与成本：哪些继承，哪些是 UE 新账单
 
-### 22.1 继承参考的主要优化
+### 继承参考的主要优化
 
 - 两级网格与 large 旁路降低混合尺度候选压力。
 - 动态体负责探测，避免固定体重复遍历。
@@ -714,7 +733,7 @@ Bending 在这里是隔点距离弹簧，不是二面角能量。该预设没有
 
 这些分别位于 [宽相调度:15–100](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Source/GPUPhysicsLab/Private/CSDispatch/GPUPhysicsLabBroadphasePasses.cpp#L15-L100)、[接触历史:19–42](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Shaders/Private/Common/Contact/GPUPhysicsLabContactHistory.ush#L19-L42)、[拓扑调度:32–93](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Source/GPUPhysicsLab/Private/CSDispatch/GPUPhysicsLabTopologyPasses.cpp#L32-L93)、[染色调度:33–65](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Source/GPUPhysicsLab/Private/CSDispatch/GPUPhysicsLabColoringPasses.cpp#L33-L65)、[Primal:21–110](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Shaders/Private/Solver/Primal/PrimalSolve.usf#L21-L110)。
 
-### 22.2 UE 引入的额外成本
+### UE 引入的额外成本
 
 当前每步 GPU 备份不仅有 Body，还包括较大的碰撞/拓扑工作区；启用显示时又生成不可变快照。因此不能将参考 WebGPU 的 solver 毫秒直接乘比例，推算 UE 最终帧耗时。[Simulation:400–423](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Source/GPUPhysicsLab/Private/Simulation/GPUPhysicsLabSimulation.cpp#L400-L423) [发布:16–42](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Source/GPUPhysicsLab/Private/Display/GPUPhysicsLabPosePublication.cpp#L16-L42)
 
@@ -731,13 +750,13 @@ $$
 
 对比时需报告实际分配容量、快照保留数与扩容峰值，而不是只乘活跃 Body 数。
 
-### 22.3 默认资源绑定也会产生压力
+### 默认资源绑定也会产生压力
 
 SolverPasses 使用 RDG Blackboard 为一个图复用一份默认 BodyDynamics SRV，避免按迭代/颜色重复创建相同默认资源。[求解调度:22–43](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Source/GPUPhysicsLab/Private/CSDispatch/GPUPhysicsLabSolverPasses.cpp#L22-L43)
 
 这说明 GPU 物理瓶颈可能包含 descriptor、参数块、pass 编码与资源重建，不全是碰撞乘加次数。
 
-### 22.4 稀疏颜色融合是实验性路径
+### 稀疏颜色融合是实验性路径
 
 开启后，主循环先做前 16 色，再一次 SparseCS 处理尾部；shader 用共享内存屏障与 DeviceMemoryBarrierWithGroupSync 保证同工作组内后色看到前色 UAV 写入。[求解调度:191–230](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Source/GPUPhysicsLab/Private/CSDispatch/GPUPhysicsLabSolverPasses.cpp#L191-L230) [Primal:113–139](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Shaders/Private/Solver/Primal/PrimalSolve.usf#L113-L139)
 
@@ -745,7 +764,7 @@ SolverPasses 使用 RDG Blackboard 为一个图复用一份默认 BodyDynamics S
 
 不要为了减少 dispatch 默认打开它，更不能将 groupshared barrier 当作所有 storage/UAV 可见性的替代。
 
-### 22.5 优先优化建议
+### 优先优化建议
 
 以下是工程建议，不代表本轮已经改代码：
 
@@ -757,9 +776,9 @@ SolverPasses 使用 RDG Blackboard 为一个图复用一份默认 BodyDynamics S
 6. 对宿主减少重复 SRV、空 pass、重复快照和无必要回读，但不能牺牲身份与版本保护。
 7. 每个优化同时比较物理误差、长期回放、资源峰值与 GPU 时间。
 
-## 二十三、关键参数与调参顺序
+## 关键参数与调参顺序
 
-### 23.1 先统一入口默认
+### 先统一入口默认
 
 DefaultStepParams 的基础值为：
 
@@ -774,7 +793,7 @@ DefaultStepParams 本身没有填全容量，不能直接拿零容量参数派�
 
 公开 FreeBodySettings 默认 gravity=-1000 $\mathrm{cm/s^2}$，对应 $-10\ \mathrm{m/s^2}$；不要混入 three-avbd JavaScript World 的 $-9.81$ 默认。[作者设置:191–209](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Source/GPUPhysicsLab/Public/Bodies/GPUPhysicsLabBodyDefinition.h#L191-L209)
 
-### 23.2 先调时间和尺度，再调稳定参数
+### 先调时间和尺度，再调稳定参数
 
 推荐顺序：
 
@@ -788,7 +807,7 @@ DefaultStepParams 本身没有填全容量，不能直接拿零容量参数派�
 
 alpha 同时进入稳定化误差和暖启动；gamma 控制跨步历史衰减；beta 控制违反量对应的罚参数增长。它们不是互不相关的三个“硬度滑块”。
 
-### 23.3 编译期常量不是现成编辑器属性
+### 编译期常量不是现成编辑器属性
 
 当前常量含：
 
@@ -802,61 +821,61 @@ $$
 
 这些必须结合运行时入口、shader 构造与 C++ 一致性理解，不能写成它们全已暴露为 WorldSubsystem 的 Blueprint 可调字段。
 
-### 23.4 曲面和布料单独调参
+### 曲面和布料单独调参
 
 曲面几何 tolerance、EPA 容量/轮数不是 AVBD 的 iterations。增加后者不能解决 EPA 未取得有效见证；增大几何 tolerance 也不能当作稳定性优化。
 
 布料弹簧刚度、接触 stiffness/damping、粒子质量和 dt 属于另一种离散模型。它们不应套用 rigid beta/penaltyMin 的解释。
 
-## 二十四、验证状态：不要把几种清单相互替代
+## 验证状态：不要把几种清单相互替代
 
 以下全部是本轮读取到的仓库记录，不是重新编译/运行的结果。
 
-### 24.1 P32 的 53 项
+### P32 的 53 项
 
 P32_RESULTS 记录 Development/DebugGame 各 53/53，通过状态为 ACCEPTED_WITH_LIMITS。清单明确排除 P20，保留 Niagara/Blueprint 人工检查、密集碰撞/跨 GPU 性能等限制。[P32 结果:1–54](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Doc/Porting/P32_RESULTS.json#L1-L54)
 
 它证明的是那次精确清单，不是“整个插件所有能力全部通过”。
 
-### 24.2 原始 75 项覆盖仍为 66/75
+### 原始 75 项覆盖仍为 66/75
 
 ORIGINAL_GPU_COVERAGE 记录 66 ACCEPTED、9 PORT_REQUIRED。剩余 case index 为 6、33、36、40、47、50、54、60、70。[原始覆盖:1 起](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Doc/Porting/ORIGINAL_GPU_COVERAGE.json#L1)
 
 Actor 目录已有 75 个入口，不代表 75 个原断言都完成。60 个可见场景也不能替代逐项算法/API 验证。
 
-### 24.3 217 项扩展回归
+### 217 项扩展回归
 
 BODY_DYNAMICS_RESULTS 记录 2026-10-17 的双配置各 217/217，由原 209 项、两项独立创建和六项动力属性测试组成，记录实际选中 RTX 5060、D3D12/SM6 与报告/二进制指纹。[动力属性结果:1–65、229–233](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Doc/Porting/BODY_DYNAMICS_RESULTS.json#L1-L233)
 
 同文件仍明确保留 P20 和原始 75 项剩余九项。217 大于 75，不代表两个集合存在覆盖包含关系。
 
-### 24.4 P20 仍未验收
+### P20 仍未验收
 
 ReferenceContactHistory 的完整 D3D12 运行记录包含 DXGI_ERROR_DEVICE_REMOVED；按既有决定暂缓，但状态仍为 NOT_ACCEPTED。局部 Hash/匹配检查通过，不能改写为完整历史已稳定。[P20 讲义:57–85](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Doc/Porting/Lessons/PORT_LESSON_20.md#L57-L85)
 
 设备移除的根因不能仅从最后出现的 shader 名推断。本文没有新现场，不将它归咎于某个缓存分支，也不以普通场景能运行否定该失败。
 
-### 24.5 布料 rollback 与规模测试的边界
+### 布料 rollback 与规模测试的边界
 
 CLOTH07 仅验证独立布料存储在一次注入错误后的恢复，不关闭附件反作用、自碰撞、长时间稳定或规模问题。[布料验收:1–19](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Doc/Porting/CLOTH07_RESULTS.json#L1-L19)
 
 P31 测量范围为 free-body/no-collision，只有有限规模与短长期检查，不能外推成密集接触的 RTX 性能预算。[P31 结果:1–21、38–45](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Doc/Porting/P31_RESULTS.json#L1-L45)
 
-## 二十五、面向项目的诊断顺序
+## 面向项目的诊断顺序
 
-### 25.1 不动：先看入口，不先改求解系数
+### 不动：先看入口，不先改求解系数
 
 确认 World 类型为 Game/PIE、BeginPlay 启动成功、配置发生在允许阶段、会话不是 Faulted、Body 是 Simulated、没有误用无碰撞 ConfigureFreeBodies。[World:19–98、134–150](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Source/GPUPhysicsLab/Private/World/GPUPhysicsLabWorldSubsystem.cpp#L19-L150)
 
 再看 submitted/completed/accepted 是否前进；只看 Actor Transform 不一定是在看 GPU 权威位置。
 
-### 25.2 有几何但不碰撞
+### 有几何但不碰撞
 
 检查公开形状到内部 tag、曲面 permutation、groups/mask、候选计数和容量。检查 native Hull 是否真的有 atlas 数据，而不是仅在 public enum 选了 ConvexHull。
 
 若 pair 根本没生成，增大 iterations 无效；若 EPA 失败，则属于几何分支，不该用清速度掩盖。
 
-### 25.3 抖动、滑动与穿透
+### 抖动、滑动与穿透
 
 依次检查：
 
@@ -870,21 +889,21 @@ P31 测量范围为 free-body/no-collision，只有有限规模与短长期检�
 
 不要在这些没分清前同时增加阻尼、缩小 margin、放宽容差和增迭代。
 
-### 25.4 显示闪烁或槽位错乱
+### 显示闪烁或槽位错乱
 
 看 Epoch、Slot、Generation、Step 与 accepted lease 是否一致；检查 Reset/删除后的订阅是否撤销，Niagara mesh 轴与 FullSize/Radius 语义是否正确。
 
 GPU 正在模拟不代表显示已消费最新接受版本；CPU 数组延迟也不能当作 GPU 求解错误。
 
-### 25.5 GPU 时间变长或设备错误
+### GPU 时间变长或设备错误
 
 先隔离曲面、布料、查询、复制和渲染负载，再分阶段计时。密集曲面 EPA、布料全扫描、颜色小桶长尾、descriptor 压力和显示快照都有不同证据路径。
 
 保留原始 device removed、DRED/验证日志与首次非法状态，不能通过提高 TDR、忽略错误或缩小失败清单制造通过。
 
-## 二十六、最小可落地使用方式
+## 最小可落地使用方式
 
-### 26.1 验证最小刚体场景
+### 验证最小刚体场景
 
 - 使用同 World 的公开 WorldSubsystem。
 - BeginPlay 前配置一个固定 Box 地面与一个动态 Box/Sphere，并预留 Body 容量。
@@ -895,7 +914,7 @@ GPU 正在模拟不代表显示已消费最新接受版本；CPU 数组延迟也
 
 不要一开始混入曲面、布料、COM 偏移和稀疏融合，否则首次异常难以归因。
 
-### 26.2 在基线成立后扩展
+### 在基线成立后扩展
 
 按以下顺序增加：
 
@@ -908,9 +927,9 @@ GPU 正在模拟不代表显示已消费最新接受版本；CPU 数组延迟也
 
 这些步骤是工程建议，不代表本文替用户完成了 UE 运行验证。
 
-## 二十七、总结：哪些可确认，哪些仍开放
+## 总结：哪些可确认，哪些仍开放
 
-### 27.1 当前可以确认
+### 当前可以确认
 
 - 唯一 World/Simulation/RenderState，而非并排保留旧后端。
 - 刚体核心继承锁定 three-avbd GPU 数值路径。
@@ -921,7 +940,7 @@ GPU 正在模拟不代表显示已消费最新接受版本；CPU 数组延迟也
 - GPU 接受状态、异步观察与不可变 Niagara 发布。
 - 圆柱/胶囊、单体 Dynamics、弹簧质点布料属于明确扩展。
 
-### 27.2 不能据此宣称
+### 不能据此宣称
 
 - 所有原始 API/算法测试已完全移植。
 - 所有 overflow/clashes 都统一整步拒绝。
@@ -932,7 +951,7 @@ GPU 正在模拟不代表显示已消费最新接受版本；CPU 数组延迟也
 - ES3.1、所有 Metal 设备、Cook/Shipping 全面兼容。
 - GPU 显示完全零拷贝、目标大规模性能已经达标。
 
-### 27.3 最重要的工程原则
+### 最重要的工程原则
 
 **参考算法、宿主适配和新增物理域必须分别解释、分别测试。**
 

@@ -1,4 +1,7 @@
 ---
-import KnowledgeLibrary from '../../components/KnowledgeLibrary.astro';
+import { getEntry } from 'astro:content';
+import KnowledgeDocument from '../../components/KnowledgeDocument.astro';
+const entry = await getEntry('knowledge', 'physics-simulation-overview');
+if (!entry || entry.data.draft || entry.data.redirectTo) throw new Error('Knowledge overview must be public.');
 ---
-<KnowledgeLibrary />
+<KnowledgeDocument entry={entry} indexBody={false} />

@@ -44,7 +44,8 @@ for (const filename of files) {
   }
 
   const internalLinks = [...body.matchAll(/\]\((?:https?:\/\/niteflightxx\.github\.io)?\/?knowledge\/([^/#?\s)]+)\/?(?:#[^)\s]+)?\)/gi)];
-  records.get(slug).links = internalLinks.map((match) => decodeURIComponent(match[1]).toLocaleLowerCase());
+  records.get(slug).links = internalLinks.map((match) => decodeURIComponent(match[1]).toLocaleLowerCase())
+    .filter(target => !['library', 'graph'].includes(target));
 
   for (const sourceEntry of parsed.data.sources ?? []) {
     try {

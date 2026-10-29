@@ -1,34 +1,44 @@
 ---
-title: "工程微积分：变化率、累积与局部近似"
-excerpt: "从导数和积分理解运动与累积，再查阅偏导、泰勒近似和向量微积分。"
-date: "2026-09-06"
-category: "Mathematics"
-subtopic: "Calculus"
-tags: ["微积分", "导数", "积分", "向量微积分", "C++"]
-readTime: "阅读约50分钟"
-topics:
-  - id: "ue-chaos-physics"
-    stage: "foundation"
-    role: "theory"
-    order: 10
-kind: "theory"
-level: "foundation"
+title: 工程微积分：变化率、累积与局部近似
+excerpt: 从导数和积分理解运动与累积，再查阅偏导、泰勒近似和向量微积分。
+date: '2026-09-06'
+category: Mathematics
+subtopic: Calculus
+tags:
+  - 微积分
+  - 导数
+  - 积分
+  - 向量微积分
+  - C++
+readTime: 阅读约20分钟
+kind: theory
+level: foundation
+pageType: guide
+aliases:
+  - 微积分详解 — 从极限到微分、积分与向量微积分
 prerequisites: []
-nextArticles: ["differential-equations", "jacobian-matrix"]
-aliases: ["微积分详解 — 从极限到微分、积分与向量微积分"]
+nextArticles:
+  - differential-equations
+  - jacobian-matrix
+related: []
+topics:
+  - id: ue-chaos-physics
+    stage: foundation
+    role: theory
+    order: 10
+sources: []
 ---
-
 物理中的速度、加速度与能量变化，都需要描述“某个量如何随另一个量变化”。本文围绕变化率、累积和局部近似组织基础知识；三角函数与向量微积分可按需查阅，不是进入物理模拟的统一门槛。[Jacobian](/knowledge/jacobian-matrix/)与[Hessian](/knowledge/hessian-matrix/)分别承担多输出映射和二阶模型的深入解释。
 
 > 微积分是游戏物理与动画编程的数学基础：位置是速度的积分，速度是位置的导数；力场是势函数的梯度；流体行为由偏微分方程描述。本文系统梳理从极限到向量微积分的完整理论链，并配合 UE C++ 实践示例。
 >
-> 本文为教材式总览，ODE 数值方法见&#12298;[常微分方程：状态、初值与动力系统](/knowledge/differential-equations/)&#12299;，PDE 与有限差分离散见&#12298;[偏微分方程：场、边界与空间离散](/knowledge/partial-differential-equations/)&#12299;，数学符号速查见&#12298;[数学符号与 LaTeX 速查](/knowledge/mathematical-notation-reference/)&#12299;。雅可比/海森矩阵的深拆见&#12298;[Jacobian 矩阵与局部线性化](/knowledge/jacobian-matrix/)&#12299;与&#12298;[二阶近似与 Hessian 矩阵](/knowledge/hessian-matrix/)&#12299;。
+> 本文为教材式总览，ODE 数值方法见《[常微分方程：状态、初值与动力系统](/knowledge/differential-equations/)》，PDE 与有限差分离散见《[偏微分方程：场、边界与空间离散](/knowledge/partial-differential-equations/)》，数学符号速查见《[数学符号与 LaTeX 速查](/knowledge/mathematical-notation-reference/)》。雅可比/海森矩阵的深拆见《[Jacobian 矩阵与局部线性化](/knowledge/jacobian-matrix/)》与《[二阶近似与 Hessian 矩阵](/knowledge/hessian-matrix/)》。
 
 ---
 
-## 一、数学预备知识
+## 数学预备知识
 
-### 1.1 幂运算与根式
+### 幂运算与根式
 
 幂运算表示重复乘法：
 
@@ -53,7 +63,7 @@ float SquareRoot = FMath::Sqrt(16.0f);      // √16 = 4
 float CubeRoot = FMath::Pow(8.0f, 1.0f/3.0f); // ∛8 = 2
 ```
 
-### 1.2 多项式与二次方程
+### 多项式与二次方程
 
 多项式标准形式：
 
@@ -81,7 +91,7 @@ bool SolveQuadratic(float a, float b, float c, float& Root1, float& Root2)
 }
 ```
 
-### 1.3 坐标系统
+### 坐标系统
 
 **笛卡尔坐标**：UE 使用左手坐标系，X 为前方，Y 为右方，Z 为上方。
 
@@ -105,9 +115,9 @@ $$
 
 ---
 
-## 二、三角函数
+## 三角函数
 
-### 2.1 定义
+### 定义
 
 在单位圆上，角度 $\theta$ 对应点的坐标为 $(\cos\theta, \sin\theta)$：
 
@@ -115,7 +125,7 @@ $$
 \cos\theta = x, \quad \sin\theta = y, \quad \tan\theta = \frac{\sin\theta}{\cos\theta}
 $$
 
-### 2.2 重要恒等式
+### 重要恒等式
 
 **毕达哥拉斯恒等式**：
 
@@ -139,7 +149,7 @@ $$
 \sin(2\theta) = 2\sin\theta\cos\theta, \quad \cos(2\theta) = \cos^2\theta - \sin^2\theta
 $$
 
-### 2.3 重要角度值
+### 重要角度值
 
 | 角度 | 弧度 | $\sin$ | $\cos$ | $\tan$ |
 |------|------|--------|--------|--------|
@@ -149,7 +159,7 @@ $$
 | 60° | $\pi/3$ | $\sqrt{3}/2$ | $1/2$ | $\sqrt{3}$ |
 | 90° | $\pi/2$ | 1 | 0 | ∞ |
 
-### 2.4 反三角函数与 atan2
+### 反三角函数与 atan2
 
 `atan2(y, x)` 返回 $[-\pi, \pi]$，能正确处理所有四个象限，是游戏开发中计算角度的标准函数。
 
@@ -157,7 +167,7 @@ $$
 float Angle = FMath::Atan2(Y, X); // 弧度，[-π, π]
 ```
 
-### 2.5 游戏应用
+### 游戏应用
 
 圆周运动、摆动振荡、视野检测：
 
@@ -179,9 +189,9 @@ bool IsInFieldOfView(FVector Forward, FVector ToTarget, float FOVDegrees)
 
 ---
 
-## 三、指数与对数
+## 指数与对数
 
-### 3.1 指数函数
+### 指数函数
 
 $$
 f(x) = a^x \quad (a > 0, a \neq 1)
@@ -189,7 +199,7 @@ $$
 
 自然指数 $e^x$，其中 $e = \lim_{n \to \infty}(1 + 1/n)^n \approx 2.71828$。性质：$e^{a+b} = e^a \cdot e^b$，$e^0 = 1$。
 
-### 3.2 对数函数
+### 对数函数
 
 对数是指数的逆运算：$y = \log_a x \iff a^y = x$。自然对数 $\ln x = \log_e x$。
 
@@ -197,7 +207,7 @@ $$
 \ln(ab) = \ln a + \ln b, \quad \ln(a^b) = b\ln a
 $$
 
-### 3.3 指数衰减
+### 指数衰减
 
 指数衰减描述量随时间呈指数减少：
 
@@ -218,13 +228,13 @@ float ExponentialSmoothing(float Current, float Target, float Smoothness, float 
 
 ---
 
-## 四、函数与极限
+## 函数与极限
 
-### 4.1 函数概念
+### 函数概念
 
 函数 $f: X \to Y$ 将定义域中每个元素映射到值域中的唯一元素。基本性质包括单调性（递增/递减）、奇偶性（$f(-x) = f(x)$ 为偶函数，$f(-x) = -f(x)$ 为奇函数）、周期性（$f(x+T) = f(x)$）。
 
-### 4.2 极限
+### 极限
 
 $$
 \lim_{x \to a} f(x) = L
@@ -242,11 +252,11 @@ $$
 \lim_{x \to 0} \frac{e^x - 1}{x} = 1, \quad \lim_{x \to 0} \frac{1 - \cos x}{x^2} = \frac{1}{2}
 $$
 
-### 4.3 连续性
+### 连续性
 
 函数 $f(x)$ 在 $x = a$ 处连续当且仅当 $\lim_{x \to a} f(x) = f(a)$。
 
-### 4.4 缓动函数
+### 缓动函数
 
 缓动函数让动画更自然，本质是定义在 $[0, 1]$ 上的连续函数：
 
@@ -268,9 +278,9 @@ float EaseOutCubic(float t)
 
 ---
 
-## 五、微分学
+## 微分学
 
-### 5.1 导数定义
+### 导数定义
 
 $$
 f'(x) = \lim_{h \to 0} \frac{f(x+h) - f(x)}{h}
@@ -291,7 +301,7 @@ $$
 
 **运算法则**：加法 $(f+g)' = f' + g'$，乘法 $(fg)' = f'g + fg'$，链式法则 $\frac{d}{dx}f(g(x)) = f'(g(x)) \cdot g'(x)$。
 
-### 5.2 偏导数
+### 偏导数
 
 对于多元函数 $f(x, y)$，偏导数是固定其他变量后对单一变量的导数：
 
@@ -319,7 +329,7 @@ $$
 \frac{dy}{dx} = -\frac{F_x}{F_y} \quad (F_y \neq 0)
 $$
 
-### 5.3 梯度与方向导数
+### 梯度与方向导数
 
 梯度是所有偏导数组成的向量，指向函数增长最快的方向：
 
@@ -344,7 +354,7 @@ FVector GetTerrainNormal(FVector2D Pos)
 }
 ```
 
-### 5.4 雅可比矩阵
+### Jacobian 矩阵
 
 向量函数 $\mathbf{F}: \mathbb{R}^n \to \mathbb{R}^m$ 的雅可比矩阵是一阶偏导数矩阵：
 
@@ -354,9 +364,9 @@ $$
 
 雅可比行列式描述坐标变换的体积缩放因子。极坐标变换 $x = r\cos\theta, y = r\sin\theta$ 的雅可比行列式为 $r$——这就是极坐标积分乘 $r$ 的原因。
 
-详见&#12298;[Jacobian 矩阵与局部线性化](/knowledge/jacobian-matrix/)&#12299;。
+详见《[Jacobian 矩阵与局部线性化](/knowledge/jacobian-matrix/)》。
 
-### 5.5 海森矩阵
+### Hessian 矩阵
 
 标量函数 $f: \mathbb{R}^n \to \mathbb{R}$ 的海森矩阵是二阶偏导数矩阵：
 
@@ -372,9 +382,9 @@ $$
 f(\mathbf{x} + \Delta\mathbf{x}) \approx f(\mathbf{x}) + \nabla f^T \Delta\mathbf{x} + \frac{1}{2}\Delta\mathbf{x}^T H \Delta\mathbf{x}
 $$
 
-详见&#12298;[二阶近似与 Hessian 矩阵](/knowledge/hessian-matrix/)&#12299;。
+详见《[二阶近似与 Hessian 矩阵](/knowledge/hessian-matrix/)》。
 
-### 5.6 高阶导数与拉普拉斯算子
+### 高阶导数与拉普拉斯算子
 
 二阶导数描述变化率的变化（急动度 Jerk 为三阶）。拉普拉斯算子是梯度的散度：
 
@@ -395,7 +405,7 @@ FVector SmoothVertex(FVector Center, TArray<FVector> Neighbors)
 }
 ```
 
-### 5.7 微分中值定理
+### 微分中值定理
 
 **罗尔定理**：若 $f$ 在 $[a,b]$ 连续、$(a,b)$ 可导且 $f(a) = f(b)$，则存在 $c \in (a,b)$ 使 $f'(c) = 0$。
 
@@ -409,7 +419,7 @@ $$
 
 **柯西中值定理**：$\frac{f'(c)}{g'(c)} = \frac{f(b)-f(a)}{g(b)-g(a)}$，是洛必达法则的基础。
 
-### 5.8 洛必达法则
+### 洛必达法则
 
 对于 $\frac{0}{0}$ 或 $\frac{\infty}{\infty}$ 型不定式：
 
@@ -427,7 +437,7 @@ float SafeSinc(float x)
 }
 ```
 
-### 5.9 泰勒级数
+### 泰勒级数
 
 函数 $f(x)$ 在 $x = a$ 处的泰勒展开：
 
@@ -469,7 +479,7 @@ float FastInvSqrt(float x)
 }
 ```
 
-### 5.10 傅里叶级数
+### 傅里叶级数
 
 周期为 $T$ 的函数可表示为正弦余弦之和：
 
@@ -483,9 +493,9 @@ $$
 
 ---
 
-## 六、积分学
+## 积分学
 
-### 6.1 不定积分
+### 不定积分
 
 积分是导数的逆运算：
 
@@ -501,7 +511,7 @@ $$
 | $\sin x$ | $-\cos x + C$ |
 | $\cos x$ | $\sin x + C$ |
 
-### 6.2 定积分与微积分基本定理
+### 定积分与微积分基本定理
 
 **Newton-Leibniz 公式**：
 
@@ -511,7 +521,7 @@ $$
 
 **积分中值定理**：存在 $\xi \in [a,b]$ 使 $\int_a^b f(x)\,dx = f(\xi)(b-a)$。
 
-### 6.3 换元积分法
+### 换元积分法
 
 **第一类换元（凑微分）**：
 
@@ -527,7 +537,7 @@ $$
 - 含 $\sqrt{a^2 + x^2}$：令 $x = a\tan t$
 - 含 $\sqrt{x^2 - a^2}$：令 $x = a\sec t$
 
-### 6.4 分部积分法
+### 分部积分法
 
 $$
 \int u\,dv = uv - \int v\,du
@@ -537,7 +547,7 @@ $$
 
 循环积分例：$\int e^x \sin x\,dx$，两次分部后得 $I = \frac{e^x(\sin x - \cos x)}{2} + C$。
 
-### 6.5 数值积分
+### 数值积分
 
 **矩形法**：$\int_a^b f(x)\,dx \approx \sum f(x_i)\Delta x$
 
@@ -565,7 +575,7 @@ float SimpsonsIntegration(TFunction<float(float)> Function, float a, float b, in
 }
 ```
 
-### 6.6 多重积分
+### 多重积分
 
 **二重积分**：
 
@@ -579,7 +589,7 @@ $$
 
 应用：质心 $\bar{x} = \frac{\iiint x\rho\,dV}{\iiint \rho\,dV}$，转动惯量 $I = \iiint r^2 \rho\,dV$。
 
-### 6.7 曲线积分与曲面积分
+### 曲线积分与曲面积分
 
 **第一类曲线积分**（对弧长）：
 
@@ -613,9 +623,9 @@ $$
 
 ---
 
-## 七、向量微积分
+## 向量微积分
 
-### 7.1 梯度
+### 梯度
 
 $$
 \nabla f = \left(\frac{\partial f}{\partial x}, \frac{\partial f}{\partial y}, \frac{\partial f}{\partial z}\right)
@@ -623,7 +633,7 @@ $$
 
 梯度指向函数增长最快方向，垂直于等值面。运算法则：$\nabla(fg) = f\nabla g + g\nabla f$。
 
-### 7.2 散度
+### 散度
 
 $$
 \nabla \cdot \mathbf{F} = \frac{\partial P}{\partial x} + \frac{\partial Q}{\partial y} + \frac{\partial R}{\partial z}
@@ -631,7 +641,7 @@ $$
 
 $\nabla \cdot \mathbf{F} > 0$ 为源（发散），$< 0$ 为汇（收敛），$= 0$ 为无源场（不可压缩流体）。
 
-### 7.3 旋度
+### 旋度
 
 $$
 \nabla \times \mathbf{F} = \left(\frac{\partial R}{\partial y} - \frac{\partial Q}{\partial z}, \frac{\partial P}{\partial z} - \frac{\partial R}{\partial x}, \frac{\partial Q}{\partial x} - \frac{\partial P}{\partial y}\right)
@@ -639,7 +649,7 @@ $$
 
 $\nabla \times \mathbf{F} = \mathbf{0}$ 为保守场/无旋场。流体力学中表示涡量。
 
-### 7.4 重要恒等式
+### 重要恒等式
 
 $$
 \nabla \times (\nabla f) = \mathbf{0} \quad \text{（梯度场无旋）}
@@ -653,18 +663,18 @@ $$
 \nabla \times (\nabla \times \mathbf{F}) = \nabla(\nabla \cdot \mathbf{F}) - \nabla^2 \mathbf{F}
 $$
 
-### 7.5 保守场
+### 保守场
 
 向量场 $\mathbf{F}$ 是保守场当且仅当存在势函数 $\phi$ 使 $\mathbf{F} = \nabla\phi$，等价于 $\nabla \times \mathbf{F} = \mathbf{0}$（单连通区域），且曲线积分与路径无关。
 
 ---
 
-## 八、参考文献
+## 参考文献
 
 1. Stewart, J. *Calculus: Early Transcendentals*. ——标准微积分教材。
 2. Strang, G. *Calculus*. MIT OpenCourseWare. ——免费在线教材。
-3. &#12298;[常微分方程：状态、初值与动力系统](/knowledge/differential-equations/)&#12299; — ODE 与数值积分方法。
-4. &#12298;[偏微分方程：场、边界与空间离散](/knowledge/partial-differential-equations/)&#12299; — PDE 与有限差分。
-5. &#12298;[数学符号与 LaTeX 速查](/knowledge/mathematical-notation-reference/)&#12299; — 数学符号书写规范。
-6. &#12298;[Jacobian 矩阵与局部线性化](/knowledge/jacobian-matrix/)&#12299; — 雅可比矩阵深拆。
-7. &#12298;[二阶近似与 Hessian 矩阵](/knowledge/hessian-matrix/)&#12299; — 海森矩阵深拆。
+3. 《[常微分方程：状态、初值与动力系统](/knowledge/differential-equations/)》 — ODE 与数值积分方法。
+4. 《[偏微分方程：场、边界与空间离散](/knowledge/partial-differential-equations/)》 — PDE 与有限差分。
+5. 《[数学符号与 LaTeX 速查](/knowledge/mathematical-notation-reference/)》 — 数学符号书写规范。
+6. 《[Jacobian 矩阵与局部线性化](/knowledge/jacobian-matrix/)》 — 雅可比矩阵深拆。
+7. 《[二阶近似与 Hessian 矩阵](/knowledge/hessian-matrix/)》 — 海森矩阵深拆。

@@ -94,7 +94,7 @@ export default function KnowledgeView({ articles }: KnowledgeViewProps) {
     <div className="workspace-shell knowledge-browser">
       <aside className="browser-sidebar">
         <div className="sidebar-group"><span className="eyebrow">我的知识</span>{scopes.map(({ id, icon: Icon, label, count }) => <button type="button" className="sidebar-link" aria-pressed={scope === id} onClick={() => chooseScope(id)} key={id}><Icon size={16} />{label}<span>{count}</span></button>)}</div>
-        <a className="sidebar-link" href={`${BASE}knowledge/ue-linear-algebra-guide/`}>从空间数学开始阅读<ArrowUpRight size={13}/></a>
+        <a className="sidebar-link" href={`${BASE}knowledge/`}>沿动力学主线阅读<ArrowUpRight size={13}/></a>
         <KnowledgeTree articles={articles} showQuickLinks={false} />
         <a className="sidebar-link graph-sidebar-link" href={BASE + 'knowledge/graph/'}><Network size={16} />知识图谱<ArrowUpRight size={13} /></a>
         <p className="sidebar-note">收藏与阅读记录仅保存在当前浏览器。</p>

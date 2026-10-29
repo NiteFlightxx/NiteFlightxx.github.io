@@ -1,27 +1,39 @@
 ---
-title: "经典力学：牛顿、拉格朗日与哈密顿"
-excerpt: "用同一摆模型比较力、广义坐标和相空间，并说明三种表述的适用条件。"
-date: "2026-07-02"
-category: "Physics"
-subtopic: "RigidBodyDynamics"
-tags: ["经典力学", "牛顿力学", "拉格朗日力学", "哈密顿力学", "变分原理", "分析力学"]
-readTime: "阅读约25分钟"
-kind: "theory"
-level: "foundation"
-prerequisites: ["calculus-foundations"]
-nextArticles: ["differential-equations", "numerical-integration-methods"]
+title: 经典力学：牛顿、拉格朗日与哈密顿
+excerpt: 用同一摆模型比较力、广义坐标和相空间，并说明三种表述的适用条件。
+date: '2026-07-02'
+category: Physics
+subtopic: DynamicsFoundations
+tags:
+  - 经典力学
+  - 牛顿力学
+  - 拉格朗日力学
+  - 哈密顿力学
+  - 变分原理
+  - 分析力学
+readTime: 阅读约10分钟
+kind: theory
+level: foundation
+pageType: guide
+aliases:
+  - 经典力学三大体系详解 — 牛顿、拉格朗日与哈密顿的等价框架与工程映射
+prerequisites:
+  - particle-dynamics
+nextArticles: []
+related: [rigid-body-dynamics, calculus-foundations, differential-equations, numerical-integration-methods, physics_constraints_deep_dive]
 topics:
-  - id: "ue-chaos-physics"
-    stage: "foundation"
-    role: "theory"
+  - id: ue-chaos-physics
+    stage: foundation
+    role: theory
     order: 30
-aliases: ["经典力学三大体系详解 — 牛顿、拉格朗日与哈密顿的等价框架与工程映射"]
-sources: [{"title":"MIT 8.09：分析力学与约束","url":"https://ocw.mit.edu/courses/8-09-classical-mechanics-iii-fall-2014/d9bac33f6c60b304dc0398e99b327102_MIT8_09F14_full.pdf"}]
+sources:
+  - title: MIT 8.09：分析力学与约束
+    url: >-
+      https://ocw.mit.edu/courses/8-09-classical-mechanics-iii-fall-2014/d9bac33f6c60b304dc0398e99b327102_MIT8_09F14_full.pdf
 ---
+[质点动力学](/knowledge/particle-dynamics/)从受力、动量与能量建立了运动方程。如果一个物体被杆连接到固定点，直接使用所有笛卡尔坐标就需要同时求约束反力；如果改用摆角，约束可以部分融入坐标。这引出了动力学的另一条深入方向：怎样用坐标、能量和变分结构组织同一物理问题。
 
-牛顿、拉格朗日和哈密顿是描述动力学的不同语言，不是三种互斥的引擎架构。它们在相应假设下可以描述同一运动，但选用哪种表述，并不自动决定显式/隐式积分、约束算法或长期能量行为。
-
-本文用同一个单摆贯穿三种表述，再说明守恒量、约束和数值方法的关系。只需要位置与速度推进时，可以直接查[ODE](/knowledge/differential-equations/)与[数值积分](/knowledge/numerical-integration-methods/)，不必把整篇分析力学当作先修门槛。
+牛顿、拉格朗日和哈密顿是描述动力学的不同语言。本文用同一个单摆比较它们，再说明守恒量、约束和数值方法的关系。它们在相应假设下可以描述同一运动，但选用哪种表述，并不自动决定积分器或长期能量行为。此篇是主线之后的理论表述分支；要先完成刚体与接触模型，可回到[动力学主线](/knowledge/physics-simulation-overview/)。
 
 <span id="学习位置" aria-hidden="true"></span>
 <span id="一为什么需要三种力学体系" aria-hidden="true"></span>
@@ -29,7 +41,7 @@ sources: [{"title":"MIT 8.09：分析力学与约束","url":"https://ocw.mit.edu
 <span id="12-核心思想对比" aria-hidden="true"></span>
 <span id="13-各自的痛点与优势" aria-hidden="true"></span>
 
-## 1. 先分清模型、坐标与算法
+## 先分清模型、坐标与算法
 
 同一个系统可以使用笛卡尔位置、关节角或其他广义坐标。坐标决定方程怎样写；模型决定质量、受力与约束；算法决定怎样离散并求解。
 
@@ -55,7 +67,7 @@ sources: [{"title":"MIT 8.09：分析力学与约束","url":"https://ocw.mit.edu
 <span id="25-经典示例简谐振子" aria-hidden="true"></span>
 <span id="26-牛顿力学的局限" aria-hidden="true"></span>
 
-## 2. 牛顿表述：先画清受力和参考系
+## 牛顿表述：先画清受力和参考系
 
 对于恒定质量质点：
 
@@ -116,7 +128,7 @@ $$
 <span id="循环坐标与守恒律" aria-hidden="true"></span>
 <span id="36-拉格朗日力学的优势" aria-hidden="true"></span>
 
-## 3. 广义坐标：减少冗余，不是取消所有约束
+## 广义坐标：减少冗余，不是取消所有约束
 
 将质点位置写成：
 
@@ -154,7 +166,7 @@ $$
 
 <span id="三拉格朗日力学能量与变分的分析力学" aria-hidden="true"></span>
 
-## 4. 拉格朗日表述：从作用量到运动方程
+## 拉格朗日表述：从作用量到运动方程
 
 对本文的自然力学系统，取：
 
@@ -232,7 +244,7 @@ $$
 <span id="53-哈密顿--牛顿" aria-hidden="true"></span>
 <span id="54-对比总表" aria-hidden="true"></span>
 
-## 5. 哈密顿表述：动量不是永远等于质量乘速度
+## 哈密顿表述：动量不是永远等于质量乘速度
 
 定义正则动量：
 
@@ -296,7 +308,7 @@ $$
 
 <span id="六诺特定理" aria-hidden="true"></span>
 
-## 6. 守恒量与相空间结构
+## 守恒量与相空间结构
 
 若无非保守广义力，且 $L$ 不显含某坐标 $q_i$，则相应 $p_i$ 守恒。这是循环坐标的实用判据。若 $L$ 不显含时间，则：
 
@@ -342,7 +354,7 @@ $$
 <span id="73-哈密顿力学--辛积分器" aria-hidden="true"></span>
 <span id="74-工程映射总表" aria-hidden="true"></span>
 
-## 7. 与实时物理求解器的关系
+## 与实时物理求解器的关系
 
 以下是方法层次的区分，不是对某个引擎当前实现的断言：
 
@@ -360,7 +372,7 @@ $$
 <span id="经典教材" aria-hidden="true"></span>
 <span id="物理模拟参考" aria-hidden="true"></span>
 
-## 8. 继续阅读与边界
+## 继续阅读与边界
 
 本文解释通用力学，不提供“牛顿等于显式、拉格朗日等于 PBD、哈密顿等于不耗能”的一一对应表，也不据此推断 UE 的运行分支。
 

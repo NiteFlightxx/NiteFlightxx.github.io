@@ -1,0 +1,278 @@
+{
+  "date": "2026-10-23",
+  "scope": "Published canonical documents only; old URLs retained",
+  "records": [
+    {
+      "slug": "2d-physics-engine",
+      "title": "2D 物理引擎：从状态更新到约束求解",
+      "kind": "practice",
+      "pageType": "guide",
+      "review": "rewritten",
+      "legacyAnchors": 49
+    },
+    {
+      "slug": "avbd-demo3d-implementation",
+      "title": "avbd-demo3d：刚体求解器实现",
+      "kind": "source",
+      "pageType": "source-analysis",
+      "review": "targeted",
+      "legacyAnchors": 29
+    },
+    {
+      "slug": "calculus-foundations",
+      "title": "工程微积分：变化率、累积与局部近似",
+      "kind": "theory",
+      "pageType": "guide",
+      "review": "editorial",
+      "legacyAnchors": 45
+    },
+    {
+      "slug": "chaos-cloth",
+      "title": "Chaos Cloth：布料求解与 Dataflow",
+      "kind": "source",
+      "pageType": "source-analysis",
+      "review": "targeted",
+      "legacyAnchors": 39
+    },
+    {
+      "slug": "chaos-kinematic-sync",
+      "title": "Chaos 运动学同步：线程与状态镜像",
+      "kind": "source",
+      "pageType": "source-analysis",
+      "review": "editorial",
+      "legacyAnchors": 30
+    },
+    {
+      "slug": "classical-mechanics",
+      "title": "经典力学：牛顿、拉格朗日与哈密顿",
+      "kind": "theory",
+      "pageType": "guide",
+      "review": "editorial",
+      "legacyAnchors": 8
+    },
+    {
+      "slug": "collision-detection-gjk-epa-sat",
+      "title": "凸体碰撞检测：SAT、GJK 与 EPA",
+      "kind": "algorithm",
+      "pageType": "guide",
+      "review": "editorial",
+      "legacyAnchors": 8
+    },
+    {
+      "slug": "differential-equations",
+      "title": "常微分方程：状态、初值与动力系统",
+      "kind": "theory",
+      "pageType": "guide",
+      "review": "editorial",
+      "legacyAnchors": 10
+    },
+    {
+      "slug": "gjk-collision-detection",
+      "title": "Chaos GJK：距离、容差与退化处理",
+      "kind": "source",
+      "pageType": "source-analysis",
+      "review": "editorial",
+      "legacyAnchors": 11
+    },
+    {
+      "slug": "gpu-physics-plugin",
+      "title": "GPUPhysicsLab：UE GPU 物理实现",
+      "kind": "source",
+      "pageType": "source-analysis",
+      "review": "editorial",
+      "legacyAnchors": 109
+    },
+    {
+      "slug": "hessian-matrix",
+      "title": "二阶近似与 Hessian 矩阵",
+      "kind": "theory",
+      "pageType": "guide",
+      "review": "rewritten",
+      "legacyAnchors": 42
+    },
+    {
+      "slug": "ik-retargeter-ops-math",
+      "title": "UE 动画重定向：IK Retargeter 执行管线",
+      "kind": "source",
+      "pageType": "source-analysis",
+      "review": "editorial",
+      "legacyAnchors": 45
+    },
+    {
+      "slug": "iterative-linear-solvers",
+      "title": "线性系统的迭代求解",
+      "kind": "algorithm",
+      "pageType": "guide",
+      "review": "rewritten",
+      "legacyAnchors": 86
+    },
+    {
+      "slug": "jacobian-matrix",
+      "title": "Jacobian 矩阵与局部线性化",
+      "kind": "theory",
+      "pageType": "guide",
+      "review": "targeted",
+      "legacyAnchors": 33
+    },
+    {
+      "slug": "jgs2-gpu-elastodynamics",
+      "title": "JGS2：GPU 弹性体迭代求解",
+      "kind": "algorithm",
+      "pageType": "guide",
+      "review": "rewritten",
+      "legacyAnchors": 42
+    },
+    {
+      "slug": "mathematical-notation-reference",
+      "title": "数学符号与 LaTeX 速查",
+      "kind": "theory",
+      "pageType": "guide",
+      "review": "editorial",
+      "legacyAnchors": 47
+    },
+    {
+      "slug": "motion-matching-pose-search-source-guide",
+      "title": "UE Motion Matching：姿态搜索与混合",
+      "kind": "source",
+      "pageType": "source-analysis",
+      "review": "editorial",
+      "legacyAnchors": 25
+    },
+    {
+      "slug": "numerical-integration-methods",
+      "title": "数值积分：方法、误差与稳定性",
+      "kind": "algorithm",
+      "pageType": "guide",
+      "review": "editorial",
+      "legacyAnchors": 21
+    },
+    {
+      "slug": "partial-differential-equations",
+      "title": "偏微分方程：场、边界与空间离散",
+      "kind": "theory",
+      "pageType": "guide",
+      "review": "targeted",
+      "legacyAnchors": 28
+    },
+    {
+      "slug": "pbd-xpbd-math",
+      "title": "位置约束求解：PBD 与 XPBD",
+      "kind": "algorithm",
+      "pageType": "guide",
+      "review": "rewritten",
+      "legacyAnchors": 38
+    },
+    {
+      "slug": "pbf-fluid-simulation",
+      "title": "PBF 流体：密度约束与位置修正",
+      "kind": "algorithm",
+      "pageType": "guide",
+      "review": "targeted",
+      "legacyAnchors": 37
+    },
+    {
+      "slug": "physics_constraints_deep_dive",
+      "title": "物理约束：建模、有效质量与迭代求解",
+      "kind": "theory",
+      "pageType": "guide",
+      "review": "rewritten",
+      "legacyAnchors": 149
+    },
+    {
+      "slug": "position-based-elastic-rods",
+      "title": "弹性杆：材料标架与位置约束",
+      "kind": "algorithm",
+      "pageType": "guide",
+      "review": "targeted",
+      "legacyAnchors": 40
+    },
+    {
+      "slug": "predictive-foot-ik",
+      "title": "预测式 Foot IK：落脚规划与接触状态",
+      "kind": "algorithm",
+      "pageType": "guide",
+      "review": "editorial",
+      "legacyAnchors": 104
+    },
+    {
+      "slug": "quadcopter-basics-interactive",
+      "title": "四旋翼飞行原理：动力学与交互演示",
+      "kind": "practice",
+      "pageType": "interactive",
+      "review": "targeted",
+      "legacyAnchors": 5
+    },
+    {
+      "slug": "quadcopter-flight-control-math",
+      "title": "AircraftLab：动力学、飞控与仿真架构",
+      "kind": "source",
+      "pageType": "source-analysis",
+      "review": "editorial",
+      "legacyAnchors": 54
+    },
+    {
+      "slug": "sph-fluid-simulation",
+      "title": "SPH 流体：核插值、压力与边界",
+      "kind": "algorithm",
+      "pageType": "guide",
+      "review": "targeted",
+      "legacyAnchors": 59
+    },
+    {
+      "slug": "three-avbd-gpu-solver",
+      "title": "three-avbd：WebGPU 刚体求解流水线",
+      "kind": "source",
+      "pageType": "source-analysis",
+      "review": "editorial",
+      "legacyAnchors": 115
+    },
+    {
+      "slug": "ue-animation-node-math",
+      "title": "UE 动画节点：数据流与算法参考",
+      "kind": "source",
+      "pageType": "source-analysis",
+      "review": "editorial",
+      "legacyAnchors": 46
+    },
+    {
+      "slug": "ue-chaos-physics-engine",
+      "title": "Chaos 物理引擎：架构与求解流水线",
+      "kind": "source",
+      "pageType": "source-analysis",
+      "review": "rewritten",
+      "legacyAnchors": 58
+    },
+    {
+      "slug": "ue-fullbody-ik-math",
+      "title": "UE 全身 IK：FullBodyIK 与 PBIK",
+      "kind": "source",
+      "pageType": "source-analysis",
+      "review": "editorial",
+      "legacyAnchors": 27
+    },
+    {
+      "slug": "ue-linear-algebra-guide",
+      "title": "UE 空间数学：向量、矩阵与变换",
+      "kind": "theory",
+      "pageType": "guide",
+      "review": "editorial",
+      "legacyAnchors": 63
+    },
+    {
+      "slug": "ue-niagara-parameters",
+      "title": "Niagara：参数、模块与 GPU 数据接口",
+      "kind": "practice",
+      "pageType": "guide",
+      "review": "rewritten",
+      "legacyAnchors": 88
+    },
+    {
+      "slug": "vbd-avbd-math",
+      "title": "变分物理求解：VBD 与 AVBD",
+      "kind": "algorithm",
+      "pageType": "guide",
+      "review": "rewritten",
+      "legacyAnchors": 36
+    }
+  ]
+}

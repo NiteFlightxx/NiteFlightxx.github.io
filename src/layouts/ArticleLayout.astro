@@ -122,6 +122,7 @@ const {
     <StaticSiteHeader activeTab="knowledge" />
 
     <div class="knowledge-reader-shell">
+      <aside class="document-sidebar"><div class="sticky top-28"><DocumentNavigation groups={readingGroups} current={currentSlug} /></div></aside>
       <main id="main-content" class="reader-main min-w-0">
         <div class="document-mobile-bars">
           <details class="document-mobile-navigation rounded-lg border border-border-subtle">
@@ -180,6 +181,12 @@ const {
             )}
           </div>
         </header>
+
+        {readingContext && <aside class="document-reading-context" aria-label="文档位置" data-pagefind-ignore>
+          <div><strong>{readingContext.group.title}</strong><span>{readingContext.position ? `${readingContext.position} / ${readingContext.total}` : '按需查阅'}</span></div>
+          {(readingContext.note || readingContext.group.description) && <p>{readingContext.note || readingContext.group.description}</p>}
+          {currentSlug !== 'physics-simulation-overview' && <a href={`${import.meta.env.BASE_URL}knowledge/`}>回到动力学总览 ↗</a>}
+        </aside>}
 
         {/* Rendered Markdown + KaTeX from <Content /> */}
         <slot />

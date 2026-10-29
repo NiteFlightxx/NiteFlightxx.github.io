@@ -1,24 +1,36 @@
 ---
-title: "凸体碰撞检测：SAT、GJK 与 EPA"
-excerpt: "从投影与支撑映射推导凸体相交、距离和穿透查询，明确退化、容差与输出边界。"
-date: "2026-07-08"
-category: "Physics"
-subtopic: "Collision"
-tags: ["碰撞检测", "GJK", "EPA", "SAT", "Minkowski差", "Chaos"]
-readTime: "阅读约30分钟"
-kind: "algorithm"
-level: "intermediate"
-prerequisites: ["ue-linear-algebra-guide"]
-nextArticles: ["gjk-collision-detection"]
+title: 凸体碰撞检测：SAT、GJK 与 EPA
+excerpt: 从投影与支撑映射推导凸体相交、距离和穿透查询，明确退化、容差与输出边界。
+date: '2026-07-08'
+category: Physics
+subtopic: Collision
+tags:
+  - 碰撞检测
+  - GJK
+  - EPA
+  - SAT
+  - Minkowski差
+  - Chaos
+readTime: 阅读约15分钟
+kind: algorithm
+level: intermediate
+pageType: guide
+aliases:
+  - 凸体碰撞检测详解 — 从 SAT 到 GJK 再到 EPA 的积木式推导
+prerequisites:
+  - ue-linear-algebra-guide
+nextArticles:
+  - gjk-collision-detection
+related: []
 topics:
-  - id: "ue-chaos-physics"
-    stage: "collision"
-    role: "algorithm"
+  - id: ue-chaos-physics
+    stage: collision
+    role: algorithm
     order: 20
-aliases: ["凸体碰撞检测详解 — 从 SAT 到 GJK 再到 EPA 的积木式推导"]
-sources: [{"title":"Eberly：分离轴方法","url":"https://www.geometrictools.com/Documentation/MethodOfSeparatingAxes.pdf"}]
+sources:
+  - title: Eberly：分离轴方法
+    url: 'https://www.geometrictools.com/Documentation/MethodOfSeparatingAxes.pdf'
 ---
-
 SAT、GJK 和 EPA 不是按“旧算法到新算法”排列的替代品。SAT 用投影判断分离，GJK 用支撑映射求距离或相交，EPA 在满足初始化条件时近似求穿透。它们都不直接完成摩擦、碰撞响应或持久接触流形。
 
 本文拥有通用凸体几何的推导；Chaos 查询的 margin、容差与实现分支继续见[Chaos GJK](/knowledge/gjk-collision-detection/)。只需要向量、点积、叉积与坐标变换，不要求先读完整力学和积分。
@@ -27,7 +39,7 @@ SAT、GJK 和 EPA 不是按“旧算法到新算法”排列的替代品。SAT �
 <span id="零我们要解决什么问题" aria-hidden="true"></span>
 <span id="附录-b符号表" aria-hidden="true"></span>
 
-## 1. 查询问题与符号约定
+## 查询问题与符号约定
 
 先假设 $A,B$ 是同一空间内、非空且紧致的凸集。有限顶点凸包满足这些条件；非凸网格需要分解、层级或其他处理，不能直接用一个 support 函数保留凹陷。
 
@@ -53,7 +65,7 @@ $$
 <span id="14-最小平移向量mtv" aria-hidden="true"></span>
 <span id="15-sat-的根本局限" aria-hidden="true"></span>
 
-## 2. SAT：一个分离投影就足够
+## SAT：一个分离投影就足够
 
 对单位轴 $\mathbf n$，投影区间为：
 
@@ -118,7 +130,7 @@ export function axisEscape(aMin, aMax, bMin, bMax) {
 <span id="23-距离与穿透深度统一成原点到-cso-边界的距离" aria-hidden="true"></span>
 <span id="24-支撑函数不显式构造-cso-的查询接口" aria-hidden="true"></span>
 
-## 3. Minkowski 差与支撑映射
+## Minkowski 差与支撑映射
 
 定义：
 
@@ -181,7 +193,7 @@ $$
 <span id="35-chaos-最佳实践gjk-的工程化实现" aria-hidden="true"></span>
 <span id="36-厚度膨胀与热启动" aria-hidden="true"></span>
 
-## 4. GJK：在小单纯形上求最近点
+## GJK：在小单纯形上求最近点
 
 距离形式可视为求解：
 
@@ -242,7 +254,7 @@ $$
 <span id="46-chaos-最佳实践epa-的工程化实现" aria-hidden="true"></span>
 <span id="47-gjk-与-epa-的衔接" aria-hidden="true"></span>
 
-## 5. EPA：扩展包围原点的多面体
+## EPA：扩展包围原点的多面体
 
 EPA 的常见三维输入是一个有效、非退化且包围原点的初始多面体，并保留两体支撑点。GJK 返回的 simplex 可能退化或只在边界接触，不能假定任何输入都可直接进入扩展循环。
 
@@ -277,7 +289,7 @@ EPA 的精度受容差、迭代预算、支撑误差和初始几何影响。它�
 <span id="积木第六层完整窄相流水线" aria-hidden="true"></span>
 <span id="为什么这套设计是最佳实践" aria-hidden="true"></span>
 
-## 6. 从窄相结果到可求解接触
+## 从窄相结果到可求解接触
 
 一种通用设计示意是：
 
@@ -304,7 +316,7 @@ EPA 的精度受容差、迭代预算、支撑误差和初始几何影响。它�
 <span id="54-sath-里的两个值得学的技巧" aria-hidden="true"></span>
 <span id="附录-cchaos-关键-api-速查" aria-hidden="true"></span>
 
-## 7. 当前 Chaos 源码可以确认什么
+## 当前 Chaos 源码可以确认什么
 
 本节核对根目录 `E:\UnrealEngine\UnrealEngine_Source`，Git 快照 `e28561eab454`，核对日期 2026-10-21。以下只陈述已读函数与直接调用，不把“找到某个定义”当成全引擎分派结论。
 
@@ -333,7 +345,7 @@ EPA 的精度受容差、迭代预算、支撑误差和初始几何影响。它�
 <span id="附录-a三算法对照表" aria-hidden="true"></span>
 <span id="附录-d参考资料" aria-hidden="true"></span>
 
-## 8. 工程取舍与继续阅读
+## 工程取舍与继续阅读
 
 SAT 适合候选轴清楚、需要显式特征的多面体查询；GJK 提供统一的凸体支撑接口；EPA补足某些相交状态下的穿透估计。选型要考虑形状、接触质量、退化处理与整体成本，不应仅凭某算法名字认定更现代或更稳定。
 

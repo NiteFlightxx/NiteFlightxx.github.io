@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 420" role="img" aria-labelledby="title desc">
+  <title id="title">约束更新与顶点块更新的读写关系</title>
+  <desc id="desc">左图更新一条约束并写入两个关联顶点，右图读取同一顶点的所有邻接项但只写该顶点。示意图不按比例，不表示实际图染色。</desc>
+  <defs>
+    <marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0 0L8 4L0 8" fill="#b3c38e"/></marker>
+  </defs>
+  <rect width="900" height="420" rx="18" fill="#202720"/>
+  <g font-family="system-ui, sans-serif" fill="#e8eadd">
+    <text x="40" y="44" font-size="21" font-weight="600">按约束更新 · PBD / XPBD</text>
+    <text x="490" y="44" font-size="21" font-weight="600">按顶点块更新 · VBD / AVBD</text>
+    <path d="M450 25V385" stroke="#465043"/>
+    <g stroke="#687562" stroke-width="5">
+      <path d="M85 180H360M220 180L290 285"/>
+      <path d="M535 180H810M670 180L740 285"/>
+    </g>
+    <g stroke="#b3c38e" stroke-width="8">
+      <path d="M85 180H220"/>
+      <path d="M535 180H670H810M670 180L740 285"/>
+    </g>
+    <g fill="#202720" stroke="#9abeb4" stroke-width="3">
+      <circle cx="85" cy="180" r="19"/><circle cx="220" cy="180" r="19"/>
+      <circle cx="360" cy="180" r="19"/><circle cx="290" cy="285" r="19"/>
+      <circle cx="535" cy="180" r="19"/><circle cx="810" cy="180" r="19"/><circle cx="740" cy="285" r="19"/>
+    </g>
+    <circle cx="670" cy="180" r="24" fill="#b3c38e" stroke="#d1dcad" stroke-width="3"/>
+    <g font-size="17">
+      <text x="66" y="222">顶点 i</text><text x="201" y="222">顶点 j</text>
+      <text x="110" y="150" fill="#b3c38e">约束 e</text>
+      <text x="645" y="226" fill="#b3c38e">顶点 i</text>
+      <text x="560" y="150">邻接 e₁</text><text x="734" y="150">邻接 e₂</text><text x="715" y="248">邻接 e₃</text>
+    </g>
+    <g stroke="#b3c38e" stroke-width="2" marker-end="url(#arrow)">
+      <path d="M150 108Q110 112 90 150" fill="none"/><path d="M157 108Q205 112 217 150" fill="none"/>
+      <path d="M670 102V145"/>
+    </g>
+    <g font-size="17">
+      <text x="81" y="94" fill="#b3c38e">一次修正写两个端点</text>
+      <text x="590" y="87" fill="#b3c38e">一次只写当前块</text>
+      <text x="40" y="343">读取一个约束的几何与质量</text>
+      <text x="40" y="371">与相邻约束的耦合由后续投影传播</text>
+      <text x="490" y="343">读取当前块的全部邻接能量 / 约束</text>
+      <text x="490" y="371">AVBD 另有整轮后的约束状态更新</text>
+      <text x="40" y="404" font-size="13" fill="#a4ad9d">关系示意，不按比例；颜色区分更新对象，不表示实际 GPU 染色。</text>
+    </g>
+  </g>
+</svg>

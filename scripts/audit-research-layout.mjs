@@ -14,9 +14,11 @@ const knowledge = read('knowledge/library/index.html');
 const documentHome = read('knowledge/index.html');
 const order = JSON.parse(fs.readFileSync(path.join(root, 'src/data/reading-order.json'), 'utf8'));
 const forbidden = /学完能做什么|练习与验收|手动完成|我已完成本课|查看课程|课程目录|课节完成与导航|规划中/;
-assert.match(documentHome, /knowledge-browser/);
-assert.match(documentHome, /搜索知识库/);
-assert.equal((documentHome.match(/class="browser-article"/g) ?? []).length, manifest.length, 'Knowledge landing must expose every public document');
+assert.match(documentHome, /class="article-body /);
+assert.match(documentHome, /动力学总览：刚体、软体与流体的共同脉络/);
+assert.match(documentHome, /class="physics-atlas"/);
+assert.match(documentHome, /知识库文档目录/);
+assert.ok(documentHome.includes('href="https://niteflightxx.github.io/knowledge/physics-simulation-overview/"'), 'Overview alias must use its canonical URL');
 assert.doesNotMatch(documentHome, forbidden);
 assert.doesNotMatch(documentHome, /data-pagefind-body/);
 const firstDocument = read('knowledge/' + order[0].sections[0].articles[0] + '/index.html');
@@ -31,14 +33,15 @@ for (const group of order) {
     previousPosition = position;
   }
 }
-for (const group of order.slice(0, 3)) {
+for (const group of order.filter(group => ['engineering-math', 'rigid-body-physics', 'character-animation'].includes(group.id))) {
   const slug = group.sections[0].articles[0];
   const canonical = read('knowledge/' + slug + '/index.html');
   assert.match(canonical, /data-pagefind-body/);
   assert.match(canonical, /class="katex/);
-  assert.match(canonical, /顺序阅读/);
   assert.doesNotMatch(canonical, forbidden);
-  for (const alias of ['knowledge/courses/' + group.id + '/', 'knowledge/domain/' + group.domain + '/']) {
+  const aliases = ['knowledge/courses/' + group.id + '/'];
+  if (group.domain) aliases.push('knowledge/domain/' + group.domain + '/');
+  for (const alias of aliases) {
     const html = read(alias + 'index.html');
     assert.match(html, /class="article-body /);
     assert.match(html, /知识库文档目录/);
@@ -46,6 +49,25 @@ for (const group of order.slice(0, 3)) {
     assert.doesNotMatch(html, forbidden);
     assert.ok(html.includes('href="https://niteflightxx.github.io/knowledge/' + slug + '/"'), 'Alias must use the canonical article URL');
   }
+}
+const physicsDomain = read('knowledge/domain/physics/index.html');
+assert.ok(physicsDomain.includes('href="https://niteflightxx.github.io/knowledge/physics-simulation-overview/"'));
+for (const slug of ['continuum-mechanics','deformable-body-dynamics','fluid-dynamics','multiphysics-coupling']) {
+  const html = read('knowledge/' + slug + '/index.html');
+  assert.match(html, /<svg\b[^>]*role="img"/, slug + ': physical explanation needs a rendered diagram');
+  assert.match(html, /<figcaption>/, slug + ': diagram needs a caption');
+}
+for (const group of order) for (const section of group.sections) {
+  section.articles.forEach((slug, index) => {
+    const html = read('knowledge/' + slug + '/index.html');
+    const adjacent = html.match(/<nav class="document-adjacent"[\s\S]*?<\/nav>/)?.[0];
+    if (section.mode === 'reference') assert.equal(adjacent, undefined, slug + ': references must not force an unrelated next document');
+    else {
+      for (const neighbor of [section.articles[index - 1], section.articles[index + 1]].filter(Boolean)) {
+        assert.ok(adjacent?.includes('href="/knowledge/' + neighbor + '/"'), slug + ': missing sequential neighbor ' + neighbor);
+      }
+    }
+  });
 }
 assert.match(home, /精选研究/);
 assert.match(home, /探索网站/);

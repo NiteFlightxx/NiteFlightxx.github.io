@@ -1,23 +1,40 @@
 ---
-title: "AircraftLab：动力学、飞控与仿真架构"
-excerpt: "沿任务意图到旋翼与物理后端的链路，分析 PID、预测跟踪、ORCA、LOD 与网络边界。"
-date: "2026-10-13"
-category: "Physics"
-subtopic: "FlightController"
-tags: ["飞控", "Chaos", "Autopilot", "PID", "MPCC", "ORCA"]
-readTime: "阅读约40分钟"
-kind: "algorithm"
-level: "advanced"
-prerequisites: ["quadcopter-basics-interactive", "classical-mechanics", "differential-equations", "iterative-linear-solvers"]
+title: AircraftLab：动力学、飞控与仿真架构
+excerpt: 沿任务意图到旋翼与物理后端的链路，分析 PID、预测跟踪、ORCA、LOD 与网络边界。
+date: '2026-10-13'
+category: Physics
+subtopic: FlightController
+tags:
+  - 飞控
+  - Chaos
+  - Autopilot
+  - PID
+  - MPCC
+  - ORCA
+readTime: 阅读约45分钟
+kind: source
+level: advanced
+pageType: source-analysis
+aliases:
+  - AircraftLab
+  - 无人机飞控
+  - Flight Controller
+  - MPCC
+  - ORCA
+  - AircraftLab 无人机插件技术详解 — 物理、飞控、自动驾驶、Simulation LOD 与网络同步
+prerequisites:
+  - quadcopter-basics-interactive
+  - classical-mechanics
+  - differential-equations
+  - iterative-linear-solvers
 nextArticles: []
-pageType: "source-analysis"
-aliases: ["AircraftLab","无人机飞控","Flight Controller","MPCC","ORCA","AircraftLab 无人机插件技术详解 — 物理、飞控、自动驾驶、Simulation LOD 与网络同步"]
+related: []
+sources: []
 featured: true
 ---
-
 AircraftLab 的控制链需要区分任务意图、低频路径规划、周期性预测跟踪和短周期局部避障。本文沿插件实际数据流解释它们如何进入串级飞控、旋翼分配与物理后端，并保留源码证据和工程取舍。推力与姿态的直观关系见[四旋翼原理](/knowledge/quadcopter-basics-interactive/)，不会用参考框架替代插件事实。
 
-## 先给结论
+## 范围与核心机制
 
 AircraftLab 当前不是一个“目标点直接变成力”的单层控制器，而是把任务意图、可达性、路径进度、预测参考、串级飞控和执行器响应拆成多个有明确所有权的阶段：
 
@@ -61,7 +78,7 @@ Chaos 物理子步施加力和力矩
 
 本文只写当前插件源码能证明的内容。标记为“工程经验”的段落是调参建议；标记为“待验证”的段落需要在真实场景、指定物理步长和网络配置下测试。
 
-## 学习位置与边界
+## 范围与前置知识
 
 - 前置：[四旋翼飞行原理：动力学与交互演示](/knowledge/quadcopter-basics-interactive/)
 - 数学基础：[经典力学三大体系](/knowledge/classical-mechanics/)、[常微分方程与数值方法](/knowledge/differential-equations/)、[迭代线性求解器](/knowledge/iterative-linear-solvers/)
@@ -69,7 +86,7 @@ Chaos 物理子步施加力和力矩
 
 本文关注 `E:\UnrealProjects\GASP57\Plugins\AircraftLab` 当前源码，不把真实飞控、适航控制律或完整机器人 MPC 论文直接当成插件已实现能力。无人机的升力、刚体和基础 PID 只引用前置专题，本文把重点放在插件如何组织这些模块、在哪个线程执行、哪些参数互相制约，以及为什么选择当前方案。
 
-## 一、插件解决什么问题
+## 插件解决什么问题
 
 AircraftLab 的核心任务是：在 Unreal 的游戏运行时里，把多种上层输入统一成对旋翼或替代驱动后端可执行的运动表现。输入可以是：
 
@@ -90,31 +107,31 @@ AircraftLab 的核心任务是：在 Unreal 的游戏运行时里，把多种上
 - 网络复制不会自动让不同客户端的 Chaos 浮点积分逐位确定；
 - LOD 切换不会自动解决所有动画、碰撞和网络观感问题。
 
-## 二、从意图到 Chaos 的完整执行链
+## 从意图到 Chaos 的完整执行链
 
-### 1. 意图提交与 Revision
+### 意图提交与 Revision
 
 `UAutopilotComponent` 在 `BeginPlay` 时解析飞行控制器并注册为意图提供者，组件 tick 位于 `TG_PrePhysics`（`AutopilotComponent.cpp:47-63`）。调用 `SubmitIntent` 会检查控制权、结束被替换任务、保存 `ResolvedIntent`，增加 revision，并广播 `Accepted`（`AutopilotComponent.cpp:274-317`）。Actor 目标在 `ResolveActorTargets` 中拷贝为位置快照；目标移动只有超过配置阈值才触发新的 revision（`AutopilotComponent.cpp:384-484`）。
 
 每个物理子步不应重新解释一遍蓝图对象。`UAircraftComponent::TickComponent` 只负责刷新 Provider 并把意图推入 Proxy（`AircraftComponent.cpp:2401-2433`）；Proxy 通过临界区保存待消费意图和 revision（`AircraftSimulationProxy.cpp:725-744`）。因此，**意图 ID、revision、计划 revision 和状态 sequence 必须在跨线程传递时保持一致**。
 
-### 2. 能力快照
+### 能力快照
 
 物理子步先读取当前 Chaos 刚体的位姿、线速度、角速度、质量、惯量、阻尼和质心，然后基于当前 LOD、旋翼权限和后端限制构造 `FAircraftDynamicCapabilitySnapshot`。Flight Controller 会把总推力权限、最大倾角和正负 Roll/Pitch/Yaw 权限写入能力快照（`AircraftSimulationProxy.cpp:1993-2028`）；旋翼响应时间也会从当前旋翼电机参数聚合（`AircraftSimulationProxy.cpp:2231-2242`）。
 
 这一步的意义是：规划器不会只看到“配置里允许 400 cm/s²”，还会看到当前旋翼失效、质量、倾角或约束力矩是否让这个数真实可达。
 
-### 3. 计划构建与重建
+### 计划构建与重建
 
 `FAircraftMotionPlan::Build` 先校验 Intent、运行时配置和能力快照，再按类型选择 `BuildHoldPlan`、`BuildSpatialPlan`、`BuildTimedPlan` 或持续速度模式（`AircraftMotionPlan.cpp:709-751`）。空间路径会按采样间距建立样本，结合曲率、推力、倾角、阻力、垂直率和偏航率限制生成速度包络（`AircraftMotionPlan.cpp:280-425`）。Stop 路径还会把旋翼响应延迟和 jerk 建立时间加入最大停止速度计算（`AircraftMotionPlan.cpp:492-520`）。
 
 计划不是只存位置点。每个样本至少包含时间、弧长、位置、速度、加速度、偏航和偏航率；`Evaluate` 在相邻样本间插值，空间计划的加速度由该时间区间的速度斜率得到，而不是简单混合端点加速度（`AircraftMotionPlan.cpp:764-822`）。
 
-### 4. 路径投影与进度
+### 路径投影与进度
 
 对 Route / Orbit，当前状态会投影到空间路径。`Project` 先调用 `SpatialPath.Project`，再用弧长转时间并恢复切线方向（`AircraftMotionPlan.cpp:844-866`）。MPCC 只允许进度按当前速度和加速度能力推进；若检测到位移超过可达范围，则进行全局恢复并清空旧的修正 horizon（`AircraftMpccController.cpp:718-785`）。这避免传送、重生或物理重建后继续沿用旧优化状态。
 
-### 5. 预测跟踪与轨迹参考
+### 预测跟踪与轨迹参考
 
 `FAircraftTrajectoryRuntime::UpdateFlightController` 调用 `MpccController.Update`，拿到 nominal / final reference，随后应用导航引导、航向动态和诊断（`AircraftTrajectoryRuntime.cpp:378-432`）。输出参考包含：
 
@@ -130,7 +147,7 @@ PathProgress / RouteProgress
 
 参考不是每个物理子步都重新求解。`FAircraftMpccController::Update` 在上一次 reference 仍新鲜且尚未到下一次 solve 时间时，直接复用 reference；空间计划只更新名义位置、速度、加速度的时间采样（`AircraftMpccController.cpp:1388-1427`）。这是实时预算的重要来源，也是“MPCC 频率”和“物理步频”分离的原因。
 
-### 6. 串级飞控
+### 串级飞控
 
 Flight Controller 后端在每个物理子步依次调用垂直控制、期望姿态、航向设定、期望角速度和机体力矩命令（`AircraftSimulationProxy.cpp:2384-2411`）。自动驾驶参考和手动摇杆共用低层 PID，但输入语义不同：
 
@@ -141,15 +158,15 @@ Flight Controller 后端在每个物理子步依次调用垂直控制、期望�
 - 角速度环输出归一化轴命令；
 - 垂直路径单独使用高度 / 垂直速度环生成总距。
 
-### 7. 控制分配与旋翼执行
+### 控制分配与旋翼执行
 
 `FAircraftControlAllocator::Allocate` 把总距和三个轴命令构造成四维 wrench，先进行倾斜补偿，再求解旋翼推力分数（`ControlAllocator.cpp:224-275`）。分配结果经过饱和、效能和电机逆模型后写入 `CommandBuffer`，Proxy 再更新每个旋翼 runtime state（`AircraftSimulationProxy.cpp:2417-2467`）。
 
-### 8. Chaos 注入与写回
+### Chaos 注入与写回
 
 每个旋翼的推力沿机体旋翼轴施加，偏心力矩用真实质心计算，反扭矩用旋向符号施加（`AircraftSimulationProxy.cpp:2469-2499`）。该调用发生在 `TickPhysicsThread`，其 Physics Handle 只在当前子步获取和消费；`AsyncPhysicsTickComponent` 负责把真实 Chaos 异步固定步长转发给 Proxy（`AircraftComponent.cpp:2528-2544`）。最后 Proxy 将状态、参考、分配诊断、旋翼输出和性能窗口写入受保护快照，Game Thread 通过 getter 读取（`AircraftSimulationProxy.cpp:2514-2553`）。
 
-## 三、坐标、单位和动力学边界
+## 坐标、单位和动力学边界
 
 ### 单位
 
@@ -164,9 +181,9 @@ Flight Controller 后端在每个物理子步依次调用垂直控制、期望�
 
 航向模式包括保持、固定角、面向速度、面向目标和偏航率；空间计划在速度为零的起点和终点仍从几何切线推导 `FaceVelocity` 航向，避免起步时先保留旧航向、随后突然转向（`AircraftMotionPlan.cpp:427-460`）。
 
-## 四、串级 PID：不是一个大 PID
+## 串级 PID：不是一个大 PID
 
-### 1. 单环离散形式
+### 单环离散形式
 
 `FAircraftPidState` 的位置式实现为：
 
@@ -194,23 +211,23 @@ $$
 
 这样移动轨迹可以提供参考速度，重规划造成的位置设定值跳变不会制造微分冲击；源码见 `FlightControlPid.h:101-149`。
 
-### 2. 水平位置环和速度环
+### 水平位置环和速度环
 
 当 `TrajectoryReference.bPositionTrackingEnabled` 为真时，位置环把参考位置转换为期望速度，并使用参考速度作为前馈 / 微分基准；随后速度环把速度误差转换成水平加速度（`FlightControlSolver.cpp:779-832`）。速度环会先合并轨迹加速度和阻力前馈，再施加水平加速度、减速度和最大倾角限制（`FlightControlSolver.cpp:680-744`）。
 
 水平限幅不是两个独立标量限幅后的简单拼接。源码在共享二维向量限幅后，把“请求加速度”和“实际可达加速度”送入 `ApplyTrackingAntiWindup`，防止持续速度误差让两个积分器在倾角圆盘后面继续累积（`FlightControlSolver.cpp:712-737`）。
 
-### 3. 垂直环
+### 垂直环
 
 自动驾驶路径下，高度环根据参考位置产生垂直速度，垂直速度环产生总距偏移；轨迹自身已经提供动力学补偿时，不再重复计算相同的阻尼前馈（`FlightControlSolver.cpp:227-259`）。手动路径则在松杆后先把速度降到零，再锁定当前高度，避免松杆瞬间冻结旧高度造成反向拉回（`FlightControlSolver.cpp:262-313`）。
 
-### 4. 姿态参考和角速度环
+### 姿态参考和角速度环
 
 水平加速度通过重力和最大倾角转换成控制世界旋转（`FlightControlSolver.cpp:317-341`）。如果启用姿态参考模型，Roll/Pitch 的倾转动态由 `FAircraftAttitudeReferenceDynamics` 负责；Yaw 由独立的 `FAircraftYawReferenceDynamics` 负责，避免两个有状态 yaw 回路互相追逐（`FlightControlSolver.cpp:443-544`）。
 
 角速度环使用期望角速度和实测机体系角速度的误差，加入角阻尼前馈并输出三个归一化轴命令（`FlightControlSolver.cpp:588-669`）。角速率配置默认 `Kff=0`，阻尼前馈通过外部通道以 `Kff=1` 注入；配置映射见 `FlightControllerRuntimeConfig.h:107-155`。
 
-### 5. Anti-Windup 的两层含义
+### Anti-Windup 的两层含义
 
 第一层是单 PID 输出已经饱和时回退本帧积分增量；第二层是下游共享向量限幅或控制分配造成实际输出小于请求时，使用 tracking anti-windup：
 
@@ -220,7 +237,7 @@ $$
 
 源码把修正限制在不跨越零积分的方向，并重新应用积分限幅（`FlightControlPid.h:151-181`）。控制分配之后，如果物理受击 / 干扰又削弱了 torque 或 collective，Proxy 还会调用 `ApplyInterferenceAntiWindup` 冻结不能继续增长的外环积分（`AircraftSimulationProxy.cpp:2429-2445`）。
 
-### 6. 前馈不能重复计算
+### 前馈不能重复计算
 
 当前有三类前馈：
 
@@ -230,7 +247,7 @@ $$
 
 Trajectory Runtime 和 MPCC 会把动力学前馈写入 `DynamicsFeedForwardAccelerationCmPerSecSq`；飞控消费该值时不再重复计算同一份阻尼项（`AircraftTrajectoryRuntime.cpp:609-615`、`FlightControlSolver.cpp:824-831`）。重复加阻力补偿的常见结果是高速段持续过冲、积分反向卸载或终点前制动不足。
 
-## 五、空间路径、时间参数化与安全走廊
+## 空间路径、时间参数化与安全走廊
 
 ### 路径几何
 
@@ -269,13 +286,13 @@ $$
 
 `FAircraftSafeCorridorSegment` 描述轴线起点、终点、半径和沿路径距离（`AircraftMovementIntent.h:219-235`）。走廊不是碰撞检测器，而是规划和预测跟踪的软 / 硬约束参考：MPCC 代价使用走廊修正，最终发布前再次滚动预测并记录 `PredictedCorridorViolationCm`（`AircraftMpccController.cpp:1263-1318`）。实际静态碰撞仍需由项目导航、Sweep 或物理碰撞系统提供。
 
-## 六、MPCC 风格预测跟踪
+## MPCC 风格预测跟踪
 
-### 1. 为什么使用预测修正
+### 为什么使用预测修正
 
 纯 PID 只看当前误差，无法提前处理旋翼响应延迟、jerk 限制、急停距离和走廊边界。当前实现让计划提供名义加速度，然后在有限 horizon 上寻找较小的修正，使预测位置、速度和走廊误差变小，同时抑制控制变化。
 
-### 2. 预测模型
+### 预测模型
 
 `RolloutHorizon` 对每个离散步执行：
 
@@ -295,7 +312,7 @@ $$
 
 先应用任务和能力加速度投影，再应用 jerk 限制、阻力补偿和总推力 / 倾角投影；$alpha_i$ 根据旋翼上升 / 下降响应时间计算（`AircraftMpccController.cpp:504-545`）。
 
-### 3. 代价函数
+### 代价函数
 
 当前代价由轮廓误差、切向滞后误差、速度误差、终端误差、修正大小、加速度正则和 jerk 正则构成，可概括为：
 
@@ -313,7 +330,7 @@ $$
 
 终点位置和速度权重只在 horizon 最后一步加入。源码计算代价见 `AircraftMpccController.cpp:1034-1089`，反向伴随梯度见 `AircraftMpccController.cpp:1107-1144`。
 
-### 4. 求解策略和预算
+### 求解策略和预算
 
 源码把 `ControlCorrectionHorizon` 作为带 warm start 的修正数组，最多执行 `MaxOptimizationIterations` 次；每次超过 `SolveTimeBudgetMilliseconds` 就退出（`AircraftMpccController.cpp:1017-1052`）。如果新代价变差，恢复上一次修正；如果改善低于相对容差或步长足够小，也提前结束（`AircraftMpccController.cpp:1091-1105`、`1146-1165`）。
 
@@ -327,11 +344,11 @@ $$
 
 这保证了实时性，但也意味着一次 solve 可能只完成有限次梯度更新，不能把结果理解为全局最优。
 
-### 5. 为什么称为“MPCC 风格”
+### 为什么称为“MPCC 风格”
 
 源码有以下 MPCC 风格元素：有限预测 horizon、动力学 rollout、轮廓 / 滞后误差、控制修正、jerk 正则和走廊约束。然而当前路径进度主要通过 `Plan.Project`、`EstimatedDistanceCm`、`ProgressScale` 和参考时钟推进；源码没有显示一个与控制序列一起求解的独立 path-progress 优化变量。因此本文称为“MPCC 风格预测跟踪”，而不是完整的非线性 MPCC。这个术语边界是源码事实，不是降低实现价值。
 
-### 6. 参考时钟和推进限幅
+### 参考时钟和推进限幅
 
 非定时空间计划的进度推进受当前沿轨速度和加速度能力限制：
 
@@ -341,23 +358,23 @@ $$
 
 源码见 `AircraftMpccController.cpp:787-808`。如果物体发生传送或路径跳跃，控制 horizon、上一参考和终端状态会一起重置（`AircraftMpccController.cpp:763-785`）。
 
-### 7. 终点收敛保护
+### 终点收敛保护
 
 当 Stop 路径已经满足位置、速度和走廊条件时，控制器切换到临界阻尼式终端参考，并继续使用 jerk 限制生成平滑的停稳轨迹（`AircraftMpccController.cpp:820-917`）。如果沿轨速度和剩余距离不匹配，终端 guard 只覆盖切向分量，横向修正仍由正常路径反馈负责（`AircraftMpccController.cpp:1190-1257`）。
 
-### 8. 失败和复用
+### 失败和复用
 
 当 solve 失败但上一次 reference 仍未过期时，系统会暂时复用旧 reference；连续失败达到配置阈值才报告 `bSolverFailed`（`AircraftMpccController.cpp:1430-1482`）。这比失败后立即输出零参考更平滑，但会引入“参考变旧”的诊断状态，调试时必须同时观察 `bReferenceFresh`、`ConsecutiveFailures` 和 `LastSolveMilliseconds`。
 
-## 七、3D ORCA：局部避让原语
+## 3D ORCA：局部避让原语
 
-### 1. 接口和职责
+### 接口和职责
 
 `FAircraftOrcaSolver::Solve` 接收自身状态、邻居数组、首选速度、上一帧命令加速度、避让限制以及可选走廊胶囊（`AircraftOrcaSolver.cpp:405-411`）。状态必须包含稳定 ID、位置、速度、命令速度、机体半径和 tracking reserve；限制必须包含时间步、时间视界、分离 padding、水平速度 / 加速度、爬升 / 下降率、jerk、平滑权重和水平平面数（`AircraftOrcaSolver.cpp:373-403`）。
 
 它解决的是：在当前局部邻居集合下，找一个尽可能接近首选速度且满足碰撞预测、能力和走廊约束的目标速度。它不做全局路径搜索，也不直接施加力。
 
-### 2. 邻居风险排序
+### 邻居风险排序
 
 邻居按当前重叠、有限时间视界内的最近净间距、TCPA 和 `StableId` 排序，保证紧迫对象先构造约束（`AircraftOrcaSolver.cpp:438-496`）。相对位置为 $r$、相对速度为 $v$ 时，时间到最近接近点采用：
 
@@ -367,15 +384,15 @@ $$
 
 源码还使用邻居命令速度与当前速度的差估计加速度，在视界前半段做匀加速外推；但真实重叠判定始终使用当前真实距离，避免把“未来会重叠”误判成“现在已经重叠”（`AircraftOrcaSolver.cpp:501-545`）。
 
-### 3. 互惠速度约束
+### 互惠速度约束
 
 每个邻居生成一个速度约束平面。源码根据相对速度锥、碰撞时间和合成半径构造修正向量，再按锚定状态和优先级分配责任；锚定对象可以把自身责任设为零，非锚定对象承担避让（`AircraftOrcaSolver.cpp:26-45`、`546-605`）。这保留了 ORCA 的“双方分担速度修正”思想，同时加入了游戏中的优先级和占位机语义。
 
-### 4. 能力平面和 3D 约束
+### 能力平面和 3D 约束
 
 求解器不是只在二维平面避让。`AddCapabilityPlanes` 为水平速度、当前速度加速度边界、水平 jerk、爬升率、下降率、垂直加速度和垂直 jerk 添加平面（`AircraftOrcaSolver.cpp:83-137`）。因此 ORCA 输出必须继续经过飞控能力投影；不能把 `TargetVelocityCmPerSec` 当成物理上必然能实现的速度。
 
-### 5. 目标函数、走廊和 fallback
+### 目标函数、走廊和 fallback
 
 目标速度是首选速度和当前命令速度的平滑插值：
 
@@ -387,7 +404,7 @@ $$
 
 无走廊时，求解器寻找满足所有平面、距离目标最近的速度；有多个胶囊时，逐个尝试并选取距离目标最近者（`AircraftOrcaSolver.cpp:623-652`）。无可行解时先进行最小违约投影，再比较走廊违约和目标距离（`AircraftOrcaSolver.cpp:655-695`）。
 
-### 6. 接入边界
+### 接入边界
 
 导航层可以使用 `AircraftGuidanceTrajectoryBuilder::BuildVelocityGuidance` 把速度目标转换为带时间的引导快照。该 Builder 会校验能力、速度、加速度和 jerk，并生成有限 horizon 样本（`AircraftGuidanceTrajectoryBuilder.cpp:23-123`）。Proxy 通过 Game Thread 发布不可变引导快照，物理执行线程消费并交给 `TrajectoryRuntime`（`AircraftSimulationProxy.cpp:810-835`、`AircraftSimulationProxy.cpp:776-808`）。
 
@@ -404,9 +421,9 @@ $$
 
 如果项目需要在每个物理子步直接调用 ORCA，必须额外设计邻居快照的线程安全、revision、过期刹车和预算策略；当前插件源码不能替这个集成决策作假设。
 
-## 八、控制分配：从 wrench 到旋翼
+## 控制分配：从 wrench 到旋翼
 
-### 1. Jacobian 列
+### Jacobian 列
 
 每个旋翼的 Jacobian 列由最大可分配推力、推力轴、质心力臂和反扭矩组成：
 
@@ -418,11 +435,11 @@ $$
 
 力矩使用米制力臂，旋翼反扭矩方向由旋向符号决定，源码见 `ControlAllocator.cpp:34-57`。
 
-### 2. 权限归一化和失效
+### 权限归一化和失效
 
 `RebuildAllocationCache` 先用健康旋翼计算 RowScale，再用每个旋翼的 effectiveness 缩放推力上限和归一化列；这样某个旋翼失效时不会错误地把全机基准权限一起缩小（`ControlAllocator.cpp:103-218`）。`RotorEffectivenessManager` 同步维护有效权限比例和零效能数量（`RotorEffectivenessManager.cpp:15-68`）。
 
-### 3. 阻尼伪逆 + 主动集
+### 阻尼伪逆 + 主动集
 
 对于自由旋翼集合，源码构造：
 
@@ -446,7 +463,7 @@ $$
 
 这套方法的优点是固定维度、小内存、能处理旋翼数量变化和部分失效；代价是它不提供通用 QP 的全局加权最优性，也没有把所有优先级、噪声和约束一次性放入统一二次目标。工程上应优先确保推力轴、质心、旋向和最大推力资产正确，再谈 `AllocationDamping` 的细调。
 
-## 九、旋翼、电机和气动力
+## 旋翼、电机和气动力
 
 ### 旋翼电机模型
 
@@ -474,7 +491,7 @@ $$
 
 当 LOD 开启显式气动力时，Proxy 会把 Chaos 原生线性 / 角阻尼置零，再在物理执行线程计算并施加气动力 wrench（`AircraftSimulationProxy.cpp:746-774`、`1966-1977`）。关闭模拟或进入未解锁时会恢复原生阻尼，避免机体处于“无旋翼、无阻尼、无气动”的真空弹道（`AircraftSimulationProxy.cpp:1743-1774`、`2058-2084`）。
 
-## 十、线程、后端与 Simulation LOD
+## 线程、后端与 Simulation LOD
 
 ### 三个执行后端
 
@@ -506,7 +523,7 @@ $$
 
 网络代理预算由 `bAuthoritySimulationOnly` 和 Actor authority 决定；代理可能只接收默认物理复制，也可能关闭本地控制器执行（`AircraftComponent.cpp:2192-2205`、`AircraftSimulationLODComponent.cpp:219-233`）。这说明 LOD 不只是“少算几次 PID”，它还改变了控制所有权、碰撞和网络更新成本。
 
-## 十一、网络同步：应同步什么
+## 网络同步：应同步什么
 
 ### 服务器权威建议
 
@@ -531,7 +548,7 @@ $$
 
 这是工程经验；当前插件源码只证明了 LOD 网络预算和 Proxy 的快照边界，不能证明项目已经具备完整 rollback 或确定性重演。
 
-## 十二、关键参数按阶段归类
+## 关键参数按阶段归类
 
 ### 数据采集 / 意图阶段
 
@@ -605,7 +622,7 @@ PID 公式和过滤器见 `FlightControlPid.h:21-197`；飞控级使用见 `Flig
 | `SmoothingWeight` | Limits | 首选速度与当前命令速度平滑 | 过大反应慢，过小容易抖动 |
 | `Priority` / `bAnchored` | Agent State | 责任分配 | 锚定语义必须和游戏占位机一致 |
 
-## 十三、工程取舍
+## 工程取舍
 
 ### 为什么不做完整非线性 MPC
 
@@ -626,7 +643,7 @@ PID 公式和过滤器见 `FlightControlPid.h:21-197`；飞控级使用见 `Flig
 
 DetourCrowd 的核心抽象是地面导航和二维代理；AircraftLab 需要 3D 爬升 / 下降能力、机体半径、推力和 jerk 约束。当前 ORCA solver 的能力平面、胶囊走廊和确定性排序直接对应这些需求（`AircraftOrcaSolver.cpp:83-137`、`405-695`）。它仍然需要上层静态环境导航配合。
 
-## 十四、常见现象诊断
+## 常见现象诊断
 
 | 现象 | 可能原因 | 检查项 | 修复方向 |
 |---|---|---|---|
@@ -643,7 +660,7 @@ DetourCrowd 的核心抽象是地面导航和二维代理；AircraftLab 需要 3
 | 网络两端姿态不一致 | 客户端独立控制、LOD 不同、Chaos 非确定性 | authority、LOD、NetUpdateFrequency、序列号 | 服务器权威 Intent / 状态，客户端只做表现和纠正 |
 | Motion Warping 或外部导航与飞控冲突 | 外部 guidance revision 与 Intent 不匹配或过期 | `GuidanceFailureReason`、`SourceIntentId`、`SourceIntentRevision` | 过期 / 不匹配时走 `BuildBrakingReference`，不要继续叠加旧 guidance |
 
-## 十五、推荐调参和验证顺序
+## 推荐调参和验证顺序
 
 1. **验证单位、坐标和骨骼 / 质心**：观察质量、惯量、Up 轴、控制轴和质心。若力矩方向错，立即回退，不调 PID。
 2. **验证旋翼资产**：逐旋翼检查位置、推力轴、最大推力、旋向、反扭矩系数和电机时间。确认单独总距能抬升，单轴命令方向正确。
@@ -659,9 +676,9 @@ DetourCrowd 的核心抽象是地面导航和二维代理；AircraftLab 需要 3
 
 推荐调试字段来自 `AutopilotComponent.cpp:782-812`：`PathTrackingState`、`ProgressScale`、`SignedTerminalDistanceCm`、`ContourErrorCm`、`LagErrorCm`、`CorridorViolationCm`、`PredictedCorridorViolationCm`、`LastSolveMilliseconds`、`MpccCorrection`、`TerminalBrake` 和 `GuidanceAlpha`。
 
-## 十六、三套可落地配置思路
+## 三套可落地配置思路
 
-### 1. 第三人称普通四旋翼
+### 第三人称普通四旋翼
 
 - **计划**：直线 Route、短 Orbit、Stop 任务；空间采样不要过密。
 - **约束**：中等水平速度和加速度，保留 10%～20% 推力余量；偏航率与弯道速度同步限制。
@@ -669,7 +686,7 @@ DetourCrowd 的核心抽象是地面导航和二维代理；AircraftLab 需要 3
 - **MPCC**：horizon 覆盖约一个旋翼响应时间加一段制动时间；`ContourErrorWeight` 略高于 `LagErrorWeight`。
 - **风险**：把位置环调得过快会和 MPCC 进度互相追赶；Stop 容差过小会让完成状态一直不稳定。
 
-### 2. 高速角色或大型生物
+### 高速角色或大型生物
 
 - **计划**：较长 horizon、较大安全走廊、显式气动力和更高的速度采样密度。
 - **约束**：以质量、最大总推力、倾角和阻力共同求出可用速度；不要只按角色期望速度设置上限。
@@ -677,7 +694,7 @@ DetourCrowd 的核心抽象是地面导航和二维代理；AircraftLab 需要 3
 - **MPCC**：提高 `LagErrorWeight` 和 `JerkWeight`，用终端速度权重控制高速刹车；预算固定后再决定迭代数。
 - **风险**：大型机体的碰撞半径、tracking reserve 和网络纠正距离会显著增加；ORCA 可能需要更长时间视界。
 
-### 3. 网络多人游戏角色
+### 网络多人游戏角色
 
 - **服务器**：服务器持有 Intent、revision、LOD 和关键完成状态；导航 / ORCA 输出作为带时间戳的 guidance 快照。
 - **客户端**：按 LOD 选择 Kinematic 或默认物理代理，旋翼 RPM 和相机效果只做表现插值。
@@ -685,7 +702,7 @@ DetourCrowd 的核心抽象是地面导航和二维代理；AircraftLab 需要 3
 - **预算**：远端 LOD 降低 MPCC / guidance 更新频率，最低 LOD 使用 dormancy；近端玩家保留 Flight Controller。
 - **风险**：客户端独立 ORCA 会导致不同避让结果；若必须客户端预测，至少把邻居快照排序、StableId 和过期策略固定下来。
 
-## 十七、当前源码已确认与需要验证
+## 当前源码已确认与需要验证
 
 ### 已确认的事实
 
@@ -712,7 +729,7 @@ DetourCrowd 的核心抽象是地面导航和二维代理；AircraftLab 需要 3
 - 网络场景中服务器权威、客户端默认物理、Kinematic 代理和 dormancy 的组合是否满足游戏设计。
 - 历史诊断中“终端制动 correction 影响后续 solve”的传播是否仍能在最新场景稳定复现；它是诊断假设，不能在静态文章中写成唯一根因。
 
-## 十八、最小可行配置和核心原则
+## 最小可行配置和核心原则
 
 ### 最小可行配置
 
@@ -752,4 +769,3 @@ DetourCrowd 的核心抽象是地面导航和二维代理；AircraftLab 需要 3
 10. LOD / 网络更新频率。
 
 最容易误调的参数是 `MaxDeceleration`、`MaxJerk`、`BrakingReserveFraction`、`SpinUp/DownTimeSeconds`、`DerivativeCutoffHz`、`AllocationDamping`、`TimeHorizonSeconds` 和 `SmoothingWeight`。它们分别影响规划、执行器、过滤、分配和避让，不能只凭单个画面判断。
-

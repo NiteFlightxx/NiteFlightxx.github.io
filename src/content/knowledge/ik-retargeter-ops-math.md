@@ -1,18 +1,27 @@
 ---
-title: "UE 动画重定向：IK Retargeter 执行管线"
-excerpt: "沿 Op 堆栈追踪骨盆、FK 链与 IK 目标，说明比例、参考姿态和地面约束的作用。"
-date: "2026-06-25"
-category: "Animation"
-subtopic: "Retargeting"
-tags: ["UE5", "IK", "重定向", "动画"]
-readTime: "阅读约45分钟"
-kind: "source"
-level: "advanced"
-prerequisites: ["ue-animation-node-math", "ue-fullbody-ik-math"]
+title: UE 动画重定向：IK Retargeter 执行管线
+excerpt: 沿 Op 堆栈追踪骨盆、FK 链与 IK 目标，说明比例、参考姿态和地面约束的作用。
+date: '2026-06-25'
+category: Animation
+subtopic: Retargeting
+tags:
+  - UE5
+  - IK
+  - 重定向
+  - 动画
+readTime: 阅读约20分钟
+kind: source
+level: advanced
+pageType: source-analysis
+aliases:
+  - UE IK Retargeter Op 堆栈详解 — 堆栈架构与逐 Op 公式拆解
+prerequisites:
+  - ue-animation-node-math
+  - ue-fullbody-ik-math
 nextArticles: []
-aliases: ["UE IK Retargeter Op 堆栈详解 — 堆栈架构与逐 Op 公式拆解"]
+related: []
+sources: []
 ---
-
 重定向不是只让源骨骼与目标骨骼名字相同，而是把动作语义映射到不同的参考姿态、链长和空间约定。本文沿 IK Retargeter 的 Op 执行管线查阅各项输入、数学与参数；骨骼层级与组件空间见[动画系统主参考](/knowledge/ue-animation-node-math/)，具体 IK 求解见[全身 IK](/knowledge/ue-fullbody-ik-math/)。
 
 > 本文基于 Unreal Engine 5.9 的 `IKRig` 插件源码整理，源码位于 `Engine/Plugins/Animation/IKRig/Source/IKRig`。目录 `Public/Retargeter/RetargetOps` 下共有 22 个 Op 头文件，其中 `IKChainsOp` 已在整个 `USTRUCT` 上标注 `Deprecated`（被 `FKChainsOp` 取代），本文**不收录**该废弃 Op，仅覆盖其余 20 个活跃 Op 及曲线 Op 的抽象基类。
@@ -21,9 +30,9 @@ aliases: ["UE IK Retargeter Op 堆栈详解 — 堆栈架构与逐 Op 公式拆�
 
 ---
 
-## 一、Op 堆栈架构总览
+## Op 堆栈架构总览
 
-### 1.1 基类 FIKRetargetOpBase
+### 基类 FIKRetargetOpBase
 
 所有 Op 都继承自 `FIKRetargetOpBase`（`IKRetargetOps.h`）。它定义了 Op 的生命周期与运行契约：
 
@@ -43,7 +52,7 @@ aliases: ["UE IK Retargeter Op 堆栈详解 — 堆栈架构与逐 Op 公式拆�
 
 每个 Op 的设置结构都派生自 `FIKRetargetOpSettingsBase`，自带三个基础字段：`bEnabled`（是否启用）、`LODThreshold`（LOD 截断阈值）、`bDebugDraw`（调试绘制开关）。运行时通过 `CopySettingsAtRuntime()` 把编辑器端的设置复制到运行时实例，复制时可排除需要重新初始化的字段（如骨骼引用）。
 
-### 1.2 三阶段执行模型
+### 三阶段执行模型
 
 Op 堆栈并非简单的线性顺序。对于父子关系（如 `RunIKRigOp` 与其子 Op），执行分三个阶段：
 
@@ -54,7 +63,7 @@ Op 堆栈并非简单的线性顺序。对于父子关系（如 `RunIKRigOp` 与
 
 这种"前处理 → 求解 → 后处理"的分层正是 Op 堆栈能灵活组合的关键。
 
-### 1.3 Op 分类总览
+### Op 分类总览
 
 | 分类 | Op | 父 Op | 说明 |
 |------|-----|-------|------|
@@ -82,15 +91,15 @@ Op 堆栈并非简单的线性顺序。对于父子关系（如 `RunIKRigOp` 与
 
 ---
 
-## 二、共享平滑原语：One Euro Filter
+## 共享平滑原语：One Euro Filter
 
 `FilterBoneOp` 与 `FloorConstraintOp`（脚趾弯曲）都依赖同一个自适应低通滤波器——**One Euro Filter**，定义在 `RetargetOpUtils.h/.cpp`。理解它是理解后面两个 Op 的前提。
 
-### 2.1 为什么需要自适应滤波
+### 为什么需要自适应滤波
 
 普通低通滤波面临一个两难：截止频率 $f_c$ 设低了，静止时很平滑，但快速运动时滞后严重；设高了，响应快了，静止时却抖动。One Euro 的核心思想是——**当信号变化快（速度大）时提高截止频率，变化慢时降低截止频率**。这样静止时强滤波去抖，运动时弱滤波保真，做到"用最低的滤波量达到不抖"。
 
-### 2.2 标量版：FOneEuroScalarFilter
+### 标量版：FOneEuroScalarFilter
 
 设置三参数（结构 `FOneEuroFilterSettings`）：
 
@@ -125,7 +134,7 @@ $$
 
 速度越快，$|\dot{x}_f|$ 越大，$f_c'$ 越大，$\alpha$ 越接近 1（几乎不滤波）；速度越慢，$f_c' \to f_c$，强滤波。
 
-### 2.3 四元数版：FOneEuroQuatFilter
+### 四元数版：FOneEuroQuatFilter
 
 四元数位于 $S^3$ 流形上，不能直接做线性低通。代码用**指数映射（Log/Exp）**把旋转差映射到切空间 $\mathbb{R}^3$ 滤波：
 
@@ -140,9 +149,9 @@ $$
 
 ---
 
-## 三、全局姿态 Op
+## 全局姿态 Op
 
-### 3.1 PelvisMotionOp —— 骨盆运动重定向
+### PelvisMotionOp —— 骨盆运动重定向
 
 骨盆是整条运动链的根，它的平移与旋转决定了角色的整体位移与朝向。`PelvisMotionOp` 是重定向器中数学最密集的 Op 之一。
 
@@ -220,7 +229,7 @@ $$
 
 之后的流程：向源位置混合（`BlendToSourceTranslation`）→ 垂直/水平缩放 → 全局偏移 → 旋转后的局部偏移 → `TranslationAlpha` 混合。记录平移增量 $\Delta\mathbf{p}_{\text{pelvis}} = \mathbf{p}_{\text{final}} - \mathbf{p}_{\text{ret}}$，供 IK Goal Op 通过 `GetPelvisTranslationOffset()` 与 `GetAffectIKWeightAsVector()` 修正 Goal 位置——这正是 `RunIKRigOp` 中 `InvRootModification` 的来源。
 
-### 3.2 RootMotionGeneratorOp —— 根运动生成
+### RootMotionGeneratorOp —— 根运动生成
 
 根骨骼（区别于骨盆）承载角色在世界中的位移。该 Op 有两种运动来源（`ERootMotionSource`）：
 
@@ -249,7 +258,7 @@ $$
 
 > 注：源码中还存在一个旧版 `URootMotionGeneratorOp`（UObject 形式），标注 `BEGIN DEPRECATED UOBJECT-based OP`，仅用于老资产通过 `ConvertToInstancedStruct` 迁移到新版 `FIKRetargetRootMotionOp`，不属于活跃 Op。
 
-### 3.3 ScaleSourceOp —— 源姿态整体缩放
+### ScaleSourceOp —— 源姿态整体缩放
 
 单例 Op。`Run()` 留空——处理器在送入源姿态前读取本 Op 设置并调用 `FRetargetPoseScaleWithPivot::ScalePose` 做整体缩放。
 
@@ -263,7 +272,7 @@ $$
 
 对源骨架每个骨骼的平移施加此式。这影响后续所有 Op 看到的源姿态与全部 IK Goal，是处理"源骨架单位不对"的利器。
 
-### 3.4 RetargetPoseOp —— 重定向姿态选择
+### RetargetPoseOp —— 重定向姿态选择
 
 单例 Op，`Run()` 同样留空——处理器在初始化骨架时读取本 Op 设置，决定用哪套重定向姿态。重定向姿态是用户为每个骨架调好的"对齐基准"，决定了旋转增量与缩放因子的参考。
 
@@ -271,7 +280,7 @@ $$
 
 ---
 
-## 四、FK 链重定向：FKChainsOp
+## FK 链重定向：FKChainsOp
 
 `FKChainsOp` 是最复杂的 Op，负责在 IK 求解前把源链的"形状"（旋转+平移+缩放）迁移到目标链。它维护**自己的链映射表**（`FRetargetChainMapping`），允许与主映射不同的源/目标链配对。
 
@@ -285,7 +294,7 @@ $$
 
 **Op 参数**：`IKRigAsset`、`ChainsToRetarget`、调试绘制开关。
 
-### 4.1 链参数化与编码
+### 链参数化与编码
 
 每条链按骨骼在链中的累积长度归一化为参数 $u \in [0,1]$（`BoneChain->Params`）。`FChainEncoderFK::EncodePose` 把源链当前全局变换拷出并计算局部变换。
 
@@ -301,7 +310,7 @@ $$
 
 再把源链各骨骼局部变换接到这个新父上重算全局，保证后续旋转迁移在"对齐"的局部空间进行。
 
-### 4.2 旋转重定向（RetargetRotation）
+### 旋转重定向（RetargetRotation）
 
 核心是"旋转增量迁移"：先取源骨骼的当前/参考全局旋转，算增量，再叠到目标参考旋转上：
 
@@ -317,7 +326,7 @@ $$
 - **None**：不做旋转，链随父刚体转动（用链首参考局部 × 父当前全局）。
 - **CopyLocal**：取最近源骨骼的局部旋转增量 $\Delta R_{\text{local}} = R_{\text{src,cur,local}} \cdot R_{\text{src,init,local}}^{-1}$，叠到目标局部参考旋转上，再转到全局：$R_{\text{out}} = R_{\text{parent,global}} \cdot (\Delta R_{\text{local}} \cdot R_{\text{tgt,init,local}})$。不做真正的重定向，仅搬局部增量。
 
-### 4.3 平移重定向（RetargetPosition）
+### 平移重定向（RetargetPosition）
 
 各模式决定目标骨骼相对父的位置：
 
@@ -339,7 +348,7 @@ $$
 
 再把参考方向差旋转叠上：$\mathbf{o}' = \bigl((\Delta R_{\text{ref}} \cdot R_{\text{out}}) \cdot R_{\text{out}}^{-1}\bigr) \cdot \mathbf{o}$。当参考骨长过短（< 0.1）时退化为加性偏移，避免除零。
 
-### 4.4 缩放重定向（RetargetScale）
+### 缩放重定向（RetargetScale）
 
 加性增量迁移：
 
@@ -347,7 +356,7 @@ $$
 \mathbf{s}_{\text{out}} = \mathbf{s}_{\text{src,cur}} + (\mathbf{s}_{\text{tgt,init}} - \mathbf{s}_{\text{src,init}})
 $$
 
-### 4.5 MatchChain —— 样条 IK 式链形匹配
+### MatchChain —— 样条 IK 式链形匹配
 
 当 `RotationMode` 为 MatchChain / MatchScaledChain 时，在常规重定向结果之上再做一次"摆动旋转对齐"：
 
@@ -359,7 +368,7 @@ $$
 
 这样目标链的骨骼会逐个"贴"到源链样条上，实现形状精确匹配，同时保留插值阶段已有的扭转信息。
 
-### 4.6 最终混合（BlendByAlpha）
+### 最终混合（BlendByAlpha）
 
 全链重定向后，在局部空间按 `RotationAlpha`/`TranslationAlpha` 在"重定向姿态"与"重定向结果"间混合，再转回全局写出。
 
@@ -367,9 +376,9 @@ $$
 
 ---
 
-## 五、骨骼/链变换 Op
+## 骨骼/链变换 Op
 
-### 5.1 CopyBasePoseOp —— 按名复制源局部变换
+### CopyBasePoseOp —— 按名复制源局部变换
 
 单例 Op。直接把源骨架的局部变换按骨骼名复制到目标，**不做任何重定向**。
 
@@ -387,7 +396,7 @@ $$
 
 适用于源/目标骨架骨骼命名一致、希望完全照搬姿态的场景。
 
-### 5.2 PinBoneOp —— 骨骼钉扎/跟随
+### PinBoneOp —— 骨骼钉扎/跟随
 
 把目标骨骼"钉"到另一个骨骼（源或目标）上，使其跟随该骨骼的运动。
 
@@ -408,7 +417,7 @@ $$
 
 最终结果叠加偏移：$T_{\text{out}} = T_{\text{local}} \cdot (T_{\text{new}} \cdot T_{\text{global}})$。
 
-### 5.3 StretchChainOp —— 链长拉伸
+### StretchChainOp —— 链长拉伸
 
 独立 Op，有自己的链映射。把目标链拉长/压缩以匹配源链长度，再乘一个缩放系数。
 
@@ -434,7 +443,7 @@ $$
 
 最后用保存的子骨骼局部变换重算子骨骼全局变换，使附属骨骼跟随。
 
-### 5.4 AdditivePoseOp —— 叠加重定向姿态增量
+### AdditivePoseOp —— 叠加重定向姿态增量
 
 把重定向姿态（`RetargetPose`）相对于参考姿态的增量叠加到当前目标姿态上。
 
@@ -442,7 +451,7 @@ $$
 
 **数学**：骨盆平移直接加根平移增量；每根骨的旋转增量为 $\Delta R = R_{\text{retarget}} \cdot R_{\text{ref}}^{-1}$，若 $\alpha \ne 1$ 则 $\Delta R = \text{FastLerp}(I,\,\Delta R,\,\alpha)$，局部旋转左乘：$R_{\text{local}}' = \Delta R \cdot R_{\text{local}}$，再重算全局。
 
-### 5.5 FilterBoneOp —— 旋转的 One Euro 滤波
+### FilterBoneOp —— 旋转的 One Euro 滤波
 
 对指定骨骼的全局旋转做时域平滑，消除抖动。
 
@@ -452,11 +461,11 @@ $$
 
 ---
 
-## 六、IK Goal Op：RunIKRigOp 及其子 Op
+## IK Goal Op：RunIKRigOp 及其子 Op
 
 `RunIKRigOp` 是唯一可挂子 Op 的 IK Op。它本身完成"基于链的 Goal 重定向"，子 Op 则在 IK 求解前后调整 Goal。
 
-### 6.1 RunIKRigOp —— IK 求解父 Op
+### RunIKRigOp —— IK 求解父 Op
 
 **每链参数**（`FIKRetargetRunIKRigChainSettings`）：`TargetChainName`、`bEnableIK`（默认 true）、`ChainPositionAlpha`（0–1，默认 1）、`ChainRotationAlpha`（0–1，默认 1）、`bOverrideGoalAlpha`（默认 false）、`FinalPositionAlpha`/`FinalRotationAlpha`（0–1，默认 1）。
 
@@ -498,7 +507,7 @@ $$
 
 之后 `Run()` 调用 `IKRigProcessor::Solve()` 求解，写回输出姿态。
 
-### 6.2 OffsetGoalsOp —— Goal 位置/旋转偏移
+### OffsetGoalsOp —— Goal 位置/旋转偏移
 
 为每条 IK 链的 Goal 施加局部/全局平移与旋转偏移。
 
@@ -522,7 +531,7 @@ $$
 
 按 $\alpha = \alpha_{\text{chain}} \cdot \alpha_{\text{op}} \cdot \alpha_{\text{trans}}$ 混合。
 
-### 6.3 ScaleGoalsOp —— Goal 位置缩放
+### ScaleGoalsOp —— Goal 位置缩放
 
 对 Goal 位置做水平/垂直/沿链方向缩放。
 
@@ -542,7 +551,7 @@ $$
 
 按 $\alpha_{\text{op}}$ 混合。$s_{\text{chain}}$ 以链起点为枢轴缩放，可制造"伸手更远/更近"的效果。
 
-### 6.4 BlendToSourceOp —— Goal 混合回源
+### BlendToSourceOp —— Goal 混合回源
 
 把目标 Goal 向源骨骼实际位置混合，常用于"目标链比例差异大时部分回退到源运动"。
 
@@ -558,7 +567,7 @@ $$
 
 旋转增量迁移：$\Delta R = R_{\text{src,cur}} \cdot R_{\text{src,init}}^{-1}$，$R_{\text{new}} = \Delta R \cdot R_{\text{tgt,init}}$，按 $\alpha_r$ 混合。
 
-### 6.5 AlignPoleVectorOp —— 极向量对齐
+### AlignPoleVectorOp —— 极向量对齐
 
 IK 求解器的极向量（Elbow/Knee 朝向）若在源/目标间不一致，会导致关节弯曲方向错误。本 Op 对齐极向量方向。
 
@@ -584,7 +593,7 @@ $$
 R_{\text{base}} = \text{FastLerp}(I,\, Q(\hat{\mathbf{n}}_{\text{chain}},\,\theta),\,\alpha_{\text{align}}) \cdot Q(\hat{\mathbf{n}}_{\text{chain}},\,\theta_{\text{static}}) \cdot R_{\text{base}}
 $$
 
-### 6.6 WeaponGoalsOp —— 双手武器/道具瞄准
+### WeaponGoalsOp —— 双手武器/道具瞄准
 
 专门处理双手持枪/持道具的姿态：缩放武器骨、把"持枪根"钉到主导手、把另一只手的 Goal 拉到辅助手 IK 骨。
 
@@ -596,7 +605,7 @@ $$
 - **持枪根钉扎**：$\mathbf{p} = \text{Lerp}(\mathbf{p}_{\text{handL}},\, \mathbf{p}_{\text{handR}},\, \alpha_{\text{lr}} \cdot \alpha)$，设到 `ik_hand_gun` 并传播。
 - **Goal 拉到 IK 手骨**：对每只手 Goal，$\mathbf{p}_{\text{goal}} = \text{Lerp}(\mathbf{p}_{\text{goal}},\, \mathbf{p}_{\text{ikHand}},\, \alpha_{\text{hand}} \cdot \alpha)$，旋转同理 `FastLerp`。
 
-### 6.7 StrideWarpingOp —— 步幅/横向扭曲
+### StrideWarpingOp —— 步幅/横向扭曲
 
 根据角色面朝方向，沿前向/侧向轴扭曲 IK Goal 位置，用于调整步幅长度与横向间距。
 
@@ -636,7 +645,7 @@ $$
 
 最终按 $\alpha$ 混合，并把 Goal 空间设为 Component。
 
-### 6.8 SpeedPlantingOp —— 速度种植
+### SpeedPlantingOp —— 速度种植
 
 当源末端骨骼速度（由动画曲线 `SpeedCurveName` 提供）低于阈值时，把 IK Goal "种"在固定位置；速度恢复后让 Goal 平滑追上动画。这是消除脚部滑动（foot sliding）的关键 Op。
 
@@ -678,7 +687,7 @@ $$
 
 > 历史兼容：5.8 的旧参数 `Stiffness` 在 `PostLoad` 中按 $\text{SpringStrength} = \sqrt{\text{Stiffness}}/(2\pi)$ 转换（因 $\omega^2 = \text{Stiffness}$，故 $\omega = \sqrt{\text{Stiffness}}$，而 `SpringStrength` 以 Hz 给出 $\omega = 2\pi f$）。
 
-### 6.9 FloorConstraintOp —— 地面/脚趾约束
+### FloorConstraintOp —— 地面/脚趾约束
 
 两阶段 Op：`Run`（IK 求解前）调整 Goal 高度贴地 + 抬脚离地；`RunAfterParent`（IK 求解后）弯曲脚趾使其不穿地。其脚趾求解用到了优美的 **Rodrigues 旋转公式**。
 
@@ -720,11 +729,11 @@ $$
 
 ---
 
-## 七、曲线 Op
+## 曲线 Op
 
 动画曲线（驱动形态键、材质参数等）在重定向时也需要迁移，由曲线 Op 负责。
 
-### 7.1 RetargetCurvesOpBase —— 曲线 Op 抽象基类
+### RetargetCurvesOpBase —— 曲线 Op 抽象基类
 
 `FIKRetargetCurvesOpBase` 是抽象基类（`IsAbstract() = true`，单例）。它本身不做工作——`Initialize()`/`Run()` 均为空实现，但定义了曲线处理的契约：
 
@@ -735,7 +744,7 @@ $$
 
 由于抽象，用户不能直接添加它，只能添加其派生 Op（目前仅 `CurveRemapOp`）。
 
-### 7.2 CurveRemapOp —— 曲线复制/重映射
+### CurveRemapOp —— 曲线复制/重映射
 
 单例 Op，派生自 `RetargetCurvesOpBase`。同样不在 `Run()` 中工作，而是通过回调被动画节点调用。
 
@@ -752,9 +761,9 @@ $$
 
 ---
 
-## 八、参数速查与设计要点
+## 参数速查与设计要点
 
-### 8.1 Alpha 的层级叠加
+### Alpha 的层级叠加
 
 几乎所有 Op 都遵循"链 Alpha × Op Alpha（× 子项 Alpha）"的乘法叠加。例如 `FloorConstraintOp` 的趾弯曲权重：
 
@@ -764,7 +773,7 @@ $$
 
 设计 Op 时应保持这一约定，使层级控制一致。
 
-### 8.2 增量迁移范式
+### 增量迁移范式
 
 旋转重定向几乎都采用"参考姿态增量迁移"范式：
 
@@ -774,17 +783,17 @@ $$
 
 这保证：源相对自身参考姿态转了多少，目标就相对自身参考姿态转多少，从而自动吸收两骨架在参考姿态下的朝向差异。平移的"绝对增量"模式、`PinBoneOp` 的 `MaintainOffset` 旋转模式、`RunIKRigOp` 的 Goal 旋转都是这一范式。
 
-### 8.3 子 Op 的执行时机
+### 子 Op 的执行时机
 
 牢记三阶段：子 Op 的 `Run` 在 IK 求解**前**调 Goal，`RunAfterParent` 在求解**后**改姿态。`FloorConstraintOp` 同时用了两者——`Run` 抬 Goal，`RunAfterParent` 弯脚趾；`BlendToSourceOp` 的旋转混合在 `RunAfterParent`，避免被 IK 求解覆盖。
 
-### 8.4 共享状态
+### 共享状态
 
 `PelvisMotionOp` 暴露三个 getter 供其他 Op 复用其计算结果：`GetGlobalScaleVector()`（全局缩放）、`GetPelvisTranslationOffset()`（骨盆平移增量）、`GetAffectIKWeightAsVector()`（对 IK 的影响权重）。`RunIKRigOp` 与 `FKChainsOp` 都依赖这些值做修正，因此 `PelvisMotionOp` 通常应排在堆栈靠前位置。
 
 ---
 
-## 九、总结
+## 总结
 
 UE 的 IK Retargeter Op 堆栈是一个把"动画重定向"这件高度依赖美术直觉的事，工程化为可组合、可推理的数学算子的优秀范例。其设计有三点值得借鉴：
 

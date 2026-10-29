@@ -1,23 +1,34 @@
 ---
-title: "Chaos GJK：距离、容差与退化处理"
-excerpt: "对照 Chaos GJK 的距离、相交与穿透接口，关注 margin、终止条件和退化处理。"
-date: "2026-07-06"
-category: "Physics"
-subtopic: "Collision"
-tags: ["UE5", "GJK", "EPA", "碰撞检测", "Minkowski", "C++"]
-readTime: "阅读约25分钟"
-kind: "source"
-level: "advanced"
-prerequisites: ["collision-detection-gjk-epa-sat"]
-nextArticles: ["ue-chaos-physics-engine"]
+title: Chaos GJK：距离、容差与退化处理
+excerpt: 对照 Chaos GJK 的距离、相交与穿透接口，关注 margin、终止条件和退化处理。
+date: '2026-07-06'
+category: Physics
+subtopic: Collision
+tags:
+  - UE5
+  - GJK
+  - EPA
+  - 碰撞检测
+  - Minkowski
+  - C++
+readTime: 阅读约10分钟
+kind: source
+level: advanced
+pageType: source-analysis
+aliases:
+  - GJK 碰撞检测算法详解 — 从 support function 到 Chaos 引擎实现
+prerequisites:
+  - collision-detection-gjk-epa-sat
+nextArticles:
+  - ue-chaos-physics-engine
+related: []
 topics:
-  - id: "ue-chaos-physics"
-    stage: "collision"
-    role: "source"
+  - id: ue-chaos-physics
+    stage: collision
+    role: source
     order: 10
-aliases: ["GJK 碰撞检测算法详解 — 从 support function 到 Chaos 引擎实现"]
+sources: []
 ---
-
 通用 GJK 的几何解释与 Chaos 中可靠使用查询结果是两个层次。本文只保留必要的数学摘要，重点追踪接口选择、空间、margin、输出有效性与退化分支。SAT、support、Minkowski 差和 simplex 的完整推导统一放在[凸体碰撞检测](/knowledge/collision-detection-gjk-epa-sat/)。
 
 源码范围为 `E:\UnrealEngine\UnrealEngine_Source`，快照 `e28561eab454`，核对日期 2026-10-21。下文以 `Engine/Source/Runtime/Experimental/Chaos/Public/Chaos/` 为公共头文件路径前缀；“源码事实”仅限所列函数，不代表所有形状对都经过同一实现。
@@ -63,7 +74,7 @@ aliases: ["GJK 碰撞检测算法详解 — 从 support function 到 Chaos 引�
 <span id="视角三support-mapping--iterative-optimization" aria-hidden="true"></span>
 <span id="72-三个视角的适用场景" aria-hidden="true"></span>
 
-## 1. 几何摘要：查询对象必须一致
+## 几何摘要：查询对象必须一致
 
 对凸集 $A,B$：
 
@@ -81,7 +92,7 @@ $$
 <span id="八block-7chaos--unreal-engine-中的-gjk-实现" aria-hidden="true"></span>
 <span id="81-chaos-是否直接用-gjk" aria-hidden="true"></span>
 
-## 2. 先选查询，不要统一读取一个 bool
+## 先选查询，不要统一读取一个 bool
 
 **源码事实**：当前头文件有多种不同契约的入口：
 
@@ -97,21 +108,21 @@ WarmStartable 的接口注释明确：穿透为正、分离为负，两侧见证
 
 这不是无需配置就能从任意游戏对象调用的高层 API。接入形状查询时，还需要满足几何包装、变换、缓存与调用阶段契约；本文不提供未经编译验证的可直接粘贴 UE 代码。
 
-## 3. GJKDistance：状态、空间与输出
+## GJKDistance：状态、空间与输出
 
-### 3.1 入口状态
+### 入口状态
 
 **源码事实**：`GJK.h:2063–2088` 的注释要求 B 的变换把 B 局部坐标映射到 A 局部空间，计算在 A 空间中进行。InitialV 不是任意世界方向，而应使用相应 Minkowski 集中的初始向量，文件建议从 GJKDistanceInitialVFromDirection 获得。
 
 这里“方向”和“位于集合中的向量”不可随意互换。坏初值可能触发错误提前退出，源码在 `GJK.h:2098–2100` 附近也有直接警告。
 
-### 3.2 距离循环与停止
+### 距离循环与停止
 
 **源码事实**：`GJK.h:2103–2127` 沿当前分离向量的反方向取支撑，维护距离下界 Mu，并以当前距离与下界的差判断进展；达到 MaxIts 也会进入输出分支。默认 Epsilon 为 1e-3，MaxIts 为 16。[`GJK.h:2088`]
 
 达到迭代预算时，输出可能超过目标误差，甚至不能排除近零情形的近似误判；这是代码注释明确承认的边界。不能把“返回了 Separated/Contact”理解为另有一个逐次收敛证明标志。若需要区分预算终止，应另外添加可观测性并单独验证，而不是从 bool 推断。
 
-### 3.3 三种结果与 margin 回填
+### 三种结果与 margin 回填
 
 **源码事实**：`GJK.h:2050–2060` 区分：
 
@@ -132,7 +143,7 @@ $$
 <span id="82-support-function-的工程化函数指针--margin" aria-hidden="true"></span>
 <span id="83-gjk-with-margins稳定接触的关键" aria-hidden="true"></span>
 
-## 4. Support 与 margin：不是所有函数共用同一规则
+## Support 与 margin：不是所有函数共用同一规则
 
 **源码事实**：FGeomGJKHelper 保存几何指针、支撑函数指针和 margin；转换后的支撑查询先旋转方向，再变换返回的位置。其模板 SupportCore 调到具体几何。[`GJK.h:484–528`]
 
@@ -144,7 +155,7 @@ $$
 
 <span id="85-warm-start跨帧复用-simplex" aria-hidden="true"></span>
 
-## 5. WarmStartable：缓存怎样进入本次查询
+## WarmStartable：缓存怎样进入本次查询
 
 **源码事实**：该函数接收 TGJKSimplexData，在当前 BToATM 下调用 Restore 重建单纯形与分离向量；随后保存 A/B 的原始支撑点，更新重心系数。[`GJK.h:561–630`]
 
@@ -156,7 +167,7 @@ $$
 
 <span id="84-gjk--epa-回退相交后求穿透" aria-hidden="true"></span>
 
-## 6. GJK 接 EPA：按状态决定能用什么
+## GJK 接 EPA：按状态决定能用什么
 
 **源码事实**：近接触路径从 simplex 重建两侧支撑点数组，将 B 侧转到 A 空间后调用 EPA。[`GJK.h:648–671`]
 
@@ -178,7 +189,7 @@ $$
 <span id="86-精度自适应float--double-自动切换" aria-hidden="true"></span>
 <span id="88-simd--cpu-优化在哪" aria-hidden="true"></span>
 
-## 7. 数值预算与性能：先定位具体分支
+## 数值预算与性能：先定位具体分支
 
 GJKDistance 默认 MaxIts=16；另一个 CheckGJKIterationLimit 帮助函数使用 32 并发出碰撞诊断。[源码事实：`GJK.h:141–149、2088`] 因而“Chaos GJK 统一迭代 32 次”的概括不成立。
 
@@ -196,7 +207,7 @@ SIMD 入口、模板数值类型和其他精度分支确实存在，但“存在
 <span id="94-其他常见坑" aria-hidden="true"></span>
 <span id="十全文总结gjk-的思维模型" aria-hidden="true"></span>
 
-## 8. SAT 调用边界与诊断顺序
+## SAT 调用边界与诊断顺序
 
 **源码事实**：`Engine/Source/Runtime/Experimental/Chaos/Private/Chaos/Collision/ConvexTriangleContactPoint.cpp:744–773` 的一个分支使用 GJKDistance，并在 DeepContact 时调用 SATConvexTriangle。这是已确认的调用，而不是“SAT 已被整个 Chaos 弃用”的证据。
 

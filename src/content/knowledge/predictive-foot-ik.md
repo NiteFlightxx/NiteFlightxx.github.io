@@ -1,18 +1,29 @@
 ---
-title: "预测式 Foot IK：落脚规划与接触状态"
-excerpt: "将脚步预测、环境候选、接触锁定和骨盆补偿分开，连接规划与最终 IK 求解。"
-date: "2026-09-26"
-category: "Animation"
-subtopic: "ControlRigIK"
-tags: ["预测式 IK", "Foot IK", "Control Rig", "接触规划", "动画"]
-readTime: "阅读约55分钟"
-kind: "algorithm"
-level: "intermediate"
-prerequisites: ["ue-linear-algebra-guide", "ue-animation-node-math"]
-nextArticles: ["ue-fullbody-ik-math"]
-aliases: ["预测式 Foot IK 详解 — 从接触时间估计到落脚规划与骨盆补偿"]
+title: 预测式 Foot IK：落脚规划与接触状态
+excerpt: 将脚步预测、环境候选、接触锁定和骨盆补偿分开，连接规划与最终 IK 求解。
+date: '2026-09-26'
+category: Animation
+subtopic: ControlRigIK
+tags:
+  - 预测式 IK
+  - Foot IK
+  - Control Rig
+  - 接触规划
+  - 动画
+readTime: 阅读约50分钟
+kind: algorithm
+level: intermediate
+pageType: guide
+aliases:
+  - 预测式 Foot IK 详解 — 从接触时间估计到落脚规划与骨盆补偿
+prerequisites:
+  - ue-linear-algebra-guide
+  - ue-animation-node-math
+nextArticles:
+  - ue-fullbody-ik-math
+related: []
+sources: []
 ---
-
 预测式 Foot IK 不只是把脚吸附到地面：它需要估计接触时间、比较未来落脚候选，并在移动表面上维护接触状态。本文讨论目标规划与状态机，最终姿态求解可接不同 IK 方法；[UE 全身 IK](/knowledge/ue-fullbody-ik-math/)是可选求解器，不是规划链路的替代品。
 
 > 本文整理自指定的《预测 IK 原理》文档，讨论通用模型与公开的 Unreal Engine 接口。示例中的组件关系、执行顺序和参数是设计约定，不代表 NitePredIK 插件当前已有对应实现。
@@ -23,7 +34,7 @@ aliases: ["预测式 Foot IK 详解 — 从接触时间估计到落脚规划与�
 
 ## 从普通 IK 到预测 IK
 
-### 1. 先从直觉理解预测 IK
+### 先从直觉理解预测 IK
 
 普通 IK 解决的是：
 
@@ -85,9 +96,9 @@ $$
 
 ---
 
-### 2. 普通 IK：从直观问题到通用约束
+### 普通 IK：从直观问题到通用约束
 
-#### 2.1 一条腿的 IK 在做什么
+#### 一条腿的 IK 在做什么
 
 考虑一条最简单的腿：
 
@@ -125,7 +136,7 @@ IK 做的是反问题：
 
 > 已知希望满足的末端条件，反过来寻找合适的 $\mathbf q$。
 
-#### 2.2 用约束映射统一描述 IK
+#### 用约束映射统一描述 IK
 
 用一个统一函数表示全部等式约束：
 
@@ -157,7 +168,7 @@ $$
 - 两脚同时接触；
 - 两个骨骼之间的相对关系。
 
-#### 2.3 Foot 位置约束
+#### Foot 位置约束
 
 如果希望 Foot 到达目标位置 $\mathbf p_{\mathrm{target}}$，定义：
 
@@ -199,7 +210,7 @@ $$
 \mathbf 0
 $$
 
-#### 2.4 Foot 旋转约束
+#### Foot 旋转约束
 
 若目标旋转为 $R_{\mathrm{target}}$，可以用旋转误差向量：
 
@@ -223,7 +234,7 @@ $$
 
 > 当前旋转与目标旋转之间的误差应该趋近零。
 
-#### 2.5 不等式约束
+#### 不等式约束
 
 并非所有约束都要求等于零。例如关节角限制：
 
@@ -271,7 +282,7 @@ $$
 \mathbf g(\mathbf q)\le\mathbf 0
 $$
 
-#### 2.6 为什么现实中常写成最小化
+#### 为什么现实中常写成最小化
 
 目标可能不可精确满足。例如：
 
@@ -319,7 +330,7 @@ $$
 
 $W_p$ 控制位置残差各分量的权重；是否将 $\mathbf C_p$ 作为硬约束或软约束，取决于可达性、约束优先级和求解器能力。
 
-#### 2.7 Source Pose 也是优化目标
+#### Source Pose 也是优化目标
 
 角色并不希望为了满足脚目标而完全丢失原动画。可以加入姿势保持项：
 
@@ -358,7 +369,7 @@ $$
 
 这些参数影响约束优先级、可活动的自由度和关节偏好，但不一定都等价于上式中的单个权重。例如 Preferred Angle 指定偏好的弯曲方向，Bone Stiffness 限制关节的移动能力；具体语义取决于所选 Solver。
 
-#### 2.8 普通 IK 的边界
+#### 普通 IK 的边界
 
 普通 IK 可以很好地解决：
 
@@ -375,7 +386,7 @@ $$
 
 这些才是预测 IK 在 Solver 之前增加的部分。
 
-#### 2.9 Prediction、Planning、Solving 必须分开
+#### Prediction、Planning、Solving 必须分开
 
 Prediction 回答：
 
@@ -417,7 +428,7 @@ $$
 
 ---
 
-### 3. 统一符号与坐标约定
+### 统一符号与坐标约定
 
 | LaTeX 符号 | 含义 |
 |---|---|
@@ -483,9 +494,9 @@ $$
 
 ---
 
-### 4. 为什么只做“当前帧贴地”还不够
+### 为什么只做“当前帧贴地”还不够
 
-#### 4.1 最简单的 Foot IK
+#### 最简单的 Foot IK
 
 一个最常见的 Foot IK 流程是：
 
@@ -511,7 +522,7 @@ IK Solver
 - 接触表面正在移动；
 - 目标需要在真正接触前就稳定下来。
 
-#### 4.2 上台阶：Target 为什么突然跳变
+#### 上台阶：Target 为什么突然跳变
 
 脚尚未进入台阶上方时，当前脚向下 Trace 看到的是低处地面：
 
@@ -567,7 +578,7 @@ Solver 只能在很短时间内强行修正腿部，于是可能出现：
 
 > **Target 被发现得太晚。**
 
-#### 4.3 下台阶：当前查询不知道脚将落空
+#### 下台阶：当前查询不知道脚将落空
 
 脚还位于高台上方时，当前查询可能继续命中高台：
 
@@ -590,7 +601,7 @@ High Ground ───────────┐
 
 预测系统应该在脚越过边缘之前，就查询未来落脚区域。
 
-#### 4.4 斜坡与边缘：Hit 本身可能不连续
+#### 斜坡与边缘：Hit 本身可能不连续
 
 即使地形连续，碰撞三角形、台阶边缘或简化碰撞也可能让法线和命中点在相邻帧跳变：
 
@@ -613,7 +624,7 @@ $$
 - Lock；
 - 滞回与释放。
 
-#### 4.5 急转和急停：当前速度不等于未来运动
+#### 急转和急停：当前速度不等于未来运动
 
 角色当前可能向前运动，但输入已经要求左转或停止：
 
@@ -624,7 +635,7 @@ Future Intent      ↖
 
 如果只根据当前 Foot WS Velocity 外推，脚会继续沿旧方向预测。Future Mesh Component Trajectory 的意义不是补上遗漏的 Mesh Component 速度，而是提供移动系统所预测的未来整体运动。
 
-#### 4.6 移动平台：当前世界位置不是稳定接触关系
+#### 移动平台：当前世界位置不是稳定接触关系
 
 脚已经踩在移动平台上时，如果只锁定：
 
@@ -640,7 +651,7 @@ $$
 
 也就是脚相对接触表面保持不变。
 
-#### 4.7 反应式 IK 与预测 IK 不是互斥关系
+#### 反应式 IK 与预测 IK 不是互斥关系
 
 反应式 IK 适合：
 
@@ -675,7 +686,7 @@ LiftOff
   Release
 ~~~
 
-#### 4.8 预测 IK 增加的不是另一个 Solver
+#### 预测 IK 增加的不是另一个 Solver
 
 普通 IK 已经能表示：
 
@@ -729,7 +740,7 @@ $$
 
 ## 状态估计、时间与空间
 
-### 5. Pre-IK Source Pose 是状态估计的起点
+### Pre-IK Source Pose 是状态估计的起点
 
 预测必须读取尚未经过本系统 IK、Foot Lock 和 Pelvis 修正的 Source Pose。
 
@@ -785,9 +796,9 @@ $$
 
 ---
 
-### 6. Foot Phase 与 Time To Contact
+### Foot Phase 与 Time To Contact
 
-#### 6.1 Phase 是行为先验
+#### Phase 是行为先验
 
 速度告诉系统脚此刻怎样运动，Phase 告诉系统脚位于整个动作生命周期的哪个阶段。
 
@@ -813,7 +824,7 @@ Phase 可以来自以下输入，可信度取决于动画资产和系统时序�
 
 显式动画语义通常比继续增加高阶导数更可靠。
 
-#### 6.2 Time To Contact
+#### Time To Contact
 
 预测窗口不应固定，而应尽量等于预计接触时间：
 
@@ -846,9 +857,9 @@ TTC 同时决定：
 
 ---
 
-### 7. 不同问题使用不同空间
+### 不同问题使用不同空间
 
-#### 7.1 Skeletal Mesh Component Space
+#### Skeletal Mesh Component Space
 
 Component Space 是以 SkeletalMeshComponent 为基准的坐标空间。Pre-IK 骨骼姿势、动画产生的局部肢体运动以及步幅分析都应在这个明确的空间中表达。
 
@@ -862,7 +873,7 @@ Component Space 是以 SkeletalMeshComponent 为基准的坐标空间。Pre-IK �
 
 Component Space 不等于 Bone Local Space。Bone Local Space 以父骨骼为基准；Component Space 中的骨骼变换已经累积了父级变换。
 
-#### 7.2 Trajectory Source Frame / Movement Body Frame
+#### Trajectory Source Frame / Movement Body Frame
 
 Trajectory Source Frame 是对轨迹输出坐标系的统一称呼，不是 Unreal Engine 额外提供的内置空间。集成时必须把它绑定到一个具体对象，例如移动系统的 Updated Component、胶囊体或其他被预测的根组件；本文将该主体记为 Movement Body。
 
@@ -876,7 +887,7 @@ $$
 
 如果 $T_M^B$ 不是恒定关系，例如视觉 Mesh 存在独立平滑、旋转偏置或动态挂接，那么必须明确选择并实现对应的预测策略，不能把 $B$ 和 $M$ 隐式视为同一空间。
 
-#### 7.3 World Space
+#### World Space
 
 适合处理：
 
@@ -886,7 +897,7 @@ $$
 - 接触候选；
 - 静态世界锚点。
 
-#### 7.4 Surface Local Space
+#### Surface Local Space
 
 适合处理：
 
@@ -897,7 +908,7 @@ $$
 
 Surface Local Space 同样不是额外的全局引擎空间，而是由命中的静态组件、移动组件或骨骼表面显式提供的局部坐标系。Contact Anchor 必须记录它所依附的具体对象和相对变换。
 
-#### 7.5 Control Rig Global Space
+#### Control Rig Global Space
 
 适合连接：
 
@@ -952,9 +963,9 @@ $$
 
 ## 预测未来脚的位置
 
-### 8. 预测模型：从最低阶开始
+### 预测模型：从最低阶开始
 
-#### 8.1 Level 0：Reactive
+#### Level 0：Reactive
 
 $$
 \widehat{\mathbf p}_E^W(t_c)
@@ -964,7 +975,7 @@ $$
 
 没有未来外推，只在当前脚附近查询。它是所有复杂模型的基线。
 
-#### 8.2 Level 1：Foot WS 恒速
+#### Level 1：Foot WS 恒速
 
 $$
 \widehat{\mathbf p}_E^W(t_c)
@@ -1000,7 +1011,7 @@ $$
 
 > 如果 Foot WS Velocity 来自正确的 Pre-IK 世界位置，它已经包含 Mesh Component 整体运动产生的速度分量。它的问题不是缺少整体运动，而是当前瞬时速度不一定等于未来平均速度。
 
-#### 8.3 平面预测
+#### 平面预测
 
 把速度投影到与上方向 $\mathbf u$ 垂直的平面：
 
@@ -1026,7 +1037,7 @@ $$
 
 上式只给环境查询提供水平搜索中心，保留当前高度作为扫掠起点的参考；它不是最终接触高度。真实高度和法线由环境查询确定。
 
-#### 8.4 Level 2：加速度
+#### Level 2：加速度
 
 $$
 \widehat{\mathbf p}(t_c)
@@ -1040,7 +1051,7 @@ $$
 
 加速度来自二次数值差分，容易放大帧时间、混合和网络修正噪声。除非误差数据证明有价值，否则不应默认增加。
 
-#### 8.5 最低足够阶数原则
+#### 最低足够阶数原则
 
 更高阶模型：
 
@@ -1072,7 +1083,7 @@ $$
 
 ---
 
-### 9. 核心分解：Future Mesh Component Transform × Future Component-Space Limb Motion
+### 核心分解：Future Mesh Component Transform × Future Component-Space Limb Motion
 
 设 Skeletal Mesh Component 的未来世界变换为：
 
@@ -1117,7 +1128,7 @@ $$
 
 预测 IK 的核心组合只接收语义明确的 $T_M^W(t)$，不在公式中隐式猜测轨迹属于 Actor、Capsule、Updated Component 还是 Mesh。
 
-#### 9.1 更严格的速度关系
+#### 更严格的速度关系
 
 脚世界速度不是简单的组件平移速度加局部速度。对旋转中的 Mesh Component：
 
@@ -1151,7 +1162,7 @@ $$
 
 ---
 
-### 10. Future Mesh Component Trajectory
+### Future Mesh Component Trajectory
 
 预测 IK 使用的 Future Mesh Component Trajectory 是一组带相对时间的 Skeletal Mesh Component 世界空间样本：
 
@@ -1181,7 +1192,7 @@ $$
 
 不同系统可能产生 Movement Body、Actor Root、Updated Component 或其他主体的轨迹。这些来源属于集成边界；进入预测 IK 核心前，必须统一转换为具有明确时间戳的 $T_M^W(t_i)$。转换之后，核心算法不再依赖原始轨迹来自哪一种移动框架。
 
-#### 10.1 时间插值
+#### 时间插值
 
 当：
 
@@ -1227,7 +1238,7 @@ R_{i+1},
 \right)
 $$
 
-#### 10.2 Mover 的位置
+#### Mover 的位置
 
 如果项目真实移动由 Mover 决定，使用 Mover 的 PredictedTrajectory 通常比另写一个近似角色预测器更一致：
 
@@ -1243,7 +1254,7 @@ $$
 
 但 Mover 的公开 `Get Predicted Trajectory` 文档说明它投影的是**未进行完整模拟和碰撞**的理想运动。因此它不能直接证明未来接触一定发生；环境查询和接触规划仍由预测 IK 完成。
 
-#### 10.3 Provider 不是原理前提
+#### Provider 不是原理前提
 
 统一 Provider 是多轨迹来源项目的合理工程抽象，但不是数学模型的一部分。
 
@@ -1251,7 +1262,7 @@ $$
 
 ---
 
-### 11. Future Component-Space Limb Prediction
+### Future Component-Space Limb Prediction
 
 理想输入是未来动画在 Skeletal Mesh Component Space 中的 Foot Transform：
 
@@ -1261,7 +1272,7 @@ $$
 
 如果不可得，可以逐级近似。
 
-#### 11.1 零阶保持
+#### 零阶保持
 
 $$
 \widehat{T}_E^M(t_c)
@@ -1269,7 +1280,7 @@ $$
 T_E^M(0)
 $$
 
-#### 11.2 Component-Space 恒速
+#### Component-Space 恒速
 
 $$
 \widehat{\mathbf p}_E^M(t_c)
@@ -1279,7 +1290,7 @@ $$
 \mathbf v_E^M(0)t_c
 $$
 
-#### 11.3 Phase-aware Component-Space 预测
+#### Phase-aware Component-Space 预测
 
 $$
 \widehat{\mathbf p}_E^M(t_c)
@@ -1292,7 +1303,7 @@ $$
 
 其中 $w_v$ 在 Mid Swing 可以较大，在 PreContact 应逐渐减小，避免继续外推即将停止的脚。
 
-#### 11.4 未来动画采样
+#### 未来动画采样
 
 如果动画系统可以查询未来姿势，可以直接取得：
 
@@ -1306,7 +1317,7 @@ $$
 
 ---
 
-### 12. 短时模型与轨迹模型的融合
+### 短时模型与轨迹模型的融合
 
 短时 Foot WS 预测：
 
@@ -1373,9 +1384,9 @@ Reactive Query
 
 ---
 
-### 13. 滤波与不确定性
+### 滤波与不确定性
 
-#### 13.1 帧率无关的一阶滤波
+#### 帧率无关的一阶滤波
 
 $$
 \mathbf v_f
@@ -1396,7 +1407,7 @@ $$
 1-e^{-2\pi f_c\Delta t}
 $$
 
-#### 13.2 滤波的代价
+#### 滤波的代价
 
 滤波降低噪声，同时引入延迟。急转和急停时，过强滤波会保留已经过时的速度。
 
@@ -1407,7 +1418,7 @@ $$
 - Commit 阻止临近接触时继续追逐；
 - 轻度滤波只解决采样噪声。
 
-#### 13.3 预测不确定性随时间增长
+#### 预测不确定性随时间增长
 
 可以把下面的表达式用作**经验性不确定性模型**，其系数必须按长度与时间单位标定，并非由本文的运动方程自动推导出的协方差：
 
@@ -1440,7 +1451,7 @@ $$
 
 ## 环境查询与接触规划
 
-### 14. Environment Query 生成候选集
+### Environment Query 生成候选集
 
 预测位置只是查询中心，不是目标。
 
@@ -1504,7 +1515,7 @@ $$
 
 ---
 
-### 15. 接触规划是约束优化问题
+### 接触规划是约束优化问题
 
 预测 IK 的核心决策可以写成：
 
@@ -1543,9 +1554,9 @@ $$
 
 ---
 
-### 16. 硬约束：不满足就拒绝
+### 硬约束：不满足就拒绝
 
-#### 16.1 表面约束
+#### 表面约束
 
 接触点必须位于有效表面：
 
@@ -1553,7 +1564,7 @@ $$
 S(c_i)\in\mathcal S_{\mathrm{allowed}}
 $$
 
-#### 16.2 坡度约束
+#### 坡度约束
 
 $$
 \mathbf n_i\cdot\mathbf u
@@ -1579,7 +1590,7 @@ $$
 \theta_{\max}
 $$
 
-#### 16.3 高差约束
+#### 高差约束
 
 相对地面基准点 $\mathbf p_B$：
 
@@ -1602,7 +1613,7 @@ $$
 h_{\mathrm{up,max}}
 $$
 
-#### 16.4 动画偏差约束
+#### 动画偏差约束
 
 候选中的 $\mathbf p_i$ 是表面命中点，预测的 $\widehat{\mathbf p}_E^W$ 是脚部 Effector；二者不能在存在脚底厚度或踝骨偏移时直接相减。先由候选接触变换 $T_{A,i}^W$ 和已校准的脚底到 Effector 偏移 $T_E^A$ 构造：
 
@@ -1640,7 +1651,7 @@ $$
 d_{\mathrm{vertical,max}}
 $$
 
-#### 16.5 腿部可达约束
+#### 腿部可达约束
 
 令有效腿长为：
 
@@ -1673,7 +1684,7 @@ $$
 
 该球形距离只是快速上界；通过它不保证膝盖限位、脚朝向和另一条腿同时可解，还需由最终姿势求解或更精细的可达性测试验证。
 
-#### 16.6 支撑面积约束
+#### 支撑面积约束
 
 先把脚掌区域 $\mathcal F$ 和候选表面支撑区域 $\mathcal S_i$ 投影到**同一个接触切平面**，再比较重叠面积：
 
@@ -1695,7 +1706,7 @@ $$
 
 基础实现可以使用脚掌前后或四角的附加采样近似支撑面积，无需直接计算多边形交集。
 
-#### 16.7 状态和时序约束
+#### 状态和时序约束
 
 候选必须足够新：
 
@@ -1711,7 +1722,7 @@ $$
 
 ---
 
-### 17. 软目标：合法候选之间怎样选择
+### 软目标：合法候选之间怎样选择
 
 对通过硬约束的候选，定义无量纲代价：
 
@@ -1739,7 +1750,7 @@ $$
 w_k\ge0
 $$
 
-#### 17.1 动画偏差
+#### 动画偏差
 
 同样比较候选所对应的 Effector 目标，而非表面原始命中点：
 
@@ -1757,7 +1768,7 @@ d_{\mathrm{animation}}^2
 }
 $$
 
-#### 17.2 坡度代价
+#### 坡度代价
 
 $$
 J_{\mathrm{slope}}
@@ -1771,7 +1782,7 @@ J_{\mathrm{slope}}
 \right)^2
 $$
 
-#### 17.3 Reach 代价
+#### Reach 代价
 
 令：
 
@@ -1803,7 +1814,7 @@ r_i^2
 }
 $$
 
-#### 17.4 高差代价
+#### 高差代价
 
 $$
 J_{\mathrm{height}}
@@ -1817,7 +1828,7 @@ h_{\mathrm{scale}}
 \right)^2
 $$
 
-#### 17.5 边缘代价
+#### 边缘代价
 
 设候选到可支撑边缘的最短距离为 $d_{\mathrm{edge},i}$：
 
@@ -1838,7 +1849,7 @@ d_{\mathrm{safe}}
 \right]^2
 $$
 
-#### 17.6 时间连续性
+#### 时间连续性
 
 相对上一候选 $\mathbf p_{\mathrm{prev}}$：
 
@@ -1854,7 +1865,7 @@ d_{\mathrm{jump}}^2
 }
 $$
 
-#### 17.7 表面运动风险
+#### 表面运动风险
 
 对于移动表面，应关注**候选点相对角色的运动**，而不是表面原点的绝对速度。若已知表面原点速度和角速度，候选点速度为：
 
@@ -1874,7 +1885,7 @@ $$
 
 其中 $\mathbf v_{B,i}$ 是角色在同一候选点附近的参考速度；第二项单独评价表面朝向变化的风险。两项都只是候选评分设计，不是接触合法性的物理定律。
 
-#### 17.8 为什么必须归一化
+#### 为什么必须归一化
 
 距离、角度和速度单位不同。若不归一化，权重无法解释，并且角色尺寸改变后评分失效。
 
@@ -1890,7 +1901,7 @@ $$
 
 ---
 
-### 18. 硬约束与软约束怎样划分
+### 硬约束与软约束怎样划分
 
 适合作为硬约束：
 
@@ -1916,7 +1927,7 @@ $$
 
 ## 从未来落点到当前姿势
 
-### 19. 未来 Anchor 不能直接成为当前脚目标
+### 未来 Anchor 不能直接成为当前脚目标
 
 规划中的“锚点”必须是由接触几何转换后的 **Foot Effector 目标**，不能把 Sphere Trace 的原始命中点直接当作踝骨位置。以下 $\mathbf p_A^W$ 均指这个校准后的目标。未来接触时刻的世界空间锚点：
 
@@ -1973,7 +1984,7 @@ $$
 
 ---
 
-### 20. 多帧修正分配也是优化问题
+### 多帧修正分配也是优化问题
 
 简单权重 $w_c(\phi,t_c)$ 是多帧优化的低成本近似。
 
@@ -2075,21 +2086,21 @@ $$
 
 ---
 
-### 21. Candidate、Commit、Contact 与 Lock
+### Candidate、Commit、Contact 与 Lock
 
-#### 21.1 Candidate
+#### Candidate
 
 当前信息下可能使用的接触。摆动前段允许持续变化。
 
-#### 21.2 Commit
+#### Commit
 
 系统决定本步将使用哪个接触。Commit 发生在真实接触之前。
 
-#### 21.3 Contact
+#### Contact
 
 脚到达接触窗口，动画、距离或外部观测确认接触发生。
 
-#### 21.4 Lock
+#### Lock
 
 接触发生后，锚点相对世界或表面保持稳定。
 
@@ -2107,7 +2118,7 @@ $$
 
 ---
 
-### 22. 接触系统是 Hybrid System
+### 接触系统是 Hybrid System
 
 连续状态：
 
@@ -2198,7 +2209,7 @@ Releasing
 
 ---
 
-### 23. Surface-relative Contact Frame
+### Surface-relative Contact Frame
 
 静态世界中：
 
@@ -2261,7 +2272,7 @@ Contact Frame 解决接触后的跟随，不等同于预测平台未来运动。
 
 ---
 
-### 24. Foot Orientation 也是一个受限优化
+### Foot Orientation 也是一个受限优化
 
 目标旋转需要同时满足：
 
@@ -2327,11 +2338,11 @@ $$
 
 ## 骨盆、求解器与数据职责
 
-### 25. Pelvis Compensation 的约束优化
+### Pelvis Compensation 的约束优化
 
 Pelvis 不应简单追随地面高度。它的核心职责是让多个腿目标同时可达，并尽量少破坏原动画。
 
-#### 25.1 一般形式
+#### 一般形式
 
 令骨盆修正为：
 
@@ -2383,7 +2394,7 @@ $$
 \delta\mathbf p_{\max}
 $$
 
-#### 25.2 只优化竖直方向的闭式区间
+#### 只优化竖直方向的闭式区间
 
 仅优化骨盆竖直位移时，可令：
 
@@ -2485,7 +2496,7 @@ $$
 
 ---
 
-### 26. 最终 Pose Solver 的优化形式
+### 最终 Pose Solver 的优化形式
 
 给定一个或多个 Effector Target，Solver 可以抽象为：
 
@@ -2544,7 +2555,7 @@ Solver 决定骨架怎样满足这些约束。
 
 ---
 
-### 27. Control Rig 的合理职责
+### Control Rig 的合理职责
 
 Control Rig 适合：
 
@@ -2569,7 +2580,7 @@ Control Rig 适合：
 
 ## 实现、调试与迭代
 
-### 28. 一帧的推荐执行顺序
+### 一帧的推荐执行顺序
 
 ~~~text
 1. Read Pre-IK Source Pose
@@ -2603,9 +2614,9 @@ Control Rig 适合：
 
 ---
 
-### 29. 状态、纯函数和数据所有权
+### 状态、纯函数和数据所有权
 
-#### 29.1 适合纯函数
+#### 适合纯函数
 
 - Transform 组合；
 - 轨迹插值；
@@ -2616,7 +2627,7 @@ Control Rig 适合：
 - Orientation 构造；
 - Pelvis 可行区间。
 
-#### 29.2 必须持有状态
+#### 必须持有状态
 
 - 上一帧 Pre-IK Source；
 - 滤波速度；
@@ -2629,7 +2640,7 @@ Control Rig 适合：
 - Reset Generation；
 - 预测误差历史。
 
-#### 29.3 每个量必须回答四个问题
+#### 每个量必须回答四个问题
 
 1. 它属于哪个空间？
 2. 它属于哪个时间？
@@ -2652,7 +2663,7 @@ TargetRigGlobal
 
 ---
 
-### 30. Reset 与不连续事件
+### Reset 与不连续事件
 
 必须 Reset：
 
@@ -2683,9 +2694,9 @@ Reset 应清除：
 
 ---
 
-### 31. Debug 与定量评价
+### Debug 与定量评价
 
-#### 31.1 可视化完整因果链
+#### 可视化完整因果链
 
 至少显示：
 
@@ -2707,7 +2718,7 @@ Reset 应清除：
 - Reachability Sphere；
 - Pelvis 可行区间。
 
-#### 31.2 成熟预测误差
+#### 成熟预测误差
 
 在 $t_0$ 预测 $t_0+h$：
 
@@ -2742,7 +2753,7 @@ $$
 
 不能与 Solved Foot 比较，否则会把 IK 强行到达目标误认为预测准确。
 
-#### 31.3 接触误差
+#### 接触误差
 
 $$
 E_{\mathrm{contact}}(t)
@@ -2756,7 +2767,7 @@ $$
 
 它评价 Solver 和目标应用，不等于预测误差。
 
-#### 31.4 连续性
+#### 连续性
 
 直接比较相邻帧的世界目标位置会把角色正常移动也算作跳变。应先减去同帧 Source Pose，再比较相邻帧的**修正量**：
 
@@ -2778,7 +2789,7 @@ $$
 
 若需要比较不同帧率，再将相邻修正差除以采样间隔；接触锁定阶段也可以改在 Surface Local Space 中评估漂移。
 
-#### 31.5 统计
+#### 统计
 
 按动作和地形分类统计：
 
@@ -2794,7 +2805,7 @@ $$
 
 ---
 
-### 32. LOD 与计算预算
+### LOD 与计算预算
 
 | LOD | 推荐能力 |
 |---|---|
@@ -2815,7 +2826,7 @@ LOD 切换必须平滑并清理不再合法的状态。
 
 ---
 
-### 33. 推荐实现路线
+### 推荐实现路线
 
 #### Phase 1：Reactive 基线
 
@@ -2884,7 +2895,7 @@ LOD 切换必须平滑并清理不再合法的状态。
 
 ## 结论与参考
 
-### 34. 结论与检查表
+### 结论与检查表
 
 预测式 Foot IK 是短时域的**混合接触规划**：连续量描述脚、轨迹和表面，离散状态描述候选、承诺、着地与释放。前文的候选枚举和相位权重属于低成本近似；只有显式优化未来多帧控制序列时，才应称为完整的模型预测控制（MPC）。
 
@@ -2902,7 +2913,7 @@ LOD 切换必须平滑并清理不再合法的状态。
 
 ---
 
-### 35. 官方参考
+### 官方参考
 
 - [Control Rig 概览](https://dev.epicgames.com/documentation/unreal-engine/control-rig-in-unreal-engine)
 - [Control Rig Full Body IK](https://dev.epicgames.com/documentation/unreal-engine/control-rig-full-body-ik-in-unreal-engine)

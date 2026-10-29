@@ -10,6 +10,7 @@ const decode = value => value.replace(/&amp;/g, '&').replace(/&quot;/g, '"').rep
   .replace(/&#x([0-9a-f]+);/gi, (_, n) => String.fromCodePoint(parseInt(n, 16)))
   .replace(/&#([0-9]+);/g, (_, n) => String.fromCodePoint(parseInt(n, 10)));
 const pages = new Map();
+const legacy = JSON.parse(fs.readFileSync('src/data/knowledge-legacy-anchors.json', 'utf8'));
 for (const { slug } of publicArticles) {
   const html = fs.readFileSync(`dist/knowledge/${slug}/index.html`, 'utf8');
   const ids = [...html.matchAll(/\bid="([^"]*)"/g)].map(match => decode(match[1]));
@@ -17,6 +18,11 @@ for (const { slug } of publicArticles) {
   assert.equal((html.match(/<h1\b/g) ?? []).length, 1, `${slug}: expected one article title`);
   assert.ok(/<h2\b/.test(html), `${slug}: headings were rendered as prose`);
   assert.ok(!/class="[^"]*\bkatex-error\b/.test(html), `${slug}: invalid rendered formula`);
+  assert.match(html, /data-section-number="1"/, `${slug}: automatic section numbers missing`);
+  for (const [oldId, target] of Object.entries(legacy[slug] ?? {})) {
+    assert.ok(ids.includes(oldId), `${slug}: missing legacy anchor ${oldId}`);
+    assert.ok(ids.includes(target), `${slug}: missing semantic target ${target}`);
+  }
   pages.set(slug, { html, ids: new Set(ids) });
 }
 let checked = 0;

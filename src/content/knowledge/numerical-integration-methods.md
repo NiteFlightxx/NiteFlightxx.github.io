@@ -1,27 +1,40 @@
 ---
-title: "数值积分：方法、误差与稳定性"
-excerpt: "比较 Euler、Verlet 与 Runge–Kutta 的离散更新，区分精度、稳定性和能量行为。"
-date: "2026-06-25"
-category: "Physics"
-subtopic: "RigidBodyDynamics"
-tags: ["物理", "数值积分", "ODE", "辛积分器", "PBD", "C++"]
-readTime: "阅读约35分钟"
-kind: "algorithm"
-level: "intermediate"
-prerequisites: ["differential-equations"]
-nextArticles: ["2d-physics-engine", "pbd-xpbd-math"]
+title: 数值积分：方法、误差与稳定性
+excerpt: 比较 Euler、Verlet 与 Runge–Kutta 的离散更新，区分精度、稳定性和能量行为。
+date: '2026-06-25'
+category: Physics
+subtopic: RigidBodyDynamics
+tags:
+  - 物理
+  - 数值积分
+  - ODE
+  - 辛积分器
+  - PBD
+  - C++
+readTime: 阅读约15分钟
+kind: algorithm
+level: intermediate
+pageType: guide
+aliases:
+  - 物理模拟数值积分方法详解 — 从欧拉到 RK4 与 XPBD
+prerequisites:
+  - particle-dynamics
+nextArticles: []
+related: [differential-equations, rigid-body-dynamics, deformable-body-dynamics, fluid-dynamics, pbd-xpbd-math, iterative-linear-solvers]
 topics:
-  - id: "ue-chaos-physics"
-    stage: "foundation"
-    role: "theory"
+  - id: ue-chaos-physics
+    stage: foundation
+    role: theory
     order: 50
-aliases: ["物理模拟数值积分方法详解 — 从欧拉到 RK4 与 XPBD"]
-sources: [{"title":"Hairer：几何积分导论","url":"https://www.unige.ch/~hairer/poly_geoint/intro.pdf"},{"title":"Baraff：隐式积分","url":"https://www.cs.cmu.edu/~baraff/sigcourse/notese.pdf"}]
+sources:
+  - title: Hairer：几何积分导论
+    url: 'https://www.unige.ch/~hairer/poly_geoint/intro.pdf'
+  - title: Baraff：隐式积分
+    url: 'https://www.cs.cmu.edu/~baraff/sigcourse/notese.pdf'
 ---
+[质点动力学](/knowledge/particle-dynamics/)给出自由落体和弹簧阻尼的连续模型及解析基准，刚体、软体与流体则保留不同自由度。它们共享一个计算问题：已知当前状态和变化率，怎样求有限时间后的近似状态？积分器决定连续模型怎样变成一次离散更新，但不负责定义材料、生成接触或保证全部约束收敛。
 
-积分器决定连续模型怎样变成一次离散更新，但它不负责补齐模型、生成接触或保证约束收敛。选择方法时，应同时比较误差、稳定域、能量行为和整步成本，而不是按“一阶不好、四阶最好”排序。
-
-状态、初值与模型参数见[常微分方程](/knowledge/differential-equations/)。这里从已知的 $\dot{\mathbf y}=\mathbf f(t,\mathbf y)$ 开始，只保留一份方法推导和一组可运行的对照代码。
+这里从已知的 $\dot{\mathbf y}=\mathbf f(t,\mathbf y)$ 开始，比较更新方法、误差和稳定性。沿主线阅读时，先理解更新契约、Euler 家族、振子与子步；RK 阶段、稳定域和几何积分的深入分析则按问题继续。需要初值问题的一般语言时，可查[常微分方程](/knowledge/differential-equations/)。
 
 <span id="1-引言" aria-hidden="true"></span>
 <span id="11-什么是数值积分" aria-hidden="true"></span>
@@ -37,7 +50,9 @@ sources: [{"title":"Hairer：几何积分导论","url":"https://www.unige.ch/~ha
 <span id="32-物理系统的ode形式" aria-hidden="true"></span>
 <span id="33-二阶ode降阶" aria-hidden="true"></span>
 
-## 1. 一次更新的契约
+## 一次更新的契约
+
+继续使用质量 $2\,\mathrm{kg}$、半径 $0.5\,\mathrm m$、初始高度 $2\,\mathrm m$ 的球。取 $h=1/60\,\mathrm s$，速度优先更新得到 $v^*=-9.8/60$、$y^*=2+h v^*=1.997277\ldots$。这一步只计算自由运动；当间隙 $y^*-0.5$ 接近零时，还需交给接触阶段处理。步长和方法的差异，正是本篇要解释的问题。
 
 给定状态 $\mathbf y_n$ 和正步长 $h$：
 
@@ -86,9 +101,9 @@ $$
 <span id="438-物理意义" aria-hidden="true"></span>
 <span id="439-实际表现" aria-hidden="true"></span>
 
-## 2. Euler 家族：更新顺序与隐式求解
+## Euler 家族：更新顺序与隐式求解
 
-### 2.1 显式 Euler
+### 显式 Euler
 
 由一步 Taylor 展开保留一阶项：
 
@@ -105,7 +120,7 @@ $$
 
 两项都读旧状态。一次右端求值、无需联立解方程；它适合建立基线，但对无阻尼振子会持续增加能量。不能从这个例子推出它对所有方程都不稳定。
 
-### 2.2 隐式 Euler
+### 隐式 Euler
 
 $$
 \mathbf y_{n+1}=\mathbf y_n+h\mathbf f(t_{n+1},\mathbf y_{n+1}).
@@ -129,7 +144,7 @@ $$
 
 隐式 Euler 在衰减问题上有很大的稳定域，却也有数值耗散；“没有爆炸”和“轨迹准确”不是一回事。
 
-### 2.3 速度优先的半隐式 Euler
+### 速度优先的半隐式 Euler
 
 当加速度只依赖位置、质量矩阵恒定时：
 
@@ -164,9 +179,9 @@ $$
 <span id="537-代码实现" aria-hidden="true"></span>
 <span id="538-非恒定力的完整实现" aria-hidden="true"></span>
 
-## 3. 二阶方法：不要混淆 Heun 与隐式梯形
+## 二阶方法：不要混淆 Heun 与隐式梯形
 
-### 3.1 显式中点 RK2
+### 显式中点 RK2
 
 $$
 \mathbf k_1=\mathbf f(t_n,\mathbf y_n),\qquad
@@ -177,7 +192,7 @@ $$
 
 在预测的中点求斜率，两次右端求值。在光滑问题上，全局误差二阶。
 
-### 3.2 Heun：显式预测后平均斜率
+### Heun：显式预测后平均斜率
 
 $$
 \mathbf y^*=\mathbf y_n+h\mathbf f(t_n,\mathbf y_n),
@@ -190,7 +205,7 @@ $$
 
 这也是二阶显式方法，但它使用预测值，不是在求解隐式方程。
 
-### 3.3 隐式梯形法
+### 隐式梯形法
 
 $$
 \mathbf y_{n+1}=\mathbf y_n+\frac h2
@@ -199,7 +214,7 @@ $$
 
 最终状态出现在右侧，必须求解。用一次显式预测替代它就变成 Heun，稳定域也随之改变。对非常快的衰减模态，隐式梯形可能出现符号交替且衰减不足；A 稳定不等于强数值阻尼。
 
-## 4. Verlet：二阶位置推进的假设
+## Verlet：二阶位置推进的假设
 
 对于位置力 $\mathbf a(\mathbf x)$ 和固定步长，Taylor 展开前后时刻并相加：
 
@@ -237,7 +252,7 @@ $$
 <span id="5-龙格-库塔方法" aria-hidden="true"></span>
 <span id="51-龙格-库塔方法概述" aria-hidden="true"></span>
 
-## 5. RK4：每个阶段都推进完整状态
+## RK4：每个阶段都推进完整状态
 
 $$
 \begin{aligned}
@@ -260,7 +275,7 @@ RK4 对光滑初值问题有四阶全局精度，但不是一般意义上的辛�
 <span id="113-弹簧链" aria-hidden="true"></span>
 <span id="114-性能优化版本" aria-hidden="true"></span>
 
-## 6. 用同一段代码比较方法
+## 用同一段代码比较方法
 
 下面是一维独立数学示例，不是 UE 生产积分器。状态只含位置和速度；所有方法都经过同一加速度函数。Verlet 的加速度函数不得依赖速度，半隐式方法的辛性质也只在前述假设下讨论。
 
@@ -324,7 +339,7 @@ export const harmonicEnergy = (s, omega = 1) =>
 <span id="632-隐式欧拉" aria-hidden="true"></span>
 <span id="633-rk4" aria-hidden="true"></span>
 
-## 7. 用测试方程比较稳定域
+## 用测试方程比较稳定域
 
 考虑衰减测试方程：
 
@@ -377,7 +392,7 @@ $$
 <span id="1061-局部误差估计" aria-hidden="true"></span>
 <span id="1062-自适应步长" aria-hidden="true"></span>
 
-## 8. 振子说明：有界、保辛与能量守恒的区别
+## 振子说明：有界、保辛与能量守恒的区别
 
 对 $\ddot x=-\omega^2x$，定义 $u=\omega x$、$r=h\omega$。速度优先半隐式 Euler 为：
 
@@ -423,7 +438,7 @@ $$
 <span id="731-方法" aria-hidden="true"></span>
 <span id="732-收敛率" aria-hidden="true"></span>
 
-## 9. 误差怎样测，成本怎样算
+## 误差怎样测，成本怎样算
 
 设方法阶数为 $p$。这里把“一步误差”定义为从精确状态出发，一步末端的状态差：
 
@@ -463,9 +478,9 @@ $$
 <span id="544-优点" aria-hidden="true"></span>
 <span id="10-高级主题" aria-hidden="true"></span>
 
-## 10. 多步、自适应与子步：它们改变什么
+## 多步、自适应与子步：它们改变什么
 
-### 10.1 多步方法复用历史
+### 多步方法复用历史
 
 例如固定步长二阶 Adams–Bashforth：
 
@@ -476,7 +491,7 @@ $$
 
 它减少重复求值，但需要启动方法与历史缓存。碰撞、重置、传送或步长变化后，旧历史可能不再适用。预测–校正方法也需区分预测值、修正次数与真正求解到收敛的隐式格式。
 
-### 10.2 自适应 RK 控制估计误差
+### 自适应 RK 控制估计误差
 
 嵌入式 RK 对用两组权重得到不同阶数的近似，利用差值估计误差。按状态尺度归一化：
 
@@ -494,7 +509,7 @@ $$
 
 这是控制器示意，不是所有 RK45 实现的完整规则；需要拒步、最小/最大步长、异常处理和事件定位。每帧不可预测的拒步次数也未必适合实时帧预算。可变步长还会改变某些几何积分与历史缓存的性质。
 
-### 10.3 子步不是“增加同一位置的迭代”
+### 子步不是“增加同一位置的迭代”
 
 把一帧分成 $N$ 个子步，会让积分、碰撞和约束在新的时间位置上重复执行。只在一个预测位置增加约束迭代，则主要减少当前离散系统的求解残差；两者不能互相等价。
 
@@ -521,7 +536,7 @@ $$
 <span id="132-xpbd让-pbd-拥有可控的物理刚度" aria-hidden="true"></span>
 <span id="133-三条线索的统一" aria-hidden="true"></span>
 
-## 11. 与约束、旋转和场模拟的接口
+## 与约束、旋转和场模拟的接口
 
 接触求解会改变状态，通常需要协调预测、检测、约束、速度更新与输出。PBD/XPBD 属于约束处理框架，不是与 Euler、RK4 同一层级的无约束积分器替换选项，详见[位置约束](/knowledge/pbd-xpbd-math/)。
 
@@ -560,7 +575,7 @@ $$
 <span id="核心要点" aria-hidden="true"></span>
 <span id="快速查询表" aria-hidden="true"></span>
 
-## 12. 工程选择与证据边界
+## 工程选择与证据边界
 
 以下是选择方向，不是引擎的统一默认值：
 
@@ -571,3 +586,5 @@ $$
 - 接触密集、强约束：先分析完整流水线，再决定子步与约束预算；不靠积分阶数单独解决穿透和抖动。
 
 本文的公式与代码是独立数值模型；不据此判断 Chaos、PhysX 或插件当前使用哪种积分器。真实执行链分别查[Chaos](/knowledge/ue-chaos-physics-engine/)、[three-avbd](/knowledge/three-avbd-gpu-solver/)和[GPUPhysicsLab](/knowledge/gpu-physics-plugin/)，运行性能需在对应工程中测量。
+
+针对刚体，可以继续到[接触响应](/knowledge/contact-response-and-manifolds/)；针对软体，回到[形变与材料](/knowledge/deformable-body-dynamics/)；针对流体，回到[压力与边界](/knowledge/fluid-dynamics/)。时间积分是共享计算工具，不能单独决定材料响应和全部约束条件。

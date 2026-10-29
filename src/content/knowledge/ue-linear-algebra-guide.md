@@ -1,20 +1,34 @@
 ---
-title: "UE 空间数学：向量、矩阵与变换"
-excerpt: "围绕坐标空间、投影、矩阵组合、FTransform 与旋转，说明数学约定如何对应 UE API。"
-date: "2026-09-25"
-category: "Mathematics"
-subtopic: "LinearAlgebra"
-tags: ["线性代数", "FVector", "FMatrix", "FTransform", "FQuat", "UE源码"]
-readTime: "阅读约55分钟"
-kind: "theory"
-level: "foundation"
-prerequisites: ["mathematical-notation-reference"]
-nextArticles: ["jacobian-matrix", "iterative-linear-solvers"]
-pageType: "source-analysis"
-aliases: ["Unreal Engine 线性代数","FVector FMatrix FTransform","UE Math","UE 线性代数详解 — 坐标系、向量、矩阵、FTransform 与四元数"]
+title: UE 空间数学：向量、矩阵与变换
+excerpt: 围绕坐标空间、投影、矩阵组合、FTransform 与旋转，说明数学约定如何对应 UE API。
+date: '2026-09-25'
+category: Mathematics
+subtopic: LinearAlgebra
+tags:
+  - 线性代数
+  - FVector
+  - FMatrix
+  - FTransform
+  - FQuat
+  - UE源码
+readTime: 阅读约30分钟
+kind: theory
+level: foundation
+pageType: guide
+aliases:
+  - Unreal Engine 线性代数
+  - FVector FMatrix FTransform
+  - UE Math
+  - UE 线性代数详解 — 坐标系、向量、矩阵、FTransform 与四元数
+prerequisites:
+  - mathematical-notation-reference
+nextArticles:
+  - jacobian-matrix
+  - iterative-linear-solvers
+related: []
+sources: []
 featured: true
 ---
-
 空间计算出错，往往不是公式不会写，而是把点和方向、局部和世界空间、行列向量或变换顺序混在了一起。本文在一篇文档内串联这些约定，并对照 UE 类型与源码。这里同时承担点、位移、方向和父子变换的基础语义；IK、约束和线性求解仅保留接口，完整推导链接各自主文。
 
 > 本文以当前 `E:\UnrealEngine\UnrealEngine_Source` 源码快照为 UE 行为依据。数学公式会明确采用列向量还是 UE 的行向量语义；代码示例区分可直接使用的 UE API 与算法伪代码，避免把教材约定直接套进 Unreal Engine。
@@ -23,7 +37,7 @@ featured: true
 
 ---
 
-## 先给结论
+## 范围与核心机制
 
 在 UE 中写对线性代数，首先要记住下面十件事：
 
@@ -55,9 +69,9 @@ featured: true
 
 ---
 
-## 一、UE 的数学约定
+## UE 的数学约定
 
-### 1.1 坐标轴和方向
+### 坐标轴和方向
 
 当前源码中的方向常量为：
 
@@ -92,7 +106,7 @@ $$
 
 源码：`Engine/Source/Runtime/Core/Public/Math/Vector.h:L1522-L1542`。
 
-### 1.2 当前 LWC 类型
+### 当前 LWC 类型
 
 当前 UE 使用 Large World Coordinates 类型别名：
 
@@ -116,7 +130,7 @@ const double DistanceSquared = Delta.SizeSquared();
 
 只有当数据接口明确要求 float、并且范围已经验证时，才转换为 `FVector3f` 或 `float`。
 
-### 1.3 点、方向和法线不是同一种语义
+### 点、方向和法线不是同一种语义
 
 数学上：
 
@@ -138,7 +152,7 @@ const FVector LocalPointAgain = LocalToWorld.InverseTransformPosition(WorldPoint
 
 如果变量叫 `Offset`、`Direction` 或 `Velocity`，却调用 `TransformPosition`，通常意味着空间语义已经混乱。
 
-### 1.4 单位约定
+### 单位约定
 
 常见 UE 单位：
 
@@ -158,9 +172,9 @@ const FQuat QuarterTurn(FVector::UpVector, AngleRadians);
 
 ---
 
-## 二、向量：方向、距离与几何关系
+## 向量：方向、距离与几何关系
 
-### 2.1 基础运算
+### 基础运算
 
 给定两个向量：
 
@@ -190,7 +204,7 @@ if (DistanceSquared <= FMath::Square(AcceptanceRadius))
 
 距离比较优先使用平方距离；但最终需要真实长度、归一化或时间估计时仍需要开方。
 
-### 2.2 安全归一化
+### 安全归一化
 
 $$
 \hat v=\frac{v}{\lVert v\rVert}
@@ -213,7 +227,7 @@ if (Delta.IsNearlyZero())
 const FVector Direction = Delta.GetSafeNormal();
 ```
 
-### 2.3 点积
+### 点积
 
 $$
 a\cdot b=a_xb_x+a_yb_y+a_zb_z
@@ -239,7 +253,7 @@ const bool bInsideFov = CosAngle >= FMath::Cos(HalfFovRadians);
 - 接触法向速度；
 - Lambert 光照项。
 
-### 2.4 叉积
+### 叉积
 
 叉积结果垂直于输入平面，长度为：
 
@@ -268,7 +282,7 @@ const double SignedSide3D = FVector::DotProduct(
     Actor->GetActorUpVector());
 ```
 
-### 2.5 投影、拒绝分量与反射
+### 投影、拒绝分量与反射
 
 向量 $v$ 在非零向量 $n$ 上的投影：
 
@@ -298,7 +312,7 @@ $$
 const FVector Reflected = FMath::GetReflectionVector(Velocity, UnitNormal);
 ```
 
-### 2.6 稳健的平行与退化判断
+### 稳健的平行与退化判断
 
 直接检查 `Cross.SizeSquared() < SMALL_NUMBER` 会随向量长度变化。更稳健的相对判断是：
 
@@ -323,9 +337,9 @@ bool AreDirectionsNearlyParallel(const FVector& A, const FVector& B, double SinT
 
 ---
 
-## 三、矩阵：理解 UE 的行向量语义
+## 矩阵：理解 UE 的行向量语义
 
-### 3.1 矩阵表示什么
+### 矩阵表示什么
 
 矩阵把向量线性映射到另一个空间。$3 \times 3$ 矩阵可表达旋转、缩放和剪切；$4 \times 4$ 齐次矩阵还可表达平移。
 
@@ -345,7 +359,7 @@ $$
 const FMatrix Identity = FMatrix::Identity;
 ```
 
-### 3.2 UE 的矩阵布局
+### UE 的矩阵布局
 
 `FMatrix` 元素按 `M[RowIndex][ColumnIndex]` 访问。UE 的点变换可写成行向量形式：
 
@@ -375,7 +389,7 @@ M[3][2] = Origin.Z
 
 源码：`Engine/Source/Runtime/Core/Public/Math/RotationTranslationMatrix.h:L87-L89`。
 
-### 3.3 矩阵组合顺序
+### 矩阵组合顺序
 
 源码明确规定：
 
@@ -402,7 +416,7 @@ $$
 
 而不是列向量教材常见的 $TRS$。遇到外部论文或图形学资料，第一步必须确认它采用行向量还是列向量。
 
-### 3.4 行列式、秩和可逆性
+### 行列式、秩和可逆性
 
 $2 \times 2$ 行列式：
 
@@ -428,7 +442,7 @@ $$
 
 但是生产代码不应仅用固定 `1e-6` 判定任意尺度矩阵是否奇异。数值求解时应使用与矩阵范数相关的阈值、条件数估计或可靠分解。
 
-### 3.5 逆、转置和法线
+### 逆、转置和法线
 
 逆矩阵满足：
 
@@ -450,7 +464,7 @@ $$
 
 原因是法线需要继续与变换后的切平面正交，而普通方向变换无法保证这一点。
 
-### 3.6 自定义基
+### 自定义基
 
 设三个基向量 $e_1,e_2,e_3$。从基坐标恢复标准坐标最清楚的写法是线性组合：
 
@@ -487,9 +501,9 @@ FVector ToBasisCoordinates(
 
 ---
 
-## 四、FTransform：UE 中最常用的空间变换
+## FTransform：UE 中最常用的空间变换
 
-### 4.1 内部表示和应用顺序
+### 内部表示和应用顺序
 
 `FTransform` 保存：
 
@@ -515,7 +529,7 @@ const FVector WorldPoint = LocalToWorld.TransformPosition(LocalPoint);
 const FVector LocalPointAgain = LocalToWorld.InverseTransformPosition(WorldPoint);
 ```
 
-### 4.2 FTransform 的组合顺序
+### FTransform 的组合顺序
 
 对于 `FTransform`：
 
@@ -541,7 +555,7 @@ $$
 
 不要写成 `Parent * Local`；那会先应用父变换，再应用局部变换。
 
-### 4.3 局部旋转和世界旋转
+### 局部旋转和世界旋转
 
 源码给出的语义示例：
 
@@ -553,7 +567,7 @@ LocalToWorld = LocalToWorld * DeltaRotation; // 世界空间增量
 
 这和 `FQuat` 的乘法方向不同，是 UE 旋转代码中最容易混淆的地方之一。
 
-### 4.4 非均匀缩放和剪切边界
+### 非均匀缩放和剪切边界
 
 `FTransform` 只存旋转、平移和逐轴缩放，不能独立保存剪切。非均匀缩放与旋转组合可能在矩阵意义上产生剪切，因此：
 
@@ -564,9 +578,9 @@ LocalToWorld = LocalToWorld * DeltaRotation; // 世界空间增量
 
 ---
 
-## 五、旋转：FRotator 与 FQuat
+## 旋转：FRotator 与 FQuat
 
-### 5.1 FRotator 的真实轴和顺序
+### FRotator 的真实轴和顺序
 
 当前源码定义：
 
@@ -590,7 +604,7 @@ const FRotator Rotation(PitchDegrees, YawDegrees, RollDegrees);
 
 `FRotator` 适合编辑、显示和受限相机角度；不适合长期累积任意 3D 姿态。
 
-### 5.2 万向节死锁
+### 万向节死锁
 
 欧拉角通过三个顺序旋转参数化姿态。当 Pitch 接近 $\pm 90^\circ$ 时，两个有效旋转轴趋于重合，局部参数化失去一个独立自由度。
 
@@ -603,7 +617,7 @@ const FRotator Rotation(PitchDegrees, YawDegrees, RollDegrees);
 
 四元数避免的是欧拉参数化的奇异性，不代表任何四元数算法都会自动选择正确的业务旋转路径。
 
-### 5.3 四元数表示
+### 四元数表示
 
 单位四元数：
 
@@ -630,7 +644,7 @@ const FQuat Rotation(Axis, AngleRadians);
 
 轴应当归一化，角度使用弧度。
 
-### 5.4 Quaternion 的乘法顺序
+### Quaternion 的乘法顺序
 
 对于 `FQuat`：
 
@@ -651,7 +665,7 @@ $$
 
 这是 API 约定，不是 Hamilton 乘积本身发生了变化。
 
-### 5.5 旋转向量
+### 旋转向量
 
 把 $v$ 看作纯四元数 $(v_x,v_y,v_z,0)$：
 
@@ -671,7 +685,7 @@ const FQuat Delta = FQuat::FindBetweenNormals(FromDirection, ToDirection);
 
 反向或近零向量是退化情况，应提前处理。
 
-### 5.6 Slerp、FastLerp 与双覆盖
+### Slerp、FastLerp 与双覆盖
 
 $q$ 和 $-q$ 表示同一个空间旋转，这叫四元数双覆盖。插值时如果不修正符号，可能沿四维球面的长路径旋转。
 
@@ -694,9 +708,9 @@ Fast.Normalize();
 
 ---
 
-## 六、向量空间、秩与特征值
+## 向量空间、秩与特征值
 
-### 6.1 线性组合、基和维度
+### 线性组合、基和维度
 
 若：
 
@@ -714,7 +728,7 @@ $$
 - 相机 View Basis；
 - 惯性主轴坐标系。
 
-### 6.2 秩和零空间
+### 秩和零空间
 
 矩阵的秩是独立行或列的最大数量：
 
@@ -728,7 +742,7 @@ $$
 - 零空间表示“不影响主任务”的关节运动；
 - 接近秩亏时，直接求逆会产生巨大修正量。
 
-### 6.3 特征值与特征向量
+### 特征值与特征向量
 
 $$
 Av=\lambda v
@@ -746,7 +760,7 @@ $$
 
 对称矩阵拥有实特征值和正交特征向量；正定矩阵所有特征值为正。一般矩阵可能出现复特征值，不能把所有问题都塞进只返回两个实数的结构。
 
-### 6.4 条件数比“是否可逆”更重要
+### 条件数比“是否可逆”更重要
 
 即使矩阵在数学上可逆，也可能因为条件数很大而无法稳定求解。微小输入误差会被放大：
 
@@ -766,9 +780,9 @@ $$
 
 ---
 
-## 七、线性方程组、最小二乘与 IK
+## 线性方程组、最小二乘与 IK
 
-### 7.1 不要默认显式求逆
+### 不要默认显式求逆
 
 求解：
 
@@ -785,9 +799,9 @@ $$
 - CG：大型稀疏对称正定系统；
 - Gauss-Seidel/Jacobi：约束和实时迭代系统中的基础方法。
 
-延伸阅读：&#12298;[线性系统的迭代求解](/knowledge/iterative-linear-solvers/)&#12299;。
+延伸阅读：《[线性系统的迭代求解](/knowledge/iterative-linear-solvers/)》。
 
-### 7.2 高斯消元的最低要求
+### 高斯消元的最低要求
 
 教学实现至少需要：
 
@@ -799,7 +813,7 @@ $$
 
 生产代码还应避免 `TArray<TArray<...>>` 的碎片化布局，并优先使用经过验证的矩阵库或引擎现有求解器。
 
-### 7.3 最小二乘
+### 最小二乘
 
 超定系统求：
 
@@ -826,7 +840,7 @@ $$
 - 秩亏或需要伪逆：SVD；
 - 实时 IK：Damped Least Squares。
 
-### 7.4 IK 的阻尼最小二乘
+### IK 的阻尼最小二乘
 
 线性化 IK：
 
@@ -847,15 +861,15 @@ $$
 - 更新步长 $\alpha$ 与阻尼不同；
 - 最终更新为 $\theta_{next}=\theta+\alpha\Delta\theta$。
 
-完整 Jacobian、转置、伪逆和 DLS 推导见&#12298;[Jacobian 矩阵与局部线性化](/knowledge/jacobian-matrix/)&#12299;；UE FullBody IK 的引擎应用见&#12298;[UE 全身 IK：FullBodyIK 与 PBIK](/knowledge/ue-fullbody-ik-math/)&#12299;。
+完整 Jacobian、转置、伪逆和 DLS 推导见《[Jacobian 矩阵与局部线性化](/knowledge/jacobian-matrix/)》；UE FullBody IK 的引擎应用见《[UE 全身 IK：FullBodyIK 与 PBIK](/knowledge/ue-fullbody-ik-math/)》。
 
 ---
 
-## 八、物理中的线性代数接口
+## 物理中的线性代数接口
 
 本章只说明线性代数负责什么；积分器、碰撞和约束求解转到对应专题。
 
-### 8.1 力、冲量和扭矩
+### 力、冲量和扭矩
 
 $$
 F=ma,\qquad \Delta v=\frac{J}{m},\qquad \tau=r\times F
@@ -871,7 +885,7 @@ Body->AddTorqueInRadians(WorldTorque);
 
 当前公开接口为 `AddTorqueInRadians` / `AddTorqueInDegrees`，源码位于 `Engine/Source/Runtime/Engine/Classes/Components/PrimitiveComponent.h:L1799-L1818`。
 
-### 8.2 碰撞响应
+### 碰撞响应
 
 3D 碰撞不能直接把“一维弹性碰撞公式”逐分量套到 FVector。应先沿接触法线计算相对速度和冲量，再把冲量施加回刚体：
 
@@ -881,11 +895,11 @@ $$
 
 旋转刚体还需要接触臂、逆惯性张量和角速度项。完整推导见：
 
-- &#12298;[2D 物理引擎：从状态更新到约束求解](/knowledge/2d-physics-engine/)&#12299;
-- &#12298;[GJK / EPA / SAT 碰撞检测](/knowledge/collision-detection-gjk-epa-sat/)&#12299;
-- &#12298;[Chaos 物理引擎：架构与求解流水线](/knowledge/ue-chaos-physics-engine/)&#12299;
+- 《[2D 物理引擎：从状态更新到约束求解](/knowledge/2d-physics-engine/)》
+- 《[GJK / EPA / SAT 碰撞检测](/knowledge/collision-detection-gjk-epa-sat/)》
+- 《[Chaos 物理引擎：架构与求解流水线](/knowledge/ue-chaos-physics-engine/)》
 
-### 8.3 数值积分和弹簧
+### 数值积分和弹簧
 
 连续运动方程需要离散积分。显式 Euler、半隐式 Euler、Verlet 和高阶方法有不同的稳定性与能量行为，不能只凭公式外观替换。
 
@@ -910,16 +924,16 @@ FMath::SpringDamper(
 
 深入阅读：
 
-- &#12298;[常微分方程：状态、初值与动力系统](/knowledge/differential-equations/)&#12299;
-- &#12298;[位置约束求解：PBD 与 XPBD](/knowledge/pbd-xpbd-math/)&#12299;
-- &#12298;[弹性杆：材料标架与位置约束](/knowledge/position-based-elastic-rods/)&#12299;
-- &#12298;[变分物理求解：VBD 与 AVBD](/knowledge/vbd-avbd-math/)&#12299;
+- 《[常微分方程：状态、初值与动力系统](/knowledge/differential-equations/)》
+- 《[位置约束求解：PBD 与 XPBD](/knowledge/pbd-xpbd-math/)》
+- 《[弹性杆：材料标架与位置约束](/knowledge/position-based-elastic-rods/)》
+- 《[变分物理求解：VBD 与 AVBD](/knowledge/vbd-avbd-math/)》
 
 ---
 
-## 九、动画中的线性代数接口
+## 动画中的线性代数接口
 
-### 9.1 骨骼层级
+### 骨骼层级
 
 每个骨骼保存相对父骨骼的局部变换。按 UE `FTransform` 语义：
 
@@ -936,7 +950,7 @@ for (int32 BoneIndex = 1; BoneIndex < LocalTransforms.Num(); ++BoneIndex)
 
 真实 Skeleton 不是一条线性链，必须通过 ParentIndices 取父骨骼，不能默认 `i-1` 就是父节点。
 
-### 9.2 动画混合
+### 动画混合
 
 位置和缩放可线性插值；旋转需要考虑四元数双覆盖、归一化和路径：
 
@@ -958,7 +972,7 @@ Blended.SetRotation(FQuat::Slerp(A.GetRotation(), B.GetRotation(), Alpha));
 
 因此上面的 `FTransform` 示例只用于解释局部数学，不是 AnimGraph 混合器的替代实现。
 
-### 9.3 Look At
+### Look At
 
 “方向转 Rotator”默认让 X 轴朝向目标。如果骨骼前向轴不是 X，必须额外补偿：
 
@@ -973,7 +987,7 @@ if (!Direction.IsNearlyZero())
 
 还应明确 Bone Space、Component Space 和 World Space，避免把世界目标直接写入组件空间控制节点。
 
-### 9.4 Root Motion
+### Root Motion
 
 Root Motion 不是“取出一个位移后调用 `AddMovementInput`”。在当前动画链路中：
 
@@ -990,16 +1004,16 @@ Root Motion 不是“取出一个位移后调用 `AddMovementInput`”。在当�
 
 相关专题：
 
-- &#12298;[UE 动画节点：数据流与算法参考](/knowledge/ue-animation-node-math/)&#12299;
-- &#12298;[UE 全身 IK：FullBodyIK 与 PBIK](/knowledge/ue-fullbody-ik-math/)&#12299;
-- &#12298;[IK Retargeter 数学与 Ops](/knowledge/ik-retargeter-ops-math/)&#12299;
-- &#12298;[UE Motion Matching：姿态搜索与混合](/knowledge/motion-matching-pose-search-source-guide/)&#12299;
+- 《[UE 动画节点：数据流与算法参考](/knowledge/ue-animation-node-math/)》
+- 《[UE 全身 IK：FullBodyIK 与 PBIK](/knowledge/ue-fullbody-ik-math/)》
+- 《[IK Retargeter 数学与 Ops](/knowledge/ik-retargeter-ops-math/)》
+- 《[UE Motion Matching：姿态搜索与混合](/knowledge/motion-matching-pose-search-source-guide/)》
 
 ---
 
-## 十、常用 UE 模式
+## 常用 UE 模式
 
-### 10.1 世界方向转换到角色局部空间
+### 世界方向转换到角色局部空间
 
 ```cpp
 const FTransform ActorTransform = Actor->GetActorTransform();
@@ -1011,7 +1025,7 @@ const double RightAmount = LocalDirection.Y;
 
 这比用世界 X/Y 分量判断角色前后左右更可靠。
 
-### 10.2 角度计算时 Clamp
+### 角度计算时 Clamp
 
 浮点误差可能让点积略超出 $[-1,1]$：
 
@@ -1022,7 +1036,7 @@ const double CosAngle = FMath::Clamp(FVector::DotProduct(A, B), -1.0, 1.0);
 const double AngleRadians = FMath::Acos(CosAngle);
 ```
 
-### 10.3 固定时间步与帧率无关插值
+### 固定时间步与帧率无关插值
 
 线性代数只定义状态关系，不保证时间离散正确。使用：
 
@@ -1032,7 +1046,7 @@ Current = FMath::VInterpTo(Current, Target, DeltaTime, InterpSpeed);
 
 时要知道它不是固定持续时间的线性插值，也不是物理弹簧。网络重放、物理子步和确定性需求应选择明确的时间模型。
 
-### 10.4 调试空间和方向
+### 调试空间和方向
 
 ```cpp
 DrawDebugCoordinateSystem(
@@ -1065,9 +1079,9 @@ DrawDebugDirectionalArrow(
 
 ---
 
-## 十一、API 速查
+## API 速查
 
-### 11.1 FVector
+### FVector
 
 ```cpp
 const double Length = V.Size();
@@ -1084,7 +1098,7 @@ const FVector Lerp = FMath::Lerp(A, B, Alpha);
 const FVector Reflected = FMath::GetReflectionVector(V, UnitNormal);
 ```
 
-### 11.2 FTransform
+### FTransform
 
 ```cpp
 const FVector WorldPoint = Transform.TransformPosition(LocalPoint);
@@ -1096,7 +1110,7 @@ const FVector LocalPointAgain = Transform.InverseTransformPosition(WorldPoint);
 const FTransform LocalToWorld = LocalToParent * ParentToWorld;
 ```
 
-### 11.3 FRotator 和 FQuat
+### FRotator 和 FQuat
 
 ```cpp
 const FRotator Rotator(PitchDegrees, YawDegrees, RollDegrees);
@@ -1112,7 +1126,7 @@ FQuat Fast = FQuat::FastLerp(Start, End, Alpha);
 Fast.Normalize();
 ```
 
-### 11.4 物理组件
+### 物理组件
 
 ```cpp
 Body->AddForce(Force);
@@ -1122,7 +1136,7 @@ Body->AddTorqueInRadians(Torque);
 
 ---
 
-## 十二、常见错误检查表
+## 常见错误检查表
 
 | 现象 | 首先检查 |
 |---|---|
@@ -1139,30 +1153,30 @@ Body->AddTorqueInRadians(Torque);
 
 ---
 
-## 十三、延伸阅读
+## 延伸阅读
 
 ### 数学与数值方法
 
-- &#12298;[工程微积分：变化率、累积与局部近似](/knowledge/calculus-foundations/)&#12299;
-- &#12298;[常微分方程：状态、初值与动力系统](/knowledge/differential-equations/)&#12299;
-- &#12298;[Jacobian 矩阵与局部线性化](/knowledge/jacobian-matrix/)&#12299;
-- &#12298;[二阶近似与 Hessian 矩阵](/knowledge/hessian-matrix/)&#12299;
-- &#12298;[线性系统的迭代求解](/knowledge/iterative-linear-solvers/)&#12299;
+- 《[工程微积分：变化率、累积与局部近似](/knowledge/calculus-foundations/)》
+- 《[常微分方程：状态、初值与动力系统](/knowledge/differential-equations/)》
+- 《[Jacobian 矩阵与局部线性化](/knowledge/jacobian-matrix/)》
+- 《[二阶近似与 Hessian 矩阵](/knowledge/hessian-matrix/)》
+- 《[线性系统的迭代求解](/knowledge/iterative-linear-solvers/)》
 
 ### 物理
 
-- &#12298;[2D 物理引擎：从状态更新到约束求解](/knowledge/2d-physics-engine/)&#12299;
-- &#12298;[GJK / EPA / SAT 碰撞检测](/knowledge/collision-detection-gjk-epa-sat/)&#12299;
-- &#12298;[位置约束求解：PBD 与 XPBD](/knowledge/pbd-xpbd-math/)&#12299;
-- &#12298;[弹性杆：材料标架与位置约束](/knowledge/position-based-elastic-rods/)&#12299;
-- &#12298;[变分物理求解：VBD 与 AVBD](/knowledge/vbd-avbd-math/)&#12299;
+- 《[2D 物理引擎：从状态更新到约束求解](/knowledge/2d-physics-engine/)》
+- 《[GJK / EPA / SAT 碰撞检测](/knowledge/collision-detection-gjk-epa-sat/)》
+- 《[位置约束求解：PBD 与 XPBD](/knowledge/pbd-xpbd-math/)》
+- 《[弹性杆：材料标架与位置约束](/knowledge/position-based-elastic-rods/)》
+- 《[变分物理求解：VBD 与 AVBD](/knowledge/vbd-avbd-math/)》
 
 ### 动画
 
-- &#12298;[UE 动画节点：数据流与算法参考](/knowledge/ue-animation-node-math/)&#12299;
-- &#12298;[UE 全身 IK：FullBodyIK 与 PBIK](/knowledge/ue-fullbody-ik-math/)&#12299;
-- &#12298;[IK Retargeter 数学与 Ops](/knowledge/ik-retargeter-ops-math/)&#12299;
-- &#12298;[UE Motion Matching：姿态搜索与混合](/knowledge/motion-matching-pose-search-source-guide/)&#12299;
+- 《[UE 动画节点：数据流与算法参考](/knowledge/ue-animation-node-math/)》
+- 《[UE 全身 IK：FullBodyIK 与 PBIK](/knowledge/ue-fullbody-ik-math/)》
+- 《[IK Retargeter 数学与 Ops](/knowledge/ik-retargeter-ops-math/)》
+- 《[UE Motion Matching：姿态搜索与混合](/knowledge/motion-matching-pose-search-source-guide/)》
 
 ### 书籍
 

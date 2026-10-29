@@ -1,18 +1,30 @@
 ---
-title: "UE 全身 IK：FullBodyIK 与 PBIK"
-excerpt: "区分 Jacobian 型 FullBodyIK 与位置型 PBIK，查阅目标、限位及关键求解参数。"
-date: "2026-06-30"
-category: "Animation"
-subtopic: "ControlRigIK"
-tags: ["UE5", "IK", "FullBodyIK", "雅可比", "XPBD"]
-readTime: "阅读约50分钟"
-kind: "source"
-level: "advanced"
-prerequisites: ["ue-animation-node-math", "jacobian-matrix", "pbd-xpbd-math"]
-nextArticles: ["ik-retargeter-ops-math"]
-aliases: ["UE FullBodyIK 插件详解 — 雅可比矩阵与 XPBD 位置动力学的双范式拆解"]
+title: UE 全身 IK：FullBodyIK 与 PBIK
+excerpt: 区分 Jacobian 型 FullBodyIK 与位置型 PBIK，查阅目标、限位及关键求解参数。
+date: '2026-06-30'
+category: Animation
+subtopic: ControlRigIK
+tags:
+  - UE5
+  - IK
+  - FullBodyIK
+  - 雅可比
+  - XPBD
+readTime: 阅读约35分钟
+kind: source
+level: advanced
+pageType: source-analysis
+aliases:
+  - UE FullBodyIK 插件详解 — 雅可比矩阵与 XPBD 位置动力学的双范式拆解
+prerequisites:
+  - ue-animation-node-math
+  - jacobian-matrix
+  - pbd-xpbd-math
+nextArticles:
+  - ik-retargeter-ops-math
+related: []
+sources: []
 ---
-
 FullBodyIK 和 PBIK 需要分别理解：相似的“全身 IK”用途不意味着相同的更新公式、参数或执行路径。本文对照各自源码解释误差、局部更新与限位；[Jacobian](/knowledge/jacobian-matrix/)和[位置约束](/knowledge/pbd-xpbd-math/)提供数学背景，落脚目标如何产生则见[预测式 Foot IK](/knowledge/predictive-foot-ik/)。
 
 > 源码路径：`Engine/Plugins/Experimental/FullBodyIK`
@@ -21,7 +33,7 @@ FullBodyIK 和 PBIK 需要分别理解：相似的“全身 IK”用途不意味
 
 ---
 
-## 1. 插件架构总览
+## 插件架构总览
 
 FullBodyIK 插件包含**两个相互独立的求解模块**：
 
@@ -37,9 +49,9 @@ FullBodyIK 插件包含**两个相互独立的求解模块**：
 
 ---
 
-## 2. FullBodyIK：基于雅可比矩阵的 IK 求解器
+## FullBodyIK：基于Jacobian 矩阵的 IK 求解器
 
-### 2.1 雅可比矩阵的数学定义
+### Jacobian 矩阵的数学定义
 
 对于一个由 $n$ 个旋转关节组成的运动链，末端效应器位置 $\vec{p}_{ee}$ 是各关节角度 $\theta_1, \theta_2, \dots, \theta_n$ 的函数：
 
@@ -61,7 +73,7 @@ $$
 
 IK 求解即给定末端期望位移 $\vec{e}$（目标 - 当前），反求关节增量 $\Delta\vec{\theta}$。
 
-### 2.2 偏导数的几何计算（叉积法）
+### 偏导数的几何计算（叉积法）
 
 对于**旋转关节**，末端位置对该关节角度的偏导数存在经典几何公式。设关节 $i$ 的旋转轴为 $\hat{\omega}_i$，关节位置为 $\vec{p}_i$，末端位置为 $\vec{p}_{ee}$，令 $\vec{r} = \vec{p}_{ee} - \vec{p}_i$，则：
 
@@ -101,7 +113,7 @@ FVector FJacobianIK::CalculateRotationAxisBasedOnEffectorPosition(
 }
 ```
 
-### 2.3 求解方法一：Jacobian Transpose（雅可比转置）
+### 求解方法一：Jacobian Transpose（雅可比转置）
 
 最简单的求解方式是直接用雅可比的转置把末端误差映射回关节空间：
 
@@ -148,7 +160,7 @@ $$
 
 这是沿搜索方向 $\vec{g}$ 的最优步长估计。
 
-### 2.4 求解方法二：JPIDLS（阻尼最小二乘法 / DLS）
+### 求解方法二：JPIDLS（阻尼最小二乘法 / DLS）
 
 阻尼最小二乘法（Damped Least Squares, DLS）通过引入阻尼项 $\lambda$ 求解最小化目标：
 
@@ -192,7 +204,7 @@ void FJacobianIK::CreateAnglePartialDerivativesUsingJPIDLS(
 
 求解公式拆解：先计算 $\vec{v} = (JJ^T + \lambda^2 I)^{-1}\vec{e}$（维度仅 3），再用 $J^T$ 把它展开到 $n$ 维关节空间，得到 $\Delta\vec{\theta} = J^T \vec{v}$。
 
-### 2.5 目标向量计算与收敛判定
+### 目标向量计算与收敛判定
 
 每次迭代，末端的目标向量 $\vec{e}$ 由当前末端指向目标位置，并按链长度进行限幅以避免单步过冲：
 
@@ -224,7 +236,7 @@ $$
 
 `UpdateClampMag` 还会在迭代过程中动态调整目标钳制幅度，使初期允许较大步长、后期收敛更平滑。
 
-### 2.6 运动刚度与 MotionBase
+### 运动刚度与 MotionBase
 
 FullBodyIK 通过 **MotionBase** 实现每根骨骼的独立刚度控制。每个轴（线性/角向）都有一个 `[0,1]` 的 stiffness，**运动强度 = 1 − stiffness**：
 
@@ -269,7 +281,7 @@ $$
 
 其中 $d$ 为骨骼在链中的深度，$d_{\max}$ 为链总深度，$s_{\max}/s_{\min}$ 为最大/最小运动强度。
 
-### 2.7 求解器变体
+### 求解器变体
 
 `FJacobianSolverBase` 定义了 8 种求解变体，以适配不同的目标类型与运动模式：
 
@@ -288,11 +300,11 @@ $$
 
 ---
 
-## 3. PBIK：基于位置动力学的 IK 求解器
+## PBIK：基于位置动力学的 IK 求解器
 
 PBIK 基于 **XPBD（Extended Position-Based Dynamics）** 思想：把每根骨骼抽象成一个刚体（RigidBody），通过迭代求解约束（Constraint）来逼近目标，而非求解线性方程组。其核心循环为：
 
-```
+```text
 Solve():
     Initialize          // 初始化刚体位姿
     UpdateBones         // 骨 → 刚体
@@ -304,7 +316,7 @@ Solve():
     UpdateBonesFromBodies  // 刚体 → 骨
 ```
 
-### 3.1 刚体与质量计算
+### 刚体与质量计算
 
 每个刚体 `FRigidBody` 关联一根骨骼，其**质心**与**质量**由该骨骼及其所有子骨骼的位置决定：
 
@@ -349,7 +361,7 @@ $$
 
 **质量越大（骨骼越长、子骨骼越多），逆质量越小，越不容易被推动**——这与物理直觉一致：长骨骼更"重"，移动它代价更大。
 
-### 3.2 XPBD 推-转（Push-to-Rotate）
+### XPBD 推-转（Push-to-Rotate）
 
 XPBD 的核心操作是：对一个刚体施加位置修正 $\Delta\vec{p}$ 时，由于作用点通常偏离质心（$\vec{r} = \vec{p}_{contact} - \vec{c}$），会产生一个**附加力矩**，从而引发旋转。旋转增量公式（来自 XPBD 论文方程 8）：
 
@@ -381,7 +393,7 @@ void FRigidBody::ApplyPushToRotateBody(
 
 **几何意义**：力 $\vec{F}$ 作用在偏离质心的点上，产生的力矩 $\vec{\tau} = \vec{r} \times \vec{F}$，力矩越大、刚体越轻（$m^{-1}$ 大），旋转越多。
 
-### 3.3 Pin 约束（末端效应器）
+### Pin 约束（末端效应器）
 
 Pin 约束把刚体拉向目标位置（Effector Goal），分两步：
 
@@ -428,7 +440,7 @@ void FRigidBody::ApplyPositionDelta(
 }
 ```
 
-### 3.4 Joint 约束（保持骨骼长度）
+### Joint 约束（保持骨骼长度）
 
 Joint 约束连接两个相邻刚体，维持它们之间的骨骼长度（即子刚体相对父刚体的局部位置不变）。求解分**位置修正**与**旋转修正**两部分。
 
@@ -473,7 +485,7 @@ void FJointConstraint::Solve(float OverRelaxation)
 
 **FinalPass**：最后一轮迭代执行特殊处理，确保约束精确满足（不再松弛）。
 
-### 3.5 PrePull 最佳拟合旋转（极分解）
+### PrePull 最佳拟合旋转（极分解）
 
 `ApplyRootPrePull` 在求解前先做一个**整体最佳拟合旋转**：根据当前已变形的骨骼位置，反推一个刚体旋转，使整个链大致朝向目标，从而显著减少后续迭代次数。
 
@@ -555,7 +567,7 @@ FQuat ExtractRotationFromMatrix(FMatrix D)
 
 得到最佳拟合旋转 $R$ 后，`ApplyRootPrePull` 对**位置偏移**与**旋转偏移**分别按各轴 `PositionStiffness` / `RotationStiffness` 做 alpha 混合（per-axis），再把整个刚体链刚性地变换过去。这让链先"整体转向"目标方向，再交给后续约束精修。
 
-### 3.6 Pull Chain Alpha（链预旋转）
+### Pull Chain Alpha（链预旋转）
 
 `Pull Chain Alpha` 在 PrePull 之后、主迭代之前，对**整条链朝向目标**做一次预旋转。对每个位于链上的刚体：
 
@@ -601,7 +613,7 @@ void FPBIKSolver::ApplyPullChainAlpha(FEffector& Effector)
 
 全局 `GlobalPullChainAlpha` 缩放所有效应器的 `PullChainAlpha`。
 
-### 3.7 Preferred Angles（优先角度）
+### Preferred Angles（优先角度）
 
 `Preferred Angles` 让每根骨骼在 IK 求解时**倾向于回到预设的关节角度**（如手臂自然下垂角度）。其施加强度与链的"挤压量"成正比——链被拉得越直（越偏离 preferred 姿态），优先角度施加越强，从而产生自然的弯折恢复。
 
@@ -613,7 +625,7 @@ $$
 
 `ApplyPreferredAngles` 对每根设了 `bUsePreferredAngles` 的骨骼，把当前旋转朝 preferred 旋转按 strength 比例插值。
 
-### 3.8 关节限位（Free / Limited / Locked / Hinge / Fixed）
+### 关节限位（Free / Limited / Locked / Hinge / Fixed）
 
 每根骨骼的 `FBoneSettings` 可对 X/Y/Z 三个轴分别设限位类型：
 
@@ -657,7 +669,7 @@ void FJointConstraint::UpdateJointLimits(const FBoneSettings& Settings)
 }
 ```
 
-### 3.9 Swing-Twist 分解
+### Swing-Twist 分解
 
 对 `Limited` 轴，需要把父→子刚体的相对旋转分解成 X/Y/Z 三个欧拉角，分别夹到 `[Min, Max]`，再重组。这就是 **Swing-Twist 分解**：
 
@@ -684,7 +696,7 @@ void FJointConstraint::DecomposeRotationAngles(
 
 随后 `RotateWithinLimits` 把每个角夹到 `[MinAngle, MaxAngle]`，再重组四元数施加回子刚体。
 
-### 3.10 缓动函数
+### 缓动函数
 
 PBIK 在多处用缓动函数把线性参数（如挤压量、链比例）映射成非线性强度，让动作更自然。定义于 `PBIKSolver.h`：
 
@@ -714,11 +726,11 @@ $$
 
 ---
 
-## 4. Control Rig 集成（RigUnit）
+## Control Rig 集成（RigUnit）
 
 两种求解器都封装为 Control Rig 的 `FRigUnit`，可在 RigGraph 中作为节点使用。
 
-### 4.1 FRigUnit_FullbodyIK（雅可比）
+### FRigUnit_FullbodyIK（雅可比）
 
 `FRigUnit_FullbodyIK_Execute` 工作流：
 
@@ -751,7 +763,7 @@ struct FSolverParameter
 };
 ```
 
-### 4.2 FRigUnit_PBIK（位置法）
+### FRigUnit_PBIK（位置法）
 
 `FRigUnit_PBIK` 暴露骨骼设置、效应器、排除骨骼与全局求解设置：
 
@@ -781,9 +793,9 @@ struct FPBIKEffector
 
 ---
 
-## 5. 关键参数表
+## 关键参数表
 
-### 5.1 FullBodyIK（雅可比）默认参数（`FBIKShared.h`）
+### FullBodyIK（雅可比）默认参数（`FBIKShared.h`）
 
 | 参数 | 默认值 | 含义 |
 |------|--------|------|
@@ -797,7 +809,7 @@ struct FPBIKEffector
 | `MaxIterations` | 30 | 最大迭代次数 |
 | `bUseJacobianTranspose` | false | 是否用转置法（否则用 DLS） |
 
-### 5.2 PBIK 求解设置（`FPBIKSolverSettings`）
+### PBIK 求解设置（`FPBIKSolverSettings`）
 
 | 参数 | 默认值 | 含义 |
 |------|--------|------|
@@ -812,7 +824,7 @@ struct FPBIKEffector
 
 ---
 
-## 6. 两种求解器对比
+## 两种求解器对比
 
 | 维度 | FullBodyIK（雅可比） | PBIK（位置法） |
 |------|----------------------|----------------|

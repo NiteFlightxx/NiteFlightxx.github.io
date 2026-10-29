@@ -1,23 +1,33 @@
 ---
-title: "Chaos 运动学同步：线程与状态镜像"
-excerpt: "围绕 SyncKinematicOnGameThread 的三态配置，追踪目标设置与物理结果回写。"
-date: "2026-07-02"
-category: "Physics"
-subtopic: "ChaosPhysics"
-tags: ["Chaos", "运动学", "Kinematic", "多线程同步", "UE5", "源码分析"]
-readTime: "阅读约30分钟"
-kind: "source"
-level: "advanced"
-prerequisites: ["ue-chaos-physics-engine"]
+title: Chaos 运动学同步：线程与状态镜像
+excerpt: 围绕 SyncKinematicOnGameThread 的三态配置，追踪目标设置与物理结果回写。
+date: '2026-07-02'
+category: Physics
+subtopic: ChaosPhysics
+tags:
+  - Chaos
+  - 运动学
+  - Kinematic
+  - 多线程同步
+  - UE5
+  - 源码分析
+readTime: 阅读约30分钟
+kind: source
+level: advanced
+pageType: source-analysis
+aliases:
+  - UE Chaos 运动学同步详解 — P.Chaos.SyncKinematicOnGameThread 的三态控制与双路径镜像
+prerequisites:
+  - ue-chaos-physics-engine
 nextArticles: []
+related: []
 topics:
-  - id: "ue-chaos-physics"
-    stage: "runtime"
-    role: "source"
+  - id: ue-chaos-physics
+    stage: runtime
+    role: source
     order: 10
-aliases: ["UE Chaos 运动学同步详解 — P.Chaos.SyncKinematicOnGameThread 的三态控制与双路径镜像"]
+sources: []
 ---
-
 本专题只追踪运动学状态在游戏侧与物理侧之间的镜像，不重讲整个刚体求解器。重点是同一变换由哪条路径更新、逐对象标记如何参与决策，以及目标设置与结果回写的关系。总体数据流可先查[Chaos 架构](/knowledge/ue-chaos-physics-engine/)的同步部分。
 
 > Chaos 物理引擎运行在独立于游戏线程的**物理线程**（internal thread）上。刚体分**动态**（Dynamic）与**运动学**（Kinematic）两种：动态体的位置由求解器积分得出，自然需要从物理结果回写到游戏线程；运动学体的位置则由游戏线程代码（如 `SetKinematicTarget`）驱动，求解器只负责将其移动到目标位置并计算衍生速度。
@@ -28,9 +38,9 @@ aliases: ["UE Chaos 运动学同步详解 — P.Chaos.SyncKinematicOnGameThread 
 
 ---
 
-## 一、问题背景：Chaos 的双线程与运动学体的特殊性
+## 问题背景：Chaos 的双线程与运动学体的特殊性
 
-### 1.1 多线程架构下的数据流
+### 多线程架构下的数据流
 
 Chaos 采用 **Push/Pull 双缓冲**架构：游戏线程（external）通过 PushData 将参数变更推入物理线程（internal），物理线程求解后通过 PullData 将结果拉回游戏线程。对于**动态体**，这个流程是单向的——游戏线程设置初始状态，物理线程计算新位置，结果回写。
 
@@ -49,7 +59,7 @@ Chaos 采用 **Push/Pull 双缓冲**架构：游戏线程（external）通过 Pu
 | **插值** | 不经过渲染插值管线 | ✅ 支持渲染插值（`NextPullData` + `Alpha`） |
 | **Dirty 标记** | 需标记 kinematic 为 dirty | 可跳过 dirty 标记（sync=0 时） |
 
-### 1.2 不变式：恰一更新
+### 不变式：恰一更新
 
 源码注释（`SingleParticlePhysicsProxy.cpp:328-330`）明确指出了设计意图：
 
@@ -59,9 +69,9 @@ Chaos 采用 **Push/Pull 双缓冲**架构：游戏线程（external）通过 Pu
 
 ---
 
-## 二、P.Chaos.SyncKinematicOnGameThread 的定义与三态语义
+## P.Chaos.SyncKinematicOnGameThread 的定义与三态语义
 
-### 2.1 CVAR 定义
+### CVAR 定义
 
 变量定义与注册位于 `SingleParticlePhysicsProxy.cpp:28-34`：
 
@@ -84,7 +94,7 @@ FAutoConsoleVariableRef CVar_SyncKinematicOnGameThread(
         "UpdateKinematicFromSimulation flag in BodyInstance."));
 ```
 
-### 2.2 三态语义
+### 三态语义
 
 | 值 | 路径 A（SetKinematicTarget 即时写 X/R） | 路径 B（PullFromPhysicsState 回写 X/R） | Dirty 标记优化 |
 |---|---|---|---|
@@ -96,11 +106,11 @@ FAutoConsoleVariableRef CVar_SyncKinematicOnGameThread(
 
 ---
 
-## 三、三条镜像判定路径
+## 三条镜像判定路径
 
 `SyncKinematicOnGameThread` 的值在源码中被**三个结构完全相同的判定函数**读取，分别守护三条不同的代码路径。这三个函数使用完全相同的 `switch` 模式，形成"镜像"关系——改一处必须改另外两处。
 
-### 3.1 判定函数 1：ShouldSetKinematicTargetSetGameTransform（路径 A 的守门人）
+### 判定函数 1：ShouldSetKinematicTargetSetGameTransform（路径 A 的守门人）
 
 位于 `ChaosEngineInterface.cpp:2573-2591`，决定 `SetKinematicTarget_AssumesLocked` 是否在游戏线程**立即写入** X/R：
 
@@ -132,7 +142,7 @@ bool ShouldSetKinematicTargetSetGameTransform(
 **返回 `true`** = 路径 A 负责 → 立即写入 X/R。
 **返回 `false`** = 路径 A 不负责 → 交给路径 B。
 
-### 3.2 判定函数 2：ShouldUpdateTransformFromSimulation（路径 B 的守门人）
+### 判定函数 2：ShouldUpdateTransformFromSimulation（路径 B 的守门人）
 
 位于 `SingleParticlePhysicsProxy.cpp:302-317`，决定 `PullFromPhysicsState` 是否从模拟结果**回写** X/R：
 
@@ -157,7 +167,7 @@ bool ShouldUpdateTransformFromSimulation(const Chaos::FPBDRigidParticle& Rigid)
 
 注意此函数与函数 1 的**逻辑取反关系**：`sync=0` 时路径 A 返回 `true`（负责写入）、路径 B 返回 `false`（不回写）；`sync=1` 时路径 A 返回 `false`、路径 B 返回 `true`。在 `default` 分支中，两者通过 `!UpdateKinematicFromSimulation()` 与 `UpdateKinematicFromSimulation()` 互为补集。这确保了"恰一更新"不变式。
 
-### 3.3 判定函数 3：ShouldUpdateFromSimulation（物理线程侧镜像）
+### 判定函数 3：ShouldUpdateFromSimulation（物理线程侧镜像）
 
 位于 `PBDRigidsSolver.cpp:1945-1963`，运行在**物理线程**侧，结构与函数 2 完全一致：
 
@@ -186,9 +196,9 @@ bool ShouldUpdateFromSimulation(const TRigidParticle& InRigidParticle)
 
 ---
 
-## 四、路径 A 详解：SetKinematicTarget_AssumesLocked
+## 路径 A 详解：SetKinematicTarget_AssumesLocked
 
-### 4.1 完整调用流程
+### 完整调用流程
 
 `SetKinematicTarget_AssumesLocked`（`ChaosEngineInterface.cpp:2593`）是游戏线程设置运动学目标的标准入口，被 `BodyInstance::SetKinematicTarget`、`FPhysScene_Chaos::SetKinematicTarget_AssumesLocked`、`PhysicalAnimationComponent` 等调用：
 
@@ -216,7 +226,7 @@ void FChaosEngineInterface::SetKinematicTarget_AssumesLocked(
 }
 ```
 
-### 4.2 速度缺失问题
+### 速度缺失问题
 
 代码中有一条关键的 `@todo` 注释：
 
@@ -231,9 +241,9 @@ void FChaosEngineInterface::SetKinematicTarget_AssumesLocked(
 
 ---
 
-## 五、路径 B 详解：PullFromPhysicsState
+## 路径 B 详解：PullFromPhysicsState
 
-### 5.1 变换回写的条件门控
+### 变换回写的条件门控
 
 `PullFromPhysicsState`（`SingleParticlePhysicsProxy.cpp:319`）是物理结果回写到游戏线程的核心函数。在处理 X/R 之前，它先通过 `ShouldUpdateTransformFromSimulation` 判定：
 
@@ -272,7 +282,7 @@ bool FSingleParticlePhysicsProxy::PullFromPhysicsState(
         }
 ```
 
-### 5.2 隐藏规则：速度始终复制
+### 隐藏规则：速度始终复制
 
 关键细节：**速度（V, W）和 ObjectState 的写入不受 `bUpdatePositionFromSimulation` 门控**。它们在 X/R 块之后，无条件执行：
 
@@ -299,7 +309,7 @@ bool FSingleParticlePhysicsProxy::PullFromPhysicsState(
 
 **原因**：运动学体的速度不是游戏线程设定的，而是物理线程根据 kinematic target 的位移推导的（`FKinematicTarget::Position` 模式：计算 $\mathbf{v} = \Delta\mathbf{x} / \Delta t$，然后将模式设为 `Reset`）。游戏线程无法自行计算这个速度，因此无论变换走哪条路径，速度都必须从物理结果中获取。
 
-### 5.3 两条路径的职责分工总结
+### 两条路径的职责分工总结
 
 | 数据 | 路径 A（SetKinematicTarget） | 路径 B（PullFromPhysicsState） |
 |---|---|---|
@@ -312,9 +322,9 @@ bool FSingleParticlePhysicsProxy::PullFromPhysicsState(
 
 ---
 
-## 六、Dirty Particle 收集优化
+## Dirty Particle 收集优化
 
-### 6.1 收集阶段的跳过逻辑
+### 收集阶段的跳过逻辑
 
 在 `PBDRigidsSolver.cpp` 的结果收集阶段（`CollectRigidResults` lambda），有两处对 kinematic 粒子的特殊处理（lines 2781-2796 和 3008-3023），结构完全相同：
 
@@ -341,7 +351,7 @@ case EPhysicsProxyType::SingleParticleProxy:
 }
 ```
 
-### 6.2 为什么 sync=0 才能跳过
+### 为什么 sync=0 才能跳过
 
 注释解释了为什么只有 `sync=0`（而非逐对象标志为 `false`）才能跳过 dirty 收集：
 
@@ -355,9 +365,9 @@ case EPhysicsProxyType::SingleParticleProxy:
 
 ---
 
-## 七、UpdateKinematicFromSimulation 逐对象标志
+## UpdateKinematicFromSimulation 逐对象标志
 
-### 7.1 定义与存储
+### 定义与存储
 
 逐对象标志 `bUpdateKinematicFromSimulation` 存储在 `FRigidParticleControlFlags` 的位域中（`RigidParticleControlFlags.h:88`）：
 
@@ -379,7 +389,7 @@ inline void SetUpdateKinematicFromSimulation(bool bUpdateKinematicFromSimulation
 }
 ```
 
-### 7.2 默认值
+### 默认值
 
 `FBodyInstanceCore` 的构造函数（`BodyInstanceCore.cpp:25`）将其默认初始化为 `false`：
 
@@ -396,13 +406,13 @@ UPROPERTY 注释（`BodyInstanceCore.h:41-43`）说明了其语义：
 
 因此**默认行为**（`sync=-1` + `bUpdateKinematicFromSimulation=false`）等同于 `sync=0`：运动学体变换在 `SetKinematicTarget` 时即时更新，不从模拟结果回写。
 
-### 7.3 设置路径
+### 设置路径
 
 - **BodyInstance 创建**：`BodyInstance.cpp:1316` 从 BodyInstance 复制到 `ActorParams.bUpdateKinematicFromSimulation`，再通过 `Dynamic->SetUpdateKinematicFromSimulation(...)` 写入粒子。
 - **运行时修改**：`FBodyInstance::SetUpdateKinematicFromSimulation`（`BodyInstance.cpp:4004`）转发到 `FPhysicsInterface::SetUpdateKinematicFromSimulation_AssumesLocked`。
 - **ImmediatePhysics 适配器**：注意 ImmediatePhysics 的默认值为 `true`（`ImmediatePhysicsActorHandle_Chaos.h:40`），与 BodyInstance 的 `false` 相反——这是因为 ImmediatePhysics 用于同步（非异步）物理场景，结果即时可用，回写更合理。
 
-### 7.4 PhysicalAnimationComponent 的覆盖
+### PhysicalAnimationComponent 的覆盖
 
 `PhysicalAnimationComponent`（`PhysicalAnimationComponent.cpp:487`）在创建物理驱动型 kinematic 体时强制设置 `Params.bUpdateKinematicFromSimulation = false`：
 
@@ -414,9 +424,9 @@ Params.bUpdateKinematicFromSimulation = false;
 
 ---
 
-## 八、完整决策流程图
+## 完整决策流程图
 
-```
+```text
                     P.Chaos.SyncKinematicOnGameThread
                               │
               ┌───────────────┼───────────────┐
@@ -469,9 +479,9 @@ Params.bUpdateKinematicFromSimulation = false;
 
 ---
 
-## 九、实践建议
+## 实践建议
 
-### 9.1 何时使用各值
+### 何时使用各值
 
 | 场景 | 推荐设置 | 理由 |
 |---|---|---|
@@ -481,7 +491,7 @@ Params.bUpdateKinematicFromSimulation = false;
 | **最高性能/最低延迟** | `sync=0` | 跳过 dirty 收集 + 即时变换更新，但牺牲速度回写和插值 |
 | **PhysicalAnimationComponent** | 保持默认 | 组件自身已设置逐对象 `false`，无需全局覆盖 |
 
-### 9.2 注意事项
+### 注意事项
 
 1. **速度回写**：`sync=0` 时 kinematic 体不进入 dirty 列表，速度回写可能被跳过。如果依赖 kinematic 体的速度（如碰撞冲量计算），应使用 `sync=1` 或逐对象 `true`。
 2. **多帧多次 SetKinematicTarget**：路径 A 在每次调用时覆写 X/R，同一帧多次调用只保留最后一次。路径 B 则通过物理线程统一处理，速度从位移差推导——如果同一帧多次设置目标，路径 B 的速度更准确。
@@ -490,7 +500,7 @@ Params.bUpdateKinematicFromSimulation = false;
 
 ---
 
-## 十、源码索引
+## 源码索引
 
 | 文件 | 行号 | 内容 |
 |---|---|---|

@@ -1,42 +1,52 @@
 ---
-title: "SPH 流体：核插值、压力与边界"
-excerpt: "从粒子核插值建立密度与压力离散，比较边界处理和不可压缩变体。"
-date: "2026-09-06"
-category: "Physics"
-subtopic: "Fluid"
-tags: ["SPH", "流体模拟", "Navier-Stokes", "核函数", "C++"]
-readTime: "阅读约50分钟"
-kind: "algorithm"
-level: "advanced"
-prerequisites: ["partial-differential-equations"]
-nextArticles: ["pbf-fluid-simulation"]
-aliases: ["SPH 流体模拟详解 — 从核函数插值到 Navier-Stokes 离散与不可压缩变体"]
+title: SPH 流体：核插值、压力与边界
+excerpt: 从粒子核插值建立密度与压力离散，比较边界处理和不可压缩变体。
+date: '2026-09-06'
+category: Physics
+subtopic: Fluid
+tags:
+  - SPH
+  - 流体模拟
+  - Navier-Stokes
+  - 核函数
+  - C++
+readTime: 阅读约45分钟
+kind: algorithm
+level: advanced
+pageType: guide
+aliases:
+  - SPH 流体模拟详解 — 从核函数插值到 Navier-Stokes 离散与不可压缩变体
+prerequisites:
+  - fluid-dynamics
+nextArticles:
+  - pbf-fluid-simulation
+related: [partial-differential-equations, continuum-mechanics]
+sources: []
 ---
-
-SPH 的共同基础是用粒子邻域近似连续场；密度、压力和边界如何离散，则决定具体模拟的行为。本文维护核函数、邻域与压力离散的主线，连续方程见[PDE](/knowledge/partial-differential-equations/)，用密度约束直接修正位置的另一条路线见[PBF](/knowledge/pbf-fluid-simulation/)。
+[流体动力学](/knowledge/fluid-dynamics/)先建立平流、压力、黏性与边界。本文进入其中的粒子离散路线，用邻域核函数近似连续场；网格与混合方法仍是平行选择。完整 PDE 数学工具见[PDE](/knowledge/partial-differential-equations/)，用密度约束直接修正位置的深入路线见[PBF](/knowledge/pbf-fluid-simulation/)。
 
 > **光滑粒子流体动力学（Smoothed Particle Hydrodynamics, SPH）** 是一种无网格拉格朗日粒子方法，由 Lucy (1977) 与 Gingold & Monaghan (1977) 为天体物理模拟独立提出，后经 Müller 等人 (2003) 引入计算机图形学。它将连续流体场离散为携带物理属性的粒子，通过核函数插值近似连续场，再把 Navier-Stokes 方程中的微分算子转化为粒子求和。
 >
-> 本文系统推导 SPH 的理论内核——核函数插值、微分算子离散、对称压力力的动量守恒推导、表面张力 color-field 方法，并补全原工程文档中缺失的 `LaplacianWpoly6` 与 Cubic Spline 核的代码实现。不可压缩变体（PCISPH/IISPH/DFSPH）部分补充了压力 Poisson 方程的关键要点。文末与&#12298;[PBF 流体：密度约束与位置修正](/knowledge/pbf-fluid-simulation/)&#12299;（位置基约束视角）、&#12298;[数值积分：方法、误差与稳定性](/knowledge/numerical-integration-methods/)&#12299;（时间积分与 XPBD）形成交叉引用。
+> 本文系统推导 SPH 的理论内核——核函数插值、微分算子离散、对称压力力的动量守恒推导、表面张力 color-field 方法，并补全原工程文档中缺失的 `LaplacianWpoly6` 与 Cubic Spline 核的代码实现。不可压缩变体（PCISPH/IISPH/DFSPH）部分补充了压力 Poisson 方程的关键要点。文末与《[PBF 流体：密度约束与位置修正](/knowledge/pbf-fluid-simulation/)》（位置基约束视角）、《[数值积分：方法、误差与稳定性](/knowledge/numerical-integration-methods/)》（时间积分与 XPBD）形成交叉引用。
 
 ---
 
-## 一、引言：无网格拉格朗日方法
+## 引言：无网格拉格朗日方法
 
-### 1.1 拉格朗日视角与连续介质假设
+### 拉格朗日视角与连续介质假设
 
 流体力学有两种等价的描述方式：
 
 | 视角 | 描述 | 特点 |
 |------|------|------|
-| **欧拉（Eulerian）** | 固定空间点观察流体流过 | 依赖网格，适合有限体积/有限差分法 |
-| **拉格朗日（Lagrangian）** | 跟随流体质点运动 | 无网格，SPH 采用此方式 |
+| **欧拉（Eulerian）** | 固定空间点观察流体流过 | 常与固定网格结合，仍需单独选择离散格式 |
+| **拉格朗日（Lagrangian）** | 跟随材料点运动 | 可使用随体网格或粒子，SPH 使用粒子 |
 
-SPH 采用拉格朗日视角：每个粒子代表一小块流体，携带质量 $m$、速度 $\mathbf{v}$、密度 $\rho$ 等属性，随流体一起运动。这带来三个天然优势——无需追踪自由表面（粒子边界即流体边界）、自然处理大变形、易于并行。
+SPH 采用拉格朗日视角：每个粒子代表一小块流体，携带质量 $m$、速度 $\mathbf{v}$、密度 $\rho$ 等属性，随流体一起运动。它适合跟随材料和处理大变形；但自由表面的邻域不足、边界条件与可见表面重建仍需分别处理，并非粒子外轮廓自动解决了这些问题。
 
 SPH 基于连续介质力学假设，流体可用场函数描述：密度场 $\rho(\mathbf{r},t)$、速度场 $\mathbf{v}(\mathbf{r},t)$、压力场 $p(\mathbf{r},t)$。
 
-### 1.2 SPH 插值原理
+### SPH 插值原理
 
 SPH 的核心思想是：任意物理量 $A$ 在位置 $\mathbf{r}$ 处的值，可通过核函数加权求和来近似。
 
@@ -54,7 +64,7 @@ $$
 
 其中 $W$ 是核函数（光滑核），$h$ 是光滑长度（支撑半径），$\frac{m_j}{\rho_j}$ 是粒子 $j$ 的体积元，起积分权重的作用。物理意义是：每个粒子对周围空间的贡献由核函数加权，距离越近贡献越大。
 
-### 1.3 微分算子的 SPH 离散
+### 微分算子的 SPH 离散
 
 SPH 的强大之处在于可将微分算子直接转化为粒子求和。设 $W_{ij} = W(\mathbf{r}_i - \mathbf{r}_j, h)$：
 
@@ -80,9 +90,9 @@ $$
 
 ---
 
-## 二、Navier-Stokes 方程与状态方程
+## Navier-Stokes 方程与状态方程
 
-### 2.1 质量守恒与动量守恒
+### 质量守恒与动量守恒
 
 SPH 模拟的目标是求解描述粘性流体运动的 Navier-Stokes 方程。
 
@@ -100,7 +110,7 @@ $$
 
 其中 $\frac{D}{Dt} = \frac{\partial}{\partial t} + \mathbf{v}\cdot\nabla$ 是物质导数（拉格朗日导数），$\rho$ 为密度，$\mathbf{v}$ 为速度，$p$ 为压力，$\mu$ 为动力粘度，$\mathbf{f}$ 为外力（如重力）。
 
-### 2.2 力的分解
+### 力的分解
 
 将动量方程改写为单位质量的加速度形式：
 
@@ -114,7 +124,7 @@ $$
 2. **粘度项** $\mathbf{f}^{\text{viscosity}} = \mu \nabla^2 \mathbf{v}$——使速度场趋于均匀，模拟流体内摩擦。
 3. **外力项** $\mathbf{f}^{\text{external}}$——重力、用户交互力等。
 
-### 2.3 状态方程
+### 状态方程
 
 对于**弱可压缩 SPH（WCSPH）**，压力不由 Poisson 方程求解，而是通过状态方程从密度直接计算。
 
@@ -136,11 +146,11 @@ $$
 
 ---
 
-## 三、核函数详解
+## 核函数详解
 
 核函数是 SPH 的核心，决定了粒子间的影响范围和权重分布。一个有效的核函数须满足归一化、紧支撑、对称、正定、单调递减等性质，并在 $h\to 0$ 时收敛到 Dirac delta 函数。
 
-### 3.1 核函数基本性质
+### 核函数基本性质
 
 | 性质 | 数学表述 | 意义 |
 |------|----------|------|
@@ -151,7 +161,7 @@ $$
 | Delta 极限 | $\lim_{h\to 0} W(\mathbf{r},h) = \delta(\mathbf{r})$ | 收敛到连续场 |
 | 单调递减 | $W(r_1,h) > W(r_2,h)$ 当 $r_1 < r_2$ | 近邻权重大 |
 
-### 3.2 Poly6 核函数
+### Poly6 核函数
 
 **用途**：密度计算、颜色场（表面张力）。
 
@@ -219,7 +229,7 @@ float LaplacianWpoly6(float r, float h)
 }
 ```
 
-### 3.3 Spiky 核函数
+### Spiky 核函数
 
 **用途**：压力梯度计算。
 
@@ -260,7 +270,7 @@ FVector GradWspiky(const FVector& r, float h)
 }
 ```
 
-### 3.4 Viscosity 核函数
+### Viscosity 核函数
 
 **用途**：粘度拉普拉斯计算。
 
@@ -289,7 +299,7 @@ float LaplacianWviscosity(float r, float h)
 }
 ```
 
-### 3.5 Cubic Spline 核函数
+### Cubic Spline 核函数
 
 **用途**：通用核函数，广泛用于科学计算，是 Monaghan 提出的标准样条核。
 
@@ -365,7 +375,7 @@ FVector GradWCubicSpline(const FVector& r, float h)
 }
 ```
 
-### 3.6 核函数选择总结
+### 核函数选择总结
 
 | 核函数 | 用途 | 关键性质 | 支撑半径 |
 |--------|------|----------|----------|
@@ -376,7 +386,7 @@ FVector GradWCubicSpline(const FVector& r, float h)
 
 ---
 
-## 四、力的计算
+## 力的计算
 
 每个粒子受到的总力为各项之和：
 
@@ -384,7 +394,7 @@ $$
 \mathbf{F}_i = \mathbf{F}_i^{\text{pressure}} + \mathbf{F}_i^{\text{viscosity}} + \mathbf{F}_i^{\text{external}} + \mathbf{F}_i^{\text{surface}}
 $$
 
-### 4.1 压力力与对称性推导
+### 压力力与对称性推导
 
 压力梯度的 SPH 离散化需要特殊处理以保证对称性（牛顿第三定律），否则动量不守恒。
 
@@ -427,7 +437,7 @@ FVector CalculatePressureForce(int32 i)
 }
 ```
 
-### 4.2 粘度力
+### 粘度力
 
 粘度项 $\mu \nabla^2 \mathbf{v}$ 的 SPH 离散化采用速度差形式以保证伽利略不变性：
 
@@ -465,7 +475,7 @@ FVector CalculateViscosityForce(int32 i)
 }
 ```
 
-### 4.3 表面张力（color-field 方法）
+### 表面张力（color-field 方法）
 
 表面张力使流体表面趋于最小化，产生水滴、毛细管等效果。Müller (2003) 的 color-field 方法通过颜色场的梯度与拉普拉斯来检测表面并计算曲率。
 
@@ -525,9 +535,9 @@ FVector CalculateSurfaceTension(int32 i)
 }
 ```
 
-> 此处 `LaplacianWpoly6` 的实现见 §3.2，是原工程文档中缺失的部分——表面张力函数调用了它但未给出定义。
+> 此处 `LaplacianWpoly6` 的实现见[Poly6 核函数](#poly6-核函数)，是原工程文档中缺失的部分——表面张力函数调用了它但未给出定义。
 
-### 4.4 外力
+### 外力
 
 外力直接作用于粒子（以重力为例）：
 
@@ -541,9 +551,9 @@ FVector externalForce = ParticleMass * Gravity; // Gravity = FVector(0, 0, -980.
 
 ---
 
-## 五、密度与压力的计算
+## 密度与压力的计算
 
-### 5.1 密度
+### 密度
 
 每个粒子的密度通过邻居粒子加权求和：
 
@@ -575,9 +585,9 @@ void ComputeDensityPressure()
 }
 ```
 
-### 5.2 压力
+### 压力
 
-通过状态方程从密度计算压力（见 §2.3）：
+通过状态方程从密度计算压力（见[状态方程](#状态方程)）：
 
 ```cpp
 float CalculatePressure(float density)
@@ -593,11 +603,11 @@ float CalculatePressure(float density)
 
 ---
 
-## 六、算法流程与时间积分
+## 算法流程与时间积分
 
-### 6.1 标准 SPH 算法步骤
+### 标准 SPH 算法步骤
 
-```
+```text
 初始化:
     设置粒子位置、速度、质量
     计算初始密度和压力
@@ -611,7 +621,7 @@ for each time step:
     6. 边界处理
 ```
 
-### 6.2 时间积分方案
+### 时间积分方案
 
 最常用的是**半隐式欧拉（Symplectic Euler）**——先更新速度再更新位置，对耗散系统稳定且保辛：
 
@@ -634,9 +644,9 @@ void Integrate()
 }
 ```
 
-> 对积分器精度与稳定性的系统分析——显式/隐式/半隐式欧拉、Verlet、RK4 的稳定性域与精度阶——见&#12298;[数值积分：方法、误差与稳定性](/knowledge/numerical-integration-methods/)&#12299;。SPH 因 CFL 条件限制（见 §8.1）通常采用半隐式欧拉或 leapfrog；对于碰撞/约束耦合场景，可结合 XPBD 的 predict-correct 流水线。
+> 对积分器精度与稳定性的系统分析——显式/隐式/半隐式欧拉、Verlet、RK4 的稳定性域与精度阶——见《[数值积分：方法、误差与稳定性](/knowledge/numerical-integration-methods/)》。SPH 因 CFL 条件限制（见[CFL 条件](#cfl-条件)）通常采用半隐式欧拉或 leapfrog；对于碰撞/约束耦合场景，可结合 XPBD 的 predict-correct 流水线。
 
-### 6.3 完整模拟步骤
+### 完整模拟步骤
 
 ```cpp
 struct FSPHParticle
@@ -662,11 +672,11 @@ void SimulationStep()
 
 ---
 
-## 七、边界处理
+## 边界处理
 
 边界处理是 SPH 的难点：处理不当会导致粒子穿透或不自然行为，且边界附近因缺失邻居使密度计算偏低、压力不足。
 
-### 7.1 简单反弹边界
+### 简单反弹边界
 
 检测越界并反弹，沿法向施加恢复系数、沿切向施加摩擦：
 
@@ -698,7 +708,7 @@ void SimpleBoundary(FVector& Position, FVector& Velocity,
 
 **缺点**：边界附近密度计算不准确（缺少外部邻居），导致压力偏低、粒子易穿透。
 
-### 7.2 虚拟边界粒子（Ghost Particles）
+### 虚拟边界粒子（Ghost Particles）
 
 在边界外放置多层虚拟粒子，参与密度与力的计算但不移动，模拟被"切掉"的邻居：
 
@@ -727,7 +737,7 @@ void CreateBoundaryParticles()
 
 **优点**：边界附近密度计算更准确，压力自然形成排斥。**缺点**：增加计算量与内存。
 
-### 7.3 边界力方法
+### 边界力方法
 
 使用 Lennard-Jones 型势能产生排斥力，当粒子接近边界时施加方向力：
 
@@ -737,7 +747,7 @@ $$
 
 其中 $d$ 为粒子到边界的距离，$r_0$ 为截断距离，$D$ 为力强度，$\mathbf{n}$ 为边界法向，$n_1, n_2$ 通常取 12 和 6。
 
-### 7.4 密度校正（Shepard 滤波）
+### 密度校正（Shepard 滤波）
 
 在边界或自由表面附近，核函数积分不再归一化（邻居不完整），可用 Shepard 校正因子补偿：
 
@@ -753,21 +763,21 @@ $$
 
 ---
 
-## 八、不可压缩 SPH 变体
+## 不可压缩 SPH 变体
 
 标准 WCSPH 是弱可压缩的：需要很高的压力刚度才能近似不可压缩，而高刚度导致声速 $c_s = \sqrt{k/\rho_0}$ 增大、CFL 时间步长急剧缩小。以下三种变体用不同策略实现强不可压缩。
 
-### 8.1 WCSPH 的局限
+### WCSPH 的局限
 
 WCSPH 的密度压缩率 $\Delta\rho/\rho_0$ 由状态方程刚度决定。要使密度波动小于 1%，需要 $c_s$ 远大于最大流速 $v_{\max}$（通常 $c_s \ge 10\,v_{\max}$），而 CFL 条件 $\Delta t \le \lambda h / (c_s + v_{\max})$ 使时间步长受限。这就是 PCISPH/IISPH/DFSPH 的改进动机。
 
-### 8.2 PCISPH（Predictive-Corrective Incompressible SPH）
+### PCISPH（Predictive-Corrective Incompressible SPH）
 
 **核心思想**：预测-校正迭代。先在不考虑压力的情况下预测位置与密度，再迭代调整压力直到密度误差低于阈值。
 
 **算法流程**：
 
-```
+```text
 1. 预测位置和速度（暂不计压力力）
 2. while (maxDensityError > threshold):
        计算预测密度 ρ* 与误差 ρ_err = ρ* - ρ₀
@@ -784,7 +794,7 @@ $$
 
 其中 $\delta$ 是预计算的缩放因子，由核函数与粒子间距推导得到，使得一步校正恰好消除密度误差的线性主部。PCISPH 允许比 WCSPH 大一到两个数量级的时间步长。
 
-### 8.3 IISPH（Implicit Incompressible SPH）
+### IISPH（Implicit Incompressible SPH）
 
 **核心思想**：隐式求解压力 Poisson 方程，而非显式状态方程。
 
@@ -804,7 +814,7 @@ $$
 
 **代价**：每步需解线性系统，单步成本高，但总时间步数大幅减少。
 
-### 8.4 DFSPH（Divergence-Free SPH）
+### DFSPH（Divergence-Free SPH）
 
 **核心思想**：同时满足两个约束——密度不变 $\frac{D\rho}{Dt} = 0$（密度不变型）和速度散度为零 $\nabla \cdot \mathbf{v} = 0$（散度自由型），可分别或联合求解。
 
@@ -820,7 +830,7 @@ $$
 
 **算法流程**：
 
-```
+```text
 1. 预测速度（无压力）
 2. 迭代校正速度散度 → 解  ∇²p = ρ/Δt · ∇·v*（散度自由步）
 3. 更新位置
@@ -829,7 +839,7 @@ $$
 
 两个 Poisson 方程形式类似 IISPH 但物理含义不同：散度自由步约束速度场，密度不变步约束位置场。DFSPH 结合二者可获得极高质量的不可压缩性与数值稳定性，是当前最高质量的 SPH 变体之一。
 
-### 8.5 变体对比
+### 变体对比
 
 | 方法 | 时间步长 | 不可压缩性 | 单步成本 | 适用场景 |
 |------|----------|------------|----------|----------|
@@ -840,9 +850,9 @@ $$
 
 ---
 
-## 九、稳定性与参数调优
+## 稳定性与参数调优
 
-### 9.1 CFL 条件
+### CFL 条件
 
 SPH 的显式时间积分稳定性要求时间步长满足 CFL 条件：
 
@@ -868,7 +878,7 @@ float CalculateTimeStep()
 }
 ```
 
-### 9.2 基础参数
+### 基础参数
 
 | 参数 | 符号 | 推荐范围 | 说明 |
 |------|------|----------|------|
@@ -891,7 +901,7 @@ $$
 
 $h$ 太小则邻居不足、计算失真；太大则计算量增加、细节模糊。$k$ 越大流体越不可压缩，但声速增大导致 CFL 步长缩小——这是 WCSPH 的核心矛盾。
 
-### 9.3 调优建议
+### 调优建议
 
 1. **从保守参数开始**：小时间步长（0.0001 s）、中等压力刚度（1000）、适中光滑半径（3 倍间距）。
 2. **逐步调整**：流体太"软"则增 $k$；太"粘"则减 $\mu$；不稳定则减 $\Delta t$。
@@ -899,9 +909,9 @@ $h$ 太小则邻居不足、计算失真；太大则计算量增加、细节模�
 
 ---
 
-## 十、优化与并行
+## 优化与并行
 
-### 10.1 空间哈希加速
+### 空间哈希加速
 
 邻域搜索是 SPH 最耗时的部分。暴力搜索为 $O(n^2)$，均匀网格与空间哈希降至 $O(n)$ 平均。
 
@@ -947,7 +957,7 @@ public:
 | 空间哈希 | $O(n)$ 平均 | $O(n)$ |
 | KD 树 | $O(n\log n)$ | $O(n)$ |
 
-### 10.2 并行计算
+### 并行计算
 
 SPH 的密度、力、积分计算对每个粒子独立，适合 `ParallelFor`：
 
@@ -964,7 +974,7 @@ ParallelFor(Particles.Num(), [&](int32 i)
 
 注意：邻域搜索阶段需串行建表，查询阶段可并行。
 
-### 10.3 核函数查找表
+### 核函数查找表
 
 预计算核函数值，避免每步重复计算高次幂与除法：
 
@@ -1003,7 +1013,7 @@ public:
 };
 ```
 
-### 10.4 GPU Compute Shader
+### GPU Compute Shader
 
 对于大规模模拟（万级以上粒子），使用 GPU 计算。以下为密度计算的 HLSL 示例，采用均匀网格邻域结构（`CellStart`/`CellEnd` 数组由排序 pass 预构建）：
 
@@ -1044,9 +1054,9 @@ void ComputeDensity(uint3 id : SV_DispatchThreadID)
 }
 ```
 
-> Niagara GPU 粒子系统常承载此类 GPU 流体模拟。Niagara 的参数体系与 Compute Shader 管线见&#12298;[Niagara：参数、模块与 GPU 数据接口](/knowledge/ue-niagara-parameters/)&#12299;。
+> Niagara GPU 粒子系统常承载此类 GPU 流体模拟。Niagara 的参数体系与 Compute Shader 管线见《[Niagara：参数、模块与 GPU 数据接口](/knowledge/ue-niagara-parameters/)》。
 
-### 10.5 子步长（Sub-stepping）
+### 子步长（Sub-stepping）
 
 对于高速运动，单步 CFL 可能远小于帧时间，需在一个帧内做多个子步：
 
@@ -1066,9 +1076,9 @@ void SimulationStep(float FrameTime)
 
 ---
 
-## 十一、高级主题
+## 高级主题
 
-### 11.1 多相流模拟
+### 多相流模拟
 
 模拟不同密度的流体（如油与水）需修正压力力以处理密度跳跃：
 
@@ -1078,7 +1088,7 @@ $$
 
 在相界面处需添加额外的界面张力，其物理机制与单相表面张力类似但方向沿两相法线。
 
-### 11.2 流固耦合
+### 流固耦合
 
 SPH 流体与刚体或可变形体的交互：
 
@@ -1094,7 +1104,7 @@ for (int32 i : BoundaryParticles)
 RigidBody->AddForce(fluidForce);
 ```
 
-### 11.3 热传导
+### 热传导
 
 模拟温度变化与热对流，热传导方程 $\frac{DT}{Dt} = \kappa \nabla^2 T$ 的 SPH 离散：
 
@@ -1116,64 +1126,25 @@ float CalculateTemperatureChange(int32 i)
 }
 ```
 
-### 11.4 自适应分辨率
+### 自适应分辨率
 
 在需要细节的区域使用更多粒子：粒子进入高细节区域时分裂（split），离开时合并（merge），以平衡精度与计算量。
 
 ---
 
-## 十二、与 PBF 的对比
+## SPH 家族与 PBF 的分工
 
-SPH 与 PBF（Position-Based Fluids）是流体模拟的两条主流路线，前者基于力与显式积分，后者基于约束与迭代求解。
+SPH 首先是一种粒子场离散。WCSPH 通过状态方程把密度偏差转换为压力，IISPH、DFSPH 等方法则采用不同的迭代压力或散度求解；不能把整个 SPH 家族都等同于小步长显式压力力。
 
-| 特性 | SPH | PBF |
-|------|-----|-----|
-| 求解方式 | 基于力，显式积分 | 基于约束，迭代求解 |
-| 稳定性 | 条件稳定，受 CFL 限制 | 无条件稳定 |
-| 不可压缩性 | WCSPH 弱可压；IISPH/DFSPH 强 | 迭代保证密度约束 |
-| 时间步长 | 小（~0.0001 s，WCSPH） | 大（~0.01 s） |
-| 参数敏感性 | 压力刚度敏感 | 参数鲁棒 |
-| 物理精度 | 高（直接求解 NS 方程） | 中（约束近似） |
-| 适用场景 | 科学计算、影视特效 | 游戏、实时应用 |
+PBF 同样使用核函数估计密度，但将密度偏差写成位置约束，迭代修正预测位置，再重建速度。密度约束和梯度的完整推导见[PBF](/knowledge/pbf-fluid-simulation/)，一般投影与柔度见[PBD/XPBD](/knowledge/pbd-xpbd-math/)。
 
-**核心差异的数学表达**：
+比较时使用同一粒子尺度、边界、密度误差和总模拟时间，分别报告子步、压力或投影迭代、邻域更新和耗时。PBF 的位置投影能改善某些显式压力刚性问题，但不保证任意步长、邻域或有限迭代下都稳定，也不消除高速碰撞漏检。
 
-SPH（基于力）——先算力再积分：
+XSPH 是速度平滑，人工压力修正与物理表面张力并不等价。物理精度取决于离散一致性、参数、边界和收敛，不应仅由方法名称分为高、中两档。
 
-$$
-\mathbf{a}_i = -\frac{1}{\rho_i}\nabla p_i + \nu\nabla^2\mathbf{v}_i + \mathbf{g}
-$$
+## 实现注意事项
 
-$$
-\mathbf{v}_i^{n+1} = \mathbf{v}_i^n + \Delta t\,\mathbf{a}_i, \quad \mathbf{x}_i^{n+1} = \mathbf{x}_i^n + \Delta t\,\mathbf{v}_i^{n+1}
-$$
-
-PBF（基于约束）——先预测再投影：
-
-$$
-\mathbf{x}_i^* = \mathbf{x}_i + \Delta t\,\mathbf{v}_i \quad\text{（预测）}
-$$
-
-$$
-\Delta\mathbf{x}_i = f(\lambda_i, \nabla C_i), \quad \mathbf{x}_i^* \leftarrow \mathbf{x}_i^* + \Delta\mathbf{x}_i \quad\text{（迭代投影）}
-$$
-
-$$
-\mathbf{v}_i = \frac{\mathbf{x}_i^* - \mathbf{x}_i}{\Delta t}, \quad \mathbf{x}_i = \mathbf{x}_i^*
-$$
-
-PBF 继承了 PBD（Position-Based Dynamics）的约束投影框架——将物理定律表达为位置约束 $C(\mathbf{x}) = 0$ 并迭代求解位置修正，而非通过力积分。这使其无条件稳定、可使用大步长。PBD/XPBD 的约束求解原理与刚度控制见&#12298;[数值积分：方法、误差与稳定性](/knowledge/numerical-integration-methods/)&#12299;的 XPBD 章节，PBF 的完整推导见&#12298;[PBF 流体：密度约束与位置修正](/knowledge/pbf-fluid-simulation/)&#12299;。
-
-**选择建议**：
-
-- **选 SPH**：需要物理精度、科学计算、离线渲染，且能接受小时间步长。
-- **选 PBF**：需要实时性能、游戏应用、交互式模拟，且可接受近似不可压缩性。
-
----
-
-## 十三、实现注意事项
-
-### 13.1 数值稳定性
+### 数值稳定性
 
 避免除零、限制最大速度与加速度：
 
@@ -1190,7 +1161,7 @@ void ClampVelocity(FVector& v, float maxSpeed)
 }
 ```
 
-### 13.2 粒子初始化
+### 粒子初始化
 
 规则网格初始化并加小扰动以避免完美对称导致的数值奇异性：
 
@@ -1219,7 +1190,7 @@ void InitializeParticles(const FVector& Origin, const FVector& Size, float Spaci
 }
 ```
 
-### 13.3 调试技巧
+### 调试技巧
 
 可视化密度偏差与速度向量，监控统计信息：
 
@@ -1250,7 +1221,7 @@ void PrintStatistics()
 
 ---
 
-## 十四、参考文献
+## 参考文献
 
 1. Monaghan, J. J. (1992). *Smoothed Particle Hydrodynamics*. Annual Review of Astronomy and Astrophysics, 30(1), 543–574. ——SPH 的奠基性综述。
 2. Müller, M., Charypar, D., & Gross, M. (2003). *Particle-Based Fluid Simulation for Interactive Applications*. Eurographics/SIGGRAPH Symposium on Computer Animation. ——将 SPH 引入计算机图形学，定义 Poly6/Spiky/Viscosity 核与 color-field 表面张力。

@@ -10,6 +10,14 @@ import type { ContentArticle } from '../types';
 interface Props { entry: CollectionEntry<'knowledge'>; indexBody?: boolean; }
 const { entry, indexBody = true } = Astro.props;
 const { Content, headings } = await render(entry);
+// The body uses the same depth-based numbering, without putting numbers in ids.
+const sectionCounts = Array(7).fill(0);
+const numberedHeadings = headings.map((heading) => {
+  if (heading.depth < 2 || heading.depth > 6) return heading;
+  sectionCounts[heading.depth]++;
+  sectionCounts.fill(0, heading.depth + 1);
+  return { ...heading, text: `${sectionCounts.slice(2, heading.depth + 1).join('.')} ${heading.text}` };
+});
 
 const baseURL = import.meta.env.BASE_URL;
 
@@ -143,7 +151,7 @@ if (primaryTopic && primaryTopicRef) {
   date={formatZhDate(entry.data.date)}
   readTime={entry.data.readTime}
   tags={entry.data.tags}
-  headings={headings}
+  headings={numberedHeadings}
   indexBody={indexBody}
   canonicalPath={`${baseURL}knowledge/${entry.slug}/`}
   readingContext={readingContext}

@@ -1,35 +1,45 @@
 ---
-title: "PBF 流体：密度约束与位置修正"
-excerpt: "推导密度约束、乘子与位置修正，区分不可压缩求解和速度后处理。"
-date: "2026-09-06"
-category: "Physics"
-subtopic: "Fluid"
-tags: ["PBF", "PBD", "流体模拟", "约束求解", "C++"]
-readTime: "阅读约40分钟"
-kind: "algorithm"
-level: "advanced"
-prerequisites: ["partial-differential-equations", "sph-fluid-simulation"]
+title: PBF 流体：密度约束与位置修正
+excerpt: 推导密度约束、乘子与位置修正，区分不可压缩求解和速度后处理。
+date: '2026-09-06'
+category: Physics
+subtopic: Fluid
+tags:
+  - PBF
+  - PBD
+  - 流体模拟
+  - 约束求解
+  - C++
+readTime: 阅读约30分钟
+kind: algorithm
+level: advanced
+pageType: guide
+aliases:
+  - PBF 流体模拟详解 — 位置基不可压缩约束、XSPH 粘度与涡度增强
+prerequisites:
+  - partial-differential-equations
+  - sph-fluid-simulation
 nextArticles: []
-aliases: ["PBF 流体模拟详解 — 位置基不可压缩约束、XSPH 粘度与涡度增强"]
+related: []
+sources: []
 ---
-
 PBF 将粒子密度误差写成位置约束，通过邻域耦合的修正降低压缩。本文聚焦密度约束、梯度、乘子与修正顺序；核插值和邻域基础见[SPH](/knowledge/sph-fluid-simulation/)，一般投影规则见[PBD 与 XPBD](/knowledge/pbd-xpbd-math/)。XSPH 与涡度增强属于速度处理，不能代替密度求解。
 
 > **Position Based Fluids（PBF）** 由 Macklin 与 Müller 在 SIGGRAPH 2013 提出，是 Position Based Dynamics（PBD）框架在不可压缩流体模拟中的应用。与基于力的 SPH 不同，PBF 将不可压缩性表达为密度约束 $C_i = \rho_i/\rho_0 - 1 = 0$，通过拉格朗日乘子迭代投影位置，而非通过压力力显式积分。
 >
-> 本文系统推导 PBF 的数学内核——密度约束的拉格朗日乘子、约束梯度、单边约束的物理意义——并补全原工程文档中缺失的 PBD 框架说明、单边约束理由与 GPU Compute Shader 实现。与&#12298;[SPH 流体：核插值、压力与边界](/knowledge/sph-fluid-simulation/)&#12299;（基于力的视角）、&#12298;[数值积分：方法、误差与稳定性](/knowledge/numerical-integration-methods/)&#12299;（PBD/XPBD 约束求解原理）形成交叉引用。
+> 本文系统推导 PBF 的数学内核——密度约束的拉格朗日乘子、约束梯度、单边约束的物理意义——并补全原工程文档中缺失的 PBD 框架说明、单边约束理由与 GPU Compute Shader 实现。与《[SPH 流体：核插值、压力与边界](/knowledge/sph-fluid-simulation/)》（基于力的视角）、《[数值积分：方法、误差与稳定性](/knowledge/numerical-integration-methods/)》（PBD/XPBD 约束求解原理）形成交叉引用。
 
 ---
 
-## 一、引言：从 PBD 到流体
+## 引言：从 PBD 到流体
 
-### 1.1 PBD 框架回顾
+### PBD 框架回顾
 
 PBF 复用 PBD 的 predict-correct 循环：先得到预测位置，再迭代投影密度约束，最后由位置差更新速度。PBD 的通用投影、XPBD compliance 和迭代策略不在本文重复推导，统一见 [位置约束求解：PBD 与 XPBD](/knowledge/pbd-xpbd-math/)。
 
 本文只保留流体所需的接口：粒子位置 $\mathbf p$、逆质量 $w$、邻居集合和约束梯度。PBF 的新增内容是把“不可压缩”写成每个粒子的密度约束，并据此构造位置修正。
 
-### 1.2 核心思想
+### 核心思想
 
 PBF 将 PBD 推广到流体：将每个粒子的**不可压缩性**表达为密度约束。具体而言，粒子 $i$ 的密度 $\rho_i$ 应等于静止密度 $\rho_0$：
 
@@ -39,7 +49,7 @@ $$
 
 当所有粒子的密度约束都被满足时，流体整体不可压缩。PBF 通过迭代求解所有粒子的密度约束（用拉格朗日乘子法计算位置修正），在固定迭代次数内逼近不可压缩状态。
 
-### 1.3 与 SPH 的关系
+### 与 SPH 的关系
 
 PBF 与 SPH 共享核函数和密度估计：
 
@@ -50,9 +60,9 @@ $$
 
 差别只在密度偏差的处理：SPH 把偏差转成压力力并积分，PBF 把偏差直接作为位置约束投影。核函数、压力力和传统 SPH 变体见 [SPH 流体：核插值、压力与边界](/knowledge/sph-fluid-simulation/)；本文从下一节开始只讨论 PBF 的约束求解。
 
-## 二、密度约束的数学推导
+## 密度约束的数学推导
 
-### 2.1 密度约束
+### 密度约束
 
 粒子 $i$ 的密度由核函数插值得到：
 
@@ -68,7 +78,7 @@ $$
 
 约束 $C_i = 0$ 意味着粒子 $i$ 处的密度恰好等于静止密度，即流体不可压缩。
 
-### 2.2 拉格朗日乘子法
+### 拉格朗日乘子法
 
 PBD 求解约束的标准方法是拉格朗日乘子法。对约束 $C_i$ 做一阶泰勒展开：
 
@@ -106,7 +116,7 @@ $$
 
 其中 $\varepsilon$ 通常取 $10^{-4} \sim 10^{-6}$。
 
-### 2.3 约束梯度
+### 约束梯度
 
 密度 $\rho_i = \sum_j m_j W(\mathbf{p}_i - \mathbf{p}_j, h)$ 对各粒子位置的梯度，由核函数的梯度决定。设 $\mathbf{r}_{ij} = \mathbf{p}_i - \mathbf{p}_j$，则 $\nabla_{\mathbf{p}_i} W = \nabla W(\mathbf{r}_{ij})$，$\nabla_{\mathbf{p}_j} W = -\nabla W(\mathbf{r}_{ij})$。
 
@@ -128,7 +138,7 @@ $$
 
 值得注意的是，$\nabla_{\mathbf{p}_i} C_i = -\sum_{j\ne i}\nabla_{\mathbf{p}_j} C_i$（梯度之和为零），这反映了约束的平移不变性——整体平移所有粒子不改变密度。
 
-### 2.4 单边约束（不可压缩只防压缩）
+### 单边约束（不可压缩只防压缩）
 
 PBF 的密度约束是**单边（不等式）约束**：只在密度超过静止密度时修正，低于静止密度时不修正。
 
@@ -167,37 +177,17 @@ float CalculateLambda(int32 i)
 
 ---
 
-## 三、核函数
+## 核函数与邻域约定
 
-PBF 使用与 SPH 相同的核函数族（推导见&#12298;[SPH 流体：核插值、压力与边界](/knowledge/sph-fluid-simulation/)&#12299;§3），此处仅列出 PBF 用到的两个。
+PBF 复用粒子核插值，但密度核与压力梯度核可以采用不同选择。本文后续示意分别采用 Poly6 与 Spiky 梯度；完整核定义、支撑半径、归一常数及导数见[SPH 的核函数](/knowledge/sph-fluid-simulation/)。三维核的归一常数不能直接用于二维。
 
-### 3.1 Poly6 核（密度计算）
+同一次密度迭代中，各阶段必须使用一致的位置、质量和邻域。若复用预测状态建立的邻居表，需要安全邻域或位移预算，不能假设任意修正后旧邻域仍完整。
 
-$$
-W_{\text{poly6}}(r, h) = \frac{315}{64\pi h^9}(h^2 - r^2)^3, \quad 0 \le r \le h
-$$
+## 算法流程
 
-Poly6 平滑且数值稳定，适合密度计算。
+### 完整流程
 
-### 3.2 Spiky 核（梯度计算）
-
-$$
-W_{\text{spiky}}(r, h) = \frac{15}{\pi h^6}(h - r)^3, \quad 0 \le r \le h
-$$
-
-$$
-\nabla W_{\text{spiky}}(\mathbf{r}, h) = -\frac{45}{\pi h^6}(h - r)^2 \frac{\mathbf{r}}{|\mathbf{r}|}, \quad 0 < r \le h
-$$
-
-Spiky 核的梯度在 $r \to 0$ 时不为零，防止粒子聚集。PBF 的约束梯度与位置修正均使用 Spiky 梯度。
-
----
-
-## 四、算法流程
-
-### 4.1 完整流程
-
-```
+```text
 for each time step:
     1. 预测位置（施加外力）
        vᵢ ← vᵢ + Δt·f_ext/m
@@ -219,7 +209,7 @@ for each time step:
     7. 碰撞与边界处理
 ```
 
-### 4.2 预测
+### 预测
 
 施加外力并预测位置，此步不计压力/约束力：
 
@@ -235,7 +225,7 @@ ParallelFor(NumParticles, [&](int32 i)
 });
 ```
 
-### 4.3 约束求解迭代
+### 约束求解迭代
 
 每次迭代分两阶段：先计算所有粒子的 $\lambda_i$（用当前 $\mathbf{p}^*$），再计算位置修正 $\Delta\mathbf{p}_i$ 并更新 $\mathbf{p}^*$。两阶段分离是必要的——同一迭代内 $\lambda_i$ 必须基于一致的密度场。
 
@@ -245,7 +235,7 @@ $$
 \Delta\mathbf{p}_i = \frac{1}{\rho_0}\sum_j(\lambda_i + \lambda_j + s_{\text{corr}})\nabla W(\mathbf{p}_i^* - \mathbf{p}_j^*, h)
 $$
 
-其中 $s_{\text{corr}}$ 是人工表面张力修正项（见 §5）。$\lambda_i + \lambda_j$ 的对称形式保证动量守恒（类似 SPH 的对称压力力）。
+其中 $s_{\text{corr}}$ 是人工表面张力修正项（见[人工压力修正](#人工表面张力与压力修正)）。$\lambda_i + \lambda_j$ 的对称配对形式在相等质量、对称邻域和一致核梯度等条件下可产生相反的成对修正；边界处理、截断邻域与额外速度修正仍需分别核对守恒。
 
 ```cpp
 FVector CalculatePositionDelta(int32 i)
@@ -272,7 +262,7 @@ FVector CalculatePositionDelta(int32 i)
 }
 ```
 
-### 4.4 速度与位置更新
+### 速度与位置更新
 
 约束求解后，由实际位移反推速度（PBD 的标志性操作）：
 
@@ -290,13 +280,13 @@ ParallelFor(NumParticles, [&](int32 i)
 
 ---
 
-## 五、人工表面张力与压力修正
+## 人工表面张力与压力修正
 
-### 5.1 问题
+### 问题
 
 PBF 的密度约束在自由表面处存在数值问题：表面粒子外侧缺失邻居，密度天然低于 $\rho_0$，单边约束不修正它们。但表面附近的粒子对之间存在数值吸引——因为约束梯度在低压区可能将粒子拉到一起而非排斥。这会导致粒子聚集、表面粗糙。
 
-### 5.2 s_corr 修正
+### s_corr 修正
 
 Macklin & Müller 引入人工表面张力修正项 $s_{\text{corr}}$，对近距离粒子对施加额外排斥：
 
@@ -313,7 +303,7 @@ $$
 
 ---
 
-## 六、XSPH 粘度
+## XSPH 粘度
 
 PBF 在约束求解后、碰撞处理前施加 XSPH 粘度，使粒子速度趋于一致、抑制噪声：
 
@@ -341,11 +331,11 @@ void ApplyXSPHViscosity()
 
 ---
 
-## 七、涡度约束
+## 涡度约束
 
 PBD 的约束投影会数值耗散涡度（旋转动能），使流体显得"死气沉沉"。涡度约束（vorticity confinement）在速度场中检测并重新注入涡度。
 
-### 7.1 涡度计算
+### 涡度计算
 
 粒子 $i$ 的涡度（速度旋度）由邻居速度差与核函数梯度估计：
 
@@ -366,7 +356,7 @@ FVector CalculateVorticity(int32 i)
 }
 ```
 
-### 7.2 涡度力
+### 涡度力
 
 沿涡度的梯度方向施加力，放大局部旋转：
 
@@ -397,9 +387,9 @@ FVector CalculateVorticityForce(int32 i)
 
 ---
 
-## 八、边界处理与初始化
+## 边界处理与初始化
 
-### 8.1 边界碰撞
+### 边界碰撞
 
 ```cpp
 void ResolveCollision(FVector& pos, FVector& vel)
@@ -422,7 +412,7 @@ void ResolveCollision(FVector& pos, FVector& vel)
 
 PBF 的边界也可用虚拟粒子方法（与 SPH 相同），使边界附近密度计算更准确。
 
-### 8.2 粒子初始化
+### 粒子初始化
 
 根据静止密度与质量反推粒子间距，确保初始密度接近 $\rho_0$：
 
@@ -443,9 +433,9 @@ for (int32 x = 0; x < NumX; x++)
 
 ---
 
-## 九、参数调优
+## 参数调优
 
-### 9.1 核心参数
+### 核心参数
 
 | 参数 | 推荐范围 | 说明 |
 |------|----------|------|
@@ -455,7 +445,7 @@ for (int32 x = 0; x < NumX; x++)
 | 松弛 $\varepsilon$ | $10^{-4}\sim10^{-6}$ | 防除零 |
 | 时间步长 $\Delta t$ | 0.008–0.016 | 60 FPS 时为 0.016 s |
 
-### 9.2 表面张力与粘度
+### 表面张力与粘度
 
 | 参数 | 推荐值 | 说明 |
 |------|--------|------|
@@ -465,7 +455,7 @@ for (int32 x = 0; x < NumX; x++)
 | XSPH $c$ | 0.001–0.1 | 粘度系数 |
 | 涡度 $\varepsilon$ | 0.0001–0.01 | 涡度约束强度 |
 
-### 9.3 调优建议
+### 调优建议
 
 1. **从少量迭代开始**（2–3 次），逐步增加直到视觉满意。
 2. 流体太"硬"或有间隙——增加迭代次数。
@@ -477,11 +467,11 @@ for (int32 x = 0; x < NumX; x++)
 
 ---
 
-## 十、GPU 实现
+## GPU 实现
 
 PBF 的密度计算、$\lambda$ 求解、位置修正均为粒子独立操作，适合 GPU 并行。以下为 HLSL Compute Shader 示例，采用与 SPH 篇相同的均匀网格邻域结构。
 
-### 10.1 密度计算
+### 密度计算
 
 ```hlsl
 [numthreads(256, 1, 1)]
@@ -512,7 +502,7 @@ void ComputeDensity(uint3 id : SV_DispatchThreadID)
 }
 ```
 
-### 10.2 拉格朗日乘子
+### 拉格朗日乘子
 
 ```hlsl
 [numthreads(256, 1, 1)]
@@ -550,7 +540,7 @@ void ComputeLambda(uint3 id : SV_DispatchThreadID)
 }
 ```
 
-### 10.3 位置修正
+### 位置修正
 
 ```hlsl
 [numthreads(256, 1, 1)]
@@ -590,54 +580,19 @@ void ComputePositionDelta(uint3 id : SV_DispatchThreadID)
 }
 ```
 
-> 三次 dispatch（密度 → $\lambda$ → 位置修正）构成一次迭代，外层循环 `solverIterations` 次。Niagara 的 GPU 粒子栈与 Compute Shader 管线可承载此流水线，参数体系见&#12298;[Niagara：参数、模块与 GPU 数据接口](/knowledge/ue-niagara-parameters/)&#12299;。
+> 三次 dispatch（密度 → $\lambda$ → 位置修正）构成一次迭代，外层循环 `solverIterations` 次。Niagara 的 GPU 粒子栈与 Compute Shader 管线可承载此流水线，参数体系见《[Niagara：参数、模块与 GPU 数据接口](/knowledge/ue-niagara-parameters/)》。
 
 ---
 
-## 十一、与 SPH 的对比
+## 适用条件与比较边界
 
-| 特性 | SPH | PBF |
-|------|-----|-----|
-| 求解方式 | 基于力，显式积分 | 基于约束，迭代投影 |
-| 稳定性 | 条件稳定，受 CFL 限制 | 无条件稳定 |
-| 不可压缩性 | WCSPH 弱；IISPH/DFSPH 强 | 迭代近似（迭代次数控制） |
-| 时间步长 | 小（~0.0001 s） | 大（~0.016 s） |
-| 参数敏感性 | 压力刚度敏感 | 参数鲁棒 |
-| 物理精度 | 高（直接求解 NS） | 中（约束近似） |
-| 粘度 | 物理粘度力（拉普拉斯） | XSPH 速度平均 |
-| 表面张力 | color-field 曲率法 | 人工修正项 $s_{\text{corr}}$ |
-| 适用场景 | 科学计算、影视特效 | 游戏、实时交互 |
+PBF 适合在有限预算下控制密度误差的实时粒子模拟。它并不因使用位置投影就无条件稳定；大时间步仍会放大碰撞漏检、邻域失效和有限迭代误差。SPH 家族的压力与不可压缩变体及统一比较口径见[SPH](/knowledge/sph-fluid-simulation/)。
 
-**核心差异的数学表达**：
+本篇的 C++ 与 GPU 片段是省略宿主、容量和同步代码的局部示意，不是已验证的 Niagara 插件。density、lambda 与 delta-position 三阶段之间需要明确资源依赖；每轮还要把位置修正写回候选位置，并决定是否刷新邻域和边界。
 
-SPH（基于力）：
+XSPH、涡度增强与人工压力各自改变速度或位置更新，参数应结合尺度记录。它们不能替代物理粘度、守恒分析或完整边界模型。本文不提供没有测量条件的固定可用步长或方法精度排名。
 
-$$
-\mathbf{a}_i = -\frac{1}{\rho_i}\nabla p_i + \nu\nabla^2\mathbf{v}_i + \mathbf{g}, \quad \mathbf{v}_i^{n+1} = \mathbf{v}_i^n + \Delta t\,\mathbf{a}_i, \quad \mathbf{x}_i^{n+1} = \mathbf{x}_i^n + \Delta t\,\mathbf{v}_i^{n+1}
-$$
-
-PBF（基于约束）：
-
-$$
-\mathbf{x}_i^* = \mathbf{x}_i + \Delta t\,\mathbf{v}_i \quad\text{（预测）}
-$$
-
-$$
-\lambda_i = -\frac{C_i}{\sum_k|\nabla_{\mathbf{p}_k}C_i|^2 + \varepsilon}, \quad \Delta\mathbf{x}_i = \frac{1}{\rho_0}\sum_j(\lambda_i+\lambda_j)\nabla W_{ij} \quad\text{（投影）}
-$$
-
-$$
-\mathbf{v}_i = \frac{\mathbf{x}_i^* - \mathbf{x}_i}{\Delta t}, \quad \mathbf{x}_i = \mathbf{x}_i^* \quad\text{（更新）}
-$$
-
-**选择建议**：
-
-- **选 SPH**：需要物理精度、科学计算、离线渲染，能接受小步长。完整推导见&#12298;[SPH 流体：核插值、压力与边界](/knowledge/sph-fluid-simulation/)&#12299;。
-- **选 PBF**：需要实时性能、游戏应用、交互模拟，可接受近似不可压缩性。
-
----
-
-## 十二、参考文献
+## 参考文献
 
 1. Macklin, M., & Müller, M. (2013). *Position Based Fluids*. ACM Transactions on Graphics, 32(4), 104. ——PBF 原始论文。
 2. Müller, M., Heidelberger, B., Hennix, M., & Ratcliff, J. (2007). *Position Based Dynamics*. Journal of Visual Communication and Image Representation, 18(2), 109–118. ——PBD 框架。

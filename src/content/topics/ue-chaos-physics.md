@@ -1,6 +1,6 @@
 ---
 title: "UE Chaos 物理引擎专题"
-excerpt: "从数学与物理基础、时间积分、碰撞与约束，到 Chaos 源码流水线、并行化、运行时同步和引擎对比，按由浅入深的积木顺序阅读。"
+excerpt: "沿 Chaos 的状态与执行流水线定位源码，再按具体问题查阅几何、约束、并行与同步。"
 category: "Physics"
 status: "active"
 engine: "Unreal Engine"
@@ -14,7 +14,7 @@ stages:
     order: 10
   - id: "foundation"
     title: "数学与物理基础"
-    description: "补齐经典力学、微分方程、时间积分和迭代求解器这些后文反复使用的共同语言。"
+    description: "共同基础建立状态、守恒与连续介质；刚体、软体与流体各有模型路线，这里按 Chaos 实现需要查阅。"
     order: 20
   - id: "collision"
     title: "碰撞检测"
@@ -22,7 +22,7 @@ stages:
     order: 30
   - id: "constraint"
     title: "约束与求解器"
-    description: "把 Jacobian、有效质量、PBD/XPBD、VBD/AVBD 和接触约束串成可实现的求解链。"
+    description: "先理解接触与约束的共同模型，再按问题选择位置或变分求解分支。"
     order: 40
   - id: "architecture"
     title: "Chaos Simulation Pipeline"
@@ -44,15 +44,14 @@ stages:
 
 ## 专题定位
 
-这个专题是 Chaos 源码的学习地图。每篇知识库文章只承担一个明确积木：基础文章负责概念和推导，算法文章负责可实现步骤，源码文章负责 Unreal Engine 中的落点，实践文章负责验证。专题页负责顺序和上下文，不复制文章正文。
+这个专题帮助把一般物理模型映射到 Chaos 的实际实现。[物理模拟总览](/knowledge/physics-simulation-overview/)先连接共同基础、刚体、软体与流体；本专题再按具体实现需要深入刚体、布料和对应数值工具，负责源码版本、阶段位置与工程证据。
 
 ## 推荐阅读顺序
 
-1. **先读 orientation**：确认源码版本、术语和文章边界。
-2. **完成 foundation**：经典力学 → 微分方程 → 数值积分 → 迭代线性求解器。
-3. **进入 collision 与 constraint**：先理解几何碰撞，再理解约束投影和求解器。
-4. **阅读 architecture**：把前面的积木放回 Chaos 的一次 Simulation Tick。
-5. **最后阅读 parallel、runtime 和 comparison**：把内核知识连接到性能、同步、调试和选型。
+1. 阅读 [Chaos 架构](/knowledge/ue-chaos-physics-engine/)，确认源码范围和一次物理步的阶段。
+2. 需要具体几何查询时，进入 [Chaos GJK](/knowledge/gjk-collision-detection/)；需要同步时，进入[运动学同步](/knowledge/chaos-kinematic-sync/)。
+3. 遇到推导问题时，回查数学与约束主文；PBD/XPBD 与 VBD/AVBD 是不同方法分支，不能当成同一引擎必然依次执行的环节。
+4. 布料、GPU 和其他实现按模型与任务选择，不构成阅读 Chaos 内核的统一前置要求。
 
 ## 文章职责边界
 
@@ -60,7 +59,7 @@ stages:
 - `collision-detection-gjk-epa-sat` 负责通用几何算法；`gjk-collision-detection` 负责 Chaos 的源码实现。
 - `pbd-xpbd-math` 与 `physics_constraints_deep_dive` 负责约束数学；`vbd-avbd-math` 和 `avbd-demo3d-implementation` 负责更高级的变分求解与实现。
 - `chaos-kinematic-sync` 属于运行时同步；`2d-physics-engine` 属于对比和实践，不作为 Chaos 内核前置。
-- `chaos-cloth`、`gpu-physics-plugin` 和 `jgs2-gpu-elastodynamics` 属于并行/GPU 分支，完成核心路线后按兴趣进入。
+- `chaos-cloth`、`gpu-physics-plugin` 和 `jgs2-gpu-elastodynamics` 分别涉及布料模型、GPU 宿主与弹性体算法，按任务进入。
 
 ## 源码范围
 
