@@ -179,7 +179,7 @@
         ],
         "notes": {
           "ue-linear-algebra-guide": "刚体中的局部点、世界惯性和接触力臂都依赖空间约定；本篇展开这些计算工具。",
-          "calculus-foundations": "力改变动量，速度改变位置；本篇解释变化率、累积与局部近似。",
+          "calculus-foundations": "从函数与导数开始，逐步理解偏导数、梯度及其在约束与弹性能量中的作用。",
           "differential-equations": "刚体运动是状态随时间演化的一个例子；本篇展开一般初值问题与动力系统。"
         }
       },

@@ -226,4 +226,30 @@ assert.ok(Math.max(...nonlinear.rx.map(Math.abs)) > .3, 'XPBD constraint residua
 const later = nonlinearResidual(2000);
 later.x.forEach((value, i) => near(value, nonlinear.x[i]));
 assert.throws(() => nonlinearResidual(0), /invalid/);
-console.log('Document examples passed: dynamics, materials, integration, linear solvers, XPBD, grid candidates and published PBD/XPBD/VBD/ALM comparisons. Not an engine runtime test.');
+const { springEnergyGradient, checkSpringDirection } = await example('calculus-foundations', 'knowledge-calculus-gradient-example');
+const springGradient = springEnergyGradient([0,0,0], [2,0,0]);
+near(springGradient.energy, 50); near(springGradient.constraint, 1);
+springGradient.gradient.forEach((value, i) => near(value, [-100,0,0,100,0,0][i]));
+near(springEnergyGradient([0,0,0], [2.001,0,0]).energy - 50, .10005);
+const directions = Array.from({length:6}, (_,i) => Array.from({length:6}, (_,j) => Number(i===j)));
+directions.push([1,2,-1,-2,1,3].map(v=>v/Math.sqrt(20)));
+for (const [a,b] of [[[0,0,0],[2,0,0]], [[.2,-.4,.3],[1.7,.2,-.5]], [[0,0,0],[.4,.2,.1]]]) {
+  const sample = springEnergyGradient(a,b);
+  const translated = springEnergyGradient(a.map(v=>v+4), b.map(v=>v+4));
+  const rotated = springEnergyGradient([-a[1],a[0],a[2]], [-b[1],b[0],b[2]]);
+  near(translated.energy, sample.energy); near(rotated.energy, sample.energy);
+  for (let i=0; i<3; i++) near(sample.gradient[i]+sample.gradient[i+3], 0);
+  for (const direction of directions) for (const epsilon of [1e-4,1e-5,1e-6]) {
+    const result = checkSpringDirection(a,b,direction,epsilon);
+    assert.ok(result.error < 2e-5, `spring gradient mismatch: ${result.error}`);
+  }
+}
+const restSpring = springEnergyGradient([0,0,0], [1,0,0]);
+near(restSpring.energy, 0); restSpring.gradient.forEach(v=>near(v,0));
+assert.ok(springEnergyGradient([0,0,0], [.5,0,0]).gradient[3] < 0, 'compression must push the right endpoint outward');
+assert.throws(()=>springEnergyGradient([0,0,0],[0,0,0]),/degenerate/);
+assert.throws(()=>springEnergyGradient([0,0,0],[1,0,0],1,0),/invalid/);
+assert.throws(()=>springEnergyGradient([NaN,0,0],[1,0,0]),/invalid/);
+assert.throws(()=>checkSpringDirection([0,0,0],[2,0,0],[0,0,0,2,0,0]),/invalid/);
+assert.throws(()=>checkSpringDirection([0,0,0],[2,0,0],directions[0],0),/invalid/);
+console.log('Document examples passed: calculus gradients, dynamics, materials, integration, linear solvers, XPBD, grid candidates and published PBD/XPBD/VBD/ALM comparisons. Not an engine runtime test.');

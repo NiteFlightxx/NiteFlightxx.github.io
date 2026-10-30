@@ -1,680 +1,1091 @@
 ---
-title: 工程微积分：变化率、累积与局部近似
-excerpt: 从导数和积分理解运动与累积，再查阅偏导、泰勒近似和向量微积分。
+title: 微分基础：从导数到梯度与物理求解
+excerpt: 从变化率与局部近似出发，逐步推导偏导数、梯度及其在约束、弹性能量与物理求解中的作用。
 date: '2026-09-06'
 category: Mathematics
 subtopic: Calculus
-tags:
-  - 微积分
-  - 导数
-  - 积分
-  - 向量微积分
-  - C++
-readTime: 阅读约20分钟
+tags: [微积分, 导数, 偏导数, 梯度, 物理求解]
+readTime: 阅读约60分钟
 kind: theory
 level: foundation
 pageType: guide
 aliases:
+  - 工程微积分：变化率、累积与局部近似
   - 微积分详解 — 从极限到微分、积分与向量微积分
 prerequisites: []
-nextArticles:
-  - differential-equations
-  - jacobian-matrix
-related: []
+nextArticles: [differential-equations, jacobian-matrix]
+related: [hessian-matrix, pbd-xpbd-math, vbd-avbd-math, pbd-xpbd-vbd-avbd-comparison]
 topics:
   - id: ue-chaos-physics
     stage: foundation
     role: theory
     order: 10
-sources: []
----
-物理中的速度、加速度与能量变化，都需要描述“某个量如何随另一个量变化”。本文围绕变化率、累积和局部近似组织基础知识；三角函数与向量微积分可按需查阅，不是进入物理模拟的统一门槛。[Jacobian](/knowledge/jacobian-matrix/)与[Hessian](/knowledge/hessian-matrix/)分别承担多输出映射和二阶模型的深入解释。
-
-> 微积分是游戏物理与动画编程的数学基础：位置是速度的积分，速度是位置的导数；力场是势函数的梯度；流体行为由偏微分方程描述。本文系统梳理从极限到向量微积分的完整理论链，并配合 UE C++ 实践示例。
->
-> 本文为教材式总览，ODE 数值方法见《[常微分方程：状态、初值与动力系统](/knowledge/differential-equations/)》，PDE 与有限差分离散见《[偏微分方程：场、边界与空间离散](/knowledge/partial-differential-equations/)》，数学符号速查见《[数学符号与 LaTeX 速查](/knowledge/mathematical-notation-reference/)》。雅可比/海森矩阵的深拆见《[Jacobian 矩阵与局部线性化](/knowledge/jacobian-matrix/)》与《[二阶近似与 Hessian 矩阵](/knowledge/hessian-matrix/)》。
-
----
-
-## 数学预备知识
-
-### 幂运算与根式
-
-幂运算表示重复乘法：
-
-$$
-a^n = \underbrace{a \times a \times \cdots \times a}_{n \text{ 次}}
-$$
-
-其中 $a$ 为底数，$n$ 为指数。基本性质：
-
-| 性质 | 公式 |
-|------|------|
-| 同底相乘 | $a^m \cdot a^n = a^{m+n}$ |
-| 同底相除 | $\frac{a^m}{a^n} = a^{m-n}$ |
-| 幂的幂 | $(a^m)^n = a^{mn}$ |
-| 零次幂 | $a^0 = 1$（$a \neq 0$） |
-| 负指数 | $a^{-n} = \frac{1}{a^n}$ |
-| 分数指数 | $a^{m/n} = \sqrt[n]{a^m}$ |
-
-```cpp
-float Power = FMath::Pow(2.0f, 3.0f);       // 2³ = 8
-float SquareRoot = FMath::Sqrt(16.0f);      // √16 = 4
-float CubeRoot = FMath::Pow(8.0f, 1.0f/3.0f); // ∛8 = 2
-```
-
-### 多项式与二次方程
-
-多项式标准形式：
-
-$$
-P(x) = a_n x^n + a_{n-1} x^{n-1} + \cdots + a_1 x + a_0
-$$
-
-二次方程 $ax^2 + bx + c = 0$ 的求根公式：
-
-$$
-x = \frac{-b \pm \sqrt{b^2 - 4ac}}{2a}
-$$
-
-判别式 $\Delta = b^2 - 4ac$ 决定根的性质：$\Delta > 0$ 两个实根，$\Delta = 0$ 重根，$\Delta < 0$ 复数根。
-
-```cpp
-bool SolveQuadratic(float a, float b, float c, float& Root1, float& Root2)
-{
-    float Discriminant = b * b - 4.0f * a * c;
-    if (Discriminant < 0) return false;
-    float SqrtDisc = FMath::Sqrt(Discriminant);
-    Root1 = (-b + SqrtDisc) / (2.0f * a);
-    Root2 = (-b - SqrtDisc) / (2.0f * a);
-    return true;
-}
-```
-
-### 坐标系统
-
-**笛卡尔坐标**：UE 使用左手坐标系，X 为前方，Y 为右方，Z 为上方。
-
-**极坐标**（2D）：用半径 $r$ 和角度 $\theta$ 表示点。
-
-$$
-x = r\cos\theta, \quad y = r\sin\theta
-$$
-
-$$
-r = \sqrt{x^2 + y^2}, \quad \theta = \text{atan2}(y, x)
-$$
-
-**球坐标**（3D）：用 $r, \theta, \phi$ 表示点。
-
-$$
-x = r\sin\phi\cos\theta, \quad y = r\sin\phi\sin\theta, \quad z = r\cos\phi
-$$
-
-> 使用 `atan2(y, x)` 而非 `atan(y/x)`，以正确处理所有象限。
-
+sources:
+  - title: OpenStax Calculus Volume 1 — Defining the Derivative
+    url: https://openstax.org/books/calculus-volume-1/pages/3-1-defining-the-derivative
+  - title: OpenStax Calculus Volume 3 — Partial Derivatives
+    url: https://openstax.org/books/calculus-volume-3/pages/4-3-partial-derivatives
+  - title: OpenStax Calculus Volume 3 — Tangent Planes and Linear Approximations
+    url: https://openstax.org/books/calculus-volume-3/pages/4-4-tangent-planes-and-linear-approximations
+  - title: OpenStax Calculus Volume 3 — The Chain Rule
+    url: https://openstax.org/books/calculus-volume-3/pages/4-5-the-chain-rule
+  - title: OpenStax Calculus Volume 3 — Directional Derivatives and the Gradient
+    url: https://openstax.org/books/calculus-volume-3/pages/4-6-directional-derivatives-and-the-gradient
+  - title: OpenStax Calculus Volume 1 — The Fundamental Theorem of Calculus
+    url: https://openstax.org/books/calculus-volume-1/pages/5-3-the-fundamental-theorem-of-calculus
+  - title: OpenStax Calculus Volume 3 — Conservative Vector Fields
+    url: https://openstax.org/books/calculus-volume-3/pages/6-3-conservative-vector-fields
 ---
 
-## 三角函数
+导数回答“输入稍微变化，输出会怎样变化”；偏导数把这个问题分解到各个输入；梯度把这些信息合在一起，用来预测任意小位移造成的标量变化。物理中的约束修正、弹性力和能量最小化，都建立在这条关系上。
 
-### 定义
+本文从函数和变化量开始，不预设读者已经理解微积分。三个贯穿示例是抛物线、二维椭圆碗和双粒子弹簧：先看变化，再计算导数，最后解释这些导数怎样进入求解器。除明确标出物理单位的部分外，数学算例均采用无量纲变量；一般数学推导不代表某个 UE 插件已经采用或验证了对应实现。
 
-在单位圆上，角度 $\theta$ 对应点的坐标为 $(\cos\theta, \sin\theta)$：
+积分、三角函数与向量场的既有内容整理在文末附录，按需查阅。Jacobian、Hessian 和四种位置求解方法的完整技术展开，分别链接对应主文。
 
-$$
-\cos\theta = x, \quad \sin\theta = y, \quad \tan\theta = \frac{\sin\theta}{\cos\theta}
-$$
+## 函数、变量与变化量
 
-### 重要恒等式
+### 输入与输出
 
-**毕达哥拉斯恒等式**：
+函数是一条确定的对应规则：给定允许的输入，就得到唯一的输出。例如
 
 $$
-\sin^2\theta + \cos^2\theta = 1
+f(x)=x^2
 $$
 
-**和差公式**：
+表示把输入平方。输入为 $2$ 时，输出为 $4$；输入为 $-2$ 时，输出仍为 $4$。不同输入可以有相同输出，“唯一”指的是同一输入不能同时对应两个不同结果。
+
+输入通常称为自变量，输出称为因变量。允许的输入范围称为定义域。例如实数范围内的 $\sqrt{x}$ 要求 $x\ge0$；计算导数时也要先确认附近的输入仍在定义域内。
+
+### 标量、向量与函数的维度
+
+标量是一个数，例如时间、质量和能量。向量由一组分量组成，例如三维位置
 
 $$
-\sin(a \pm b) = \sin a\cos b \pm \cos a\sin b
+\mathbf{x}=\begin{bmatrix}x\\y\\z\end{bmatrix}.
 $$
 
+全文向量默认采用列向量。$\mathbb R^n$ 表示由 $n$ 个实数分量组成的空间。函数的输入维度和输出维度是两件事：
+
+- $x(t):\mathbb R\to\mathbb R$：时间输入，一个位置分量输出。
+- $\mathbf{x}(t):\mathbb R\to\mathbb R^3$：时间输入，三维位置输出。
+- $h(x,y):\mathbb R^2\to\mathbb R$：平面坐标输入，地形高度输出。
+- $U(\mathbf{x}):\mathbb R^{3N}\to\mathbb R$：全部粒子的位置输入，一个总势能输出。
+
+一元与多元描述输入；标量输出与向量输出描述输出。一个多元函数完全可以只输出一个数，势能就是这种情况。
+
+### 函数值与函数变化量
+
+在当前位置 $x$ 施加输入变化量 $\Delta x$，新位置为 $x+\Delta x$，输出变化量定义为
+
 $$
-\cos(a \pm b) = \cos a\cos b \mp \sin a\sin b
+\Delta f=f(x+\Delta x)-f(x).
 $$
 
-**倍角公式**：
+例如 $f(x)=x^2$，从 $x=1$ 走到 $1.1$：
 
 $$
-\sin(2\theta) = 2\sin\theta\cos\theta, \quad \cos(2\theta) = \cos^2\theta - \sin^2\theta
+\Delta x=0.1,\qquad \Delta f=1.1^2-1=0.21.
 $$
 
-### 重要角度值
+这里的 $f(x)$、$\Delta f$ 和 $\Delta x$ 不能互相替代。后面求导，就是研究它们之间的局部比例关系。
 
-| 角度 | 弧度 | $\sin$ | $\cos$ | $\tan$ |
-|------|------|--------|--------|--------|
-| 0° | 0 | 0 | 1 | 0 |
-| 30° | $\pi/6$ | $1/2$ | $\sqrt{3}/2$ | $\sqrt{3}/3$ |
-| 45° | $\pi/4$ | $\sqrt{2}/2$ | $\sqrt{2}/2$ | 1 |
-| 60° | $\pi/3$ | $\sqrt{3}/2$ | $1/2$ | $\sqrt{3}$ |
-| 90° | $\pi/2$ | 1 | 0 | ∞ |
+## 从平均变化率到导数
 
-### 反三角函数与 atan2
+### 平均变化率与割线
 
-`atan2(y, x)` 返回 $[-\pi, \pi]$，能正确处理所有四个象限，是游戏开发中计算角度的标准函数。
+输入变化量不为零时，平均变化率是
 
-```cpp
-float Angle = FMath::Atan2(Y, X); // 弧度，[-π, π]
-```
+$$
+\frac{\Delta f}{\Delta x}=\frac{f(x+\Delta x)-f(x)}{\Delta x}.
+$$
 
-### 游戏应用
+对抛物线 $f(x)=x^2$，在 $x=1$ 附近计算：
 
-圆周运动、摆动振荡、视野检测：
+$$
+\begin{aligned}
+\Delta x=1&:\quad \frac{\Delta f}{\Delta x}=3,\\
+\Delta x=0.1&:\quad \frac{\Delta f}{\Delta x}=2.1,\\
+\Delta x=0.01&:\quad \frac{\Delta f}{\Delta x}=2.01.
+\end{aligned}
+$$
 
-```cpp
-// 圆周运动
-FVector CircularMotion(FVector Center, float Radius, float AngularSpeed, float Time)
-{
-    float Angle = AngularSpeed * Time;
-    return Center + FVector(Radius * FMath::Cos(Angle), Radius * FMath::Sin(Angle), 0.0f);
+在图上，连接两个采样点的直线叫割线；这个比值就是割线斜率。它描述整段区间的变化，尚未说明起点那一瞬间的变化率。
+
+### 极限与导数定义
+
+不断缩小非零的 $\Delta x$。如果平均变化率从两侧趋近同一个有限数，就把它定义为该点的导数：
+
+$$
+f'(x)=\lim_{\Delta x\to0}\frac{f(x+\Delta x)-f(x)}{\Delta x}.
+$$
+
+极限不是把分母直接设置为零；它研究的是分母还没有变成零时，比值趋向哪里。图上，对应割线趋近该点的切线。
+
+现在从定义推导平方函数，而不是直接记结论：
+
+$$
+\frac{(x+\Delta x)^2-x^2}{\Delta x}
+=\frac{2x\Delta x+(\Delta x)^2}{\Delta x}
+=2x+\Delta x.
+$$
+
+当 $\Delta x\to0$，得到
+
+$$
+f'(x)=2x,\qquad f'(1)=2.
+$$
+
+$f'(1)$ 是一个点的数值，$f'(x)$ 则是一个新函数：输入不同位置，就得到不同位置的局部变化率。[导数的教材定义与几何解释](https://openstax.org/books/calculus-volume-1/pages/3-1-defining-the-derivative)可作对照。
+
+<div data-demo="calculus-secant">交互图加载前：平方函数在横坐标 1 处的切线斜率是 2；另一个点的横坐标依次取 2、1.1、1.01，割线斜率分别为 3、2.1、2.01。</div>
+
+图中可以拖动两个采样点，也可以用滑块改变位置。两点重合时，差商本身未定义；此时只显示解析切线，不把除零结果当成导数。
+
+### 导数的符号、大小与单位
+
+在某点导数为正，表示沿输入增大的方向，小范围内输出倾向增加；导数为负则倾向减少。绝对值越大，相同的小输入变化通常带来越大的输出变化。这里比较的是同一变量、相同单位下的局部响应。
+
+导数也有单位：位置对时间的导数是速度，单位为 $\mathrm{m/s}$；能量对长度的导数单位为 $\mathrm{J/m}=\mathrm N$。改变输入单位会改变导数数值，因此不能脱离变量尺度比较“哪个梯度更大”。
+
+### 导数不存在的情况
+
+对 $f(x)=|x|$，原点左侧斜率为 $-1$，右侧为 $1$，没有唯一的两侧导数。跳跃处连连续性都不满足，更不可能有普通导数。某些函数还可能出现无穷斜率，此时不存在有限导数。
+
+接触启用、摩擦状态切换、钳制和分段材料模型都可能包含非光滑点。程序能返回一个分支的数值，不等于该处存在通常意义的导数。
+
+## 导数怎样描述运动
+
+### 从位置到速度与加速度
+
+一维运动写成位置函数 $x(t)$，则
+
+$$
+v(t)=\frac{dx}{dt},\qquad
+a(t)=\frac{dv}{dt}=\frac{d^2x}{dt^2}.
+$$
+
+例如按 SI 单位，令
+
+$$
+x(t)=x_0+v_0t+\tfrac12a_0t^2.
+$$
+
+对时间求导，常量位置项消失，得到 $v(t)=v_0+a_0t$；再求一次导数得到 $a(t)=a_0$。导数回答“这个物理量每单位时间变化多少”。
+
+在某段时间内，用两帧位置相减再除以间隔，得到平均速度；只有在相应光滑条件下，时间间隔趋于零才得到瞬时速度。离散求解器的速度更新是近似或离散定义，需要与连续函数区分。
+
+### 空间轨迹与时间曲线
+
+三维位置函数逐分量求导：
+
+$$
+\mathbf{v}(t)=
+\begin{bmatrix}\dot x(t)\\\dot y(t)\\\dot z(t)\end{bmatrix},\qquad
+\mathbf{a}(t)=\dot{\mathbf{v}}(t).
+$$
+
+点号表示对时间求导。速度非零时，$\mathbf{v}$ 沿空间轨迹的切线方向，速率是 $\|\mathbf{v}\|$。时间—位置图上切线的斜率，和世界空间轨迹里的方向，不是同一张图中的量。
+
+还要分清“对谁求导”。地形 $h(x,y)$ 对 $x$ 求导得到空间坡度；角色沿 $x(t),y(t)$ 行进时，高度对时间的导数还要考虑行进速度。这会在多元链式法则中自然出现。
+
+## 如何计算导数
+
+### 基本求导规则
+
+以下 $c$ 是常量，三角函数的输入采用弧度；幂函数公式在函数及导数有定义的区间使用：
+
+$$
+\begin{aligned}
+\frac{d}{dx}c&=0,&\frac{d}{dx}x^p&=px^{p-1},\\
+\frac{d}{dx}e^x&=e^x,&\frac{d}{dx}\ln x&=\frac1x\quad(x>0),\\
+\frac{d}{dx}\sin x&=\cos x,&\frac{d}{dx}\cos x&=-\sin x.
+\end{aligned}
+$$
+
+常量的导数为零，因为输入改变时常量不变；幂函数公式则是平方函数推导的推广。不要把它误用到指数也随输入变化的表达式，例如 $x^x$。
+
+对可导函数 $u(x),v(x)$，
+
+$$
+\begin{aligned}
+(u+v)'&=u'+v',\\
+(cu)'&=cu',\\
+(uv)'&=u'v+uv',\\
+\left(\frac uv\right)'&=\frac{u'v-uv'}{v^2}\quad(v\ne0).
+\end{aligned}
+$$
+
+乘积不能只把两边分别求导再相乘，因为输入变化会同时影响两个因子。展开小变化量后保留一阶项，才会得到上面的两个贡献。
+
+### 链式法则：变化逐层传递
+
+设中间变量 $u=g(x)$，最终输出 $f=F(u)$。输入改变先影响 $u$，再由 $u$ 影响 $f$，因此
+
+$$
+\frac{df}{dx}=\frac{dF}{du}\frac{dg}{dx}.
+$$
+
+例如 $f(x)=(x^2+1)^3$：外层对输入求导得到 $3(x^2+1)^2$，内层导数为 $2x$，所以
+
+$$
+f'(x)=6x(x^2+1)^2.
+$$
+
+这个写法看起来像约分，但首先是一条在可微条件下成立的定理；多元情况需要矩阵和求和，不能只按分数字面取消符号。
+
+### 弹簧能量的一元预告
+
+令 $q$ 表示沿弹簧轴向的有符号伸长量，刚度 $k$ 为常量，势能为
+
+$$
+U(q)=\tfrac12kq^2,\qquad \frac{dU}{dq}=kq.
+$$
+
+如果伸长量本身依赖位置 $q=q(x)$，还需要再乘一层：
+
+$$
+\frac{dU}{dx}=kq\frac{dq}{dx}.
+$$
+
+漏掉最后一个导数，就只得到能量对“伸长”的变化率，没有得到能量对“位置”的变化率。稍后会把它推广到两个三维粒子。
+
+距离与平方距离也必须分清。$r(x)=\sqrt{x^2}$ 在非零处的导数是 $x/|x|$，而 $x^2$ 的导数为 $2x$；两者既不是相同数值，也不是相同单位。
+
+## 微分与局部线性近似
+
+### 导数是比例，微分是线性变化
+
+若函数在 $x$ 可导，对小输入扰动 $s$，可以写成
+
+$$
+f(x+s)=f(x)+f'(x)s+r(s),\qquad
+\lim_{s\to0}\frac{|r(s)|}{|s|}=0.
+$$
+
+最后的 $r(s)$ 是近似误差；它相对于输入扰动趋于更快地消失。这就是“小范围内能用直线代替曲线”的精确定义。
+
+规定一个输入微分 $dx=s$，对应输出微分定义为
+
+$$
+df=f'(x)\,dx.
+$$
+
+真实变化量是 $\Delta f=f(x+s)-f(x)$；微分 $df$ 是它的一阶线性部分。它们一般不相等。这里不需要把 $dx$ 理解为某个计算机能够存储的“无限小数”。
+
+### 平方函数的误差能精确写出来
+
+对 $f(x)=x^2$，
+
+$$
+(x+s)^2=x^2+2xs+s^2.
+$$
+
+在 $x=1,s=0.1$ 时，一阶预测是 $df=0.2$，真实变化是 $0.21$，误差为 $0.01$。把扰动减半，误差变为原来的四分之一，因为这个例子的误差恰好是 $s^2$。
+
+一般可微函数只保证余项相对 $|s|$ 消失；要得到统一的二阶误差界，还需要更强的光滑性条件。不要把某个多项式的误差阶直接推广到所有可微函数。
+
+### 为什么非线性求解通常需要迭代
+
+如果要使 $f(x)=0$，可用当前直线模型求候选修正：
+
+$$
+f(x)+f'(x)s=0
+\quad\Longrightarrow\quad
+s=-\frac{f(x)}{f'(x)}.
+$$
+
+当分母非零时，这就是一元 Newton 求根的候选步。走到新位置后，原曲线与旧切线可能已经明显不同，通常需要重新计算。导数为零、初值差或步长过大时，它也可能失败；局部近似不是一次解决全局问题的保证。
+
+## 多元函数与偏导数
+
+### 固定其他输入，只沿一个方向观察
+
+考虑椭圆碗
+
+$$
+f(x,y)=x^2+2y^2.
+$$
+
+固定 $y$，只改变 $x$，得到一条一元函数曲线。对这条曲线求导，就是对 $x$ 的偏导数：
+
+$$
+\frac{\partial f}{\partial x}
+=\lim_{s\to0}\frac{f(x+s,y)-f(x,y)}s=2x.
+$$
+
+同理，固定 $x$，得到
+
+$$
+\frac{\partial f}{\partial y}=4y.
+$$
+
+符号 $\partial$ 提醒我们：输入不止一个，此次只改变其中一个。几何上，两条偏导数分别来自沿坐标方向切开曲面的截线。[偏导数的定义与截面解释](https://openstax.org/books/calculus-volume-3/pages/4-3-partial-derivatives)给出了对应教材表述。
+
+在 $(1,1)$ 处，两个偏导分别为 $2$ 和 $4$。这表示沿正 $x$ 与正 $y$ 各移动相同的小距离时，后者带来的函数增加量约为前者的两倍；它没有说沿其他方向的变化必须等于其中某一个。
+
+### 独立输入与沿路径变化
+
+偏导数固定其他坐标，是对函数本身的局部提问。实际运动时，两个输入可能一起变化。
+
+令 $x(t)=t,y(t)=t$，沿这条路径有 $f(t,t)=3t^2$，所以
+
+$$
+\frac{d}{dt}f(x(t),y(t))=6t.
+$$
+
+而在同一个位置，$\partial f/\partial x=2t$。二者不同，因为前者同时包含 $y$ 的变化。完整关系是
+
+$$
+\frac{df}{dt}
+=\frac{\partial f}{\partial x}\frac{dx}{dt}
++\frac{\partial f}{\partial y}\frac{dy}{dt}.
+$$
+
+对地形高度求时间导数同样如此：坡度还要乘上行进速度。更一般的依赖传播见[多元链式法则](https://openstax.org/books/calculus-volume-3/pages/4-5-the-chain-rule)。
+
+### 偏导数存在不代表整体可微
+
+分别沿坐标轴观察，只覆盖了全部接近路径中的很小一部分。例如定义
+
+$$
+q(x,y)=
+\begin{cases}
+\dfrac{xy}{x^2+y^2},&(x,y)\ne(0,0),\\
+0,&(x,y)=(0,0).
+\end{cases}
+$$
+
+沿两条坐标轴，函数恒为零，所以原点两个偏导数都是零；沿 $y=x$ 接近原点，函数却恒为 $1/2$。它在原点甚至不连续，当然无法用一个统一的平面近似。
+
+常用的充分条件是：各一阶偏导在该点附近存在，并在该点连续，则函数在该点可微。可微要求所有足够小的方向共享同一个一阶模型，而不仅是坐标轴上算得出斜率。
+
+## 全微分、方向导数与梯度
+
+### 多个输入同时变化
+
+对可微函数，二维的一阶模型为
+
+$$
+f(x+s_x,y+s_y)
+\approx f(x,y)+f_xs_x+f_ys_y.
+$$
+
+$f_x,f_y$ 是偏导数的简写，均在当前点取值。全微分把这两个线性贡献相加：
+
+$$
+df=f_x\,dx+f_y\,dy.
+$$
+
+对椭圆碗，在 $(1,1)$ 施加 $(0.1,0.1)$ 的扰动，线性预测为 $0.6$，真实变化为 $0.63$；差额来自 $s_x^2+2s_y^2$。这正是一元线性近似的多输入推广。[切平面与全微分](https://openstax.org/books/calculus-volume-3/pages/4-4-tangent-planes-and-linear-approximations)讨论了这种模型成立的条件。
+
+### 梯度把偏导数组合起来
+
+定义梯度（Gradient）为偏导数组成的列向量：
+
+$$
+\nabla f=
+\begin{bmatrix}
+\partial f/\partial x_1\\\vdots\\\partial f/\partial x_n
+\end{bmatrix}.
+$$
+
+向量内积 $\mathbf{a}^{\mathsf T}\mathbf{b}=\sum_i a_ib_i$ 将对应分量相乘后相加。因此全微分可以简写为
+
+$$
+df=\nabla f^{\mathsf T}d\mathbf{x}.
+$$
+
+梯度的每个分量都回答“只改这个输入，输出变化多快”；内积把实际位移在各个输入上的贡献汇总起来。它不是另一个与偏导无关的运算。
+
+在椭圆碗的 $(1,1)$ 处，
+
+$$
+\nabla f=\begin{bmatrix}2\\4\end{bmatrix}.
+$$
+
+注意梯度生活在输入空间中。地形高度函数的二维梯度位于水平参数平面，不是高度曲面的三维法线；三维曲面法线可由 $(-h_x,-h_y,1)$ 归一化得到。
+
+### 方向导数是指定方向上的变化率
+
+单位向量 $\mathbf{u}$ 满足 $\|\mathbf{u}\|=1$，只表示方向。沿它移动距离 $s$，得到方向导数
+
+$$
+D_{\mathbf{u}}f(\mathbf{x})
+=\lim_{s\to0}\frac{f(\mathbf{x}+s\mathbf{u})-f(\mathbf{x})}{s}
+=\nabla f^{\mathsf T}\mathbf{u}.
+$$
+
+最后一个等号要求函数在该点可微。对非单位向量也能计算路径导数，但其大小还包含参数化速度，不能再直接解释为“每单位移动距离”的变化率。
+
+在 $(1,1)$ 沿 $\mathbf{u}=(1,-1)^{\mathsf T}/\sqrt2$ 行进：
+
+$$
+D_{\mathbf{u}}f=\frac{2-4}{\sqrt2}=-\sqrt2.
+$$
+
+函数会局部下降，因为负 $y$ 方向带来的下降超过正 $x$ 方向带来的增加。
+
+### 为什么梯度指向增长最快的方向
+
+在欧氏距离度量下，内积可以写为
+
+$$
+\nabla f^{\mathsf T}\mathbf{u}
+=\|\nabla f\|\cos\theta.
+$$
+
+$\theta$ 是二者的夹角。在所有单位方向中，$\cos\theta=1$ 时变化率最大；所以非零梯度的方向是局部最速上升方向，负梯度方向是局部最速下降方向。[方向导数与梯度](https://openstax.org/books/calculus-volume-3/pages/4-6-directional-derivatives-and-the-gradient)包含这一几何关系。
+
+这一结论固定了“相同长度”的定义。若混合米、弧度和其他尺度，或者采用质量加权距离，最速方向会随度量改变。物理求解中的质量矩阵和预条件，正是在处理这种方向与尺度问题。
+
+<div data-demo="calculus-gradient">交互图加载前：椭圆碗在坐标 (1, 1) 处的梯度分量为 (2, 4)。沿水平正向的变化率是 2，沿竖直正向是 4；沿梯度单位方向的变化率约为 4.472。</div>
+
+拖动观察点或改变移动方向，对比梯度、所选单位方向和方向导数。箭头按统一比例缩放以保持图内可见，具体数值以读数为准；等高线不是三维透视图。
+
+### 等值面、驻点与步长
+
+等值线上的点满足 $f(\mathbf{x})=c$。沿等值线的切线方向 $\mathbf{t}$ 运动，函数一阶变化为零，因此
+
+$$
+\nabla f^{\mathsf T}\mathbf{t}=0.
+$$
+
+在可微且梯度非零的规则点，梯度垂直于等值线或等值面。梯度为零时，这个式子对所有方向都成立，无法据此选出唯一法线。
+
+梯度为零的点叫驻点。它可能是最小值，也可能是最大值或鞍点；例如 $-x^2$ 在原点是最大值，而 $x^2-y^2$ 在原点是鞍点。
+
+即使当前负梯度是下降方向，也不代表沿它走任意远都会下降。对 $f(x)=x^2$，在 $x=1$ 用 $x_{\mathrm{new}}=x-\eta f'(x)$：取 $\eta=0.1$ 得到 $0.8$，函数下降；取 $\eta=2$ 得到 $-3$，函数反而增大。方向和步长必须分别考虑。
+
+## 向量输入、Jacobian 与多元链式法则
+
+### 从一个输出到多个输出
+
+对向量输出函数 $\mathbf{F}:\mathbb R^n\to\mathbb R^m$，每个输出分量都有自己的梯度。把这些梯度转置后逐行排列，得到 Jacobian：
+
+$$
+J_{ij}=\frac{\partial F_i}{\partial x_j},\qquad
+\Delta\mathbf{F}\approx J\Delta\mathbf{x}.
+$$
+
+$J$ 有 $m$ 行、$n$ 列，乘以 $n$ 维输入扰动得到 $m$ 维输出扰动。对只有一个输出的标量函数，本文约定下有
+
+$$
+J_f=(\nabla f)^{\mathsf T}.
+$$
+
+梯度是列向量，标量函数的 Jacobian 是行向量；它们包含相同的一阶信息，形状却不同。这也是物理公式里经常出现转置的原因。
+
+### 逐层传播与转置
+
+设 $\mathbf{z}=\mathbf{G}(\mathbf{x})$，输出能量 $U=\phi(\mathbf{z})$。小变化满足
+
+$$
+d\mathbf{z}=J_Gd\mathbf{x},\qquad
+dU=(\nabla_{\mathbf{z}}\phi)^{\mathsf T}d\mathbf{z}.
+$$
+
+代入并整理为输入变化量的内积，得到
+
+$$
+\nabla_{\mathbf{x}}U=J_G^{\mathsf T}\nabla_{\mathbf{z}}\phi.
+$$
+
+正向的 Jacobian 将输入变化映射到输出变化；转置将输出端的标量变化率映射回输入梯度。维度核对是可靠的检查，不应凭记忆在公式中随意加转置。
+
+### 全系统梯度与粒子块
+
+将 $N$ 个三维粒子的位置按顺序拼接：
+
+$$
+\mathbf{x}=\begin{bmatrix}\mathbf{x}_1\\\vdots\\\mathbf{x}_N\end{bmatrix}
+\in\mathbb R^{3N},\qquad
+\nabla_{\mathbf{x}}U=
+\begin{bmatrix}\nabla_{\mathbf{x}_1}U\\\vdots\\\nabla_{\mathbf{x}_N}U\end{bmatrix}.
+$$
+
+对单个粒子求梯度，得到三个分量；对整个系统求梯度，得到 $3N$ 个分量。某条弹簧只连接两个粒子时，它对其他粒子位置的梯度为零。这种局部依赖产生稀疏性，也决定了求解器需要访问哪些邻居。
+
+Jacobian 的局部线性化、IK、奇异性与伪逆详见[Jacobian 矩阵与局部线性化](/knowledge/jacobian-matrix/)，这里不再重复完整推导。
+
+## 从一阶变化到二阶变化
+
+### 二阶导数与 Hessian
+
+一阶导数描述函数怎样变化；二阶导数描述一阶导数怎样变化。对 $f(x)=x^2$，$f'(x)=2x$，$f''(x)=2$：越往右走，斜率按固定速率增加。
+
+多元函数把所有二阶偏导排列成 Hessian 矩阵：
+
+$$
+H_{ij}=\frac{\partial}{\partial x_j}
+\left(\frac{\partial f}{\partial x_i}\right),\qquad
+H=J_{\nabla f}.
+$$
+
+当二阶偏导连续时，混合偏导相等，Hessian 对称。对椭圆碗，
+
+$$
+\nabla f=\begin{bmatrix}2x\\4y\end{bmatrix},\qquad
+H=\begin{bmatrix}2&0\\0&4\end{bmatrix}.
+$$
+
+沿 $y$ 方向，梯度变化比沿 $x$ 更快，这与等高线在 $y$ 方向更紧密一致。
+
+### 从切平面到局部二次模型
+
+对二阶连续可微函数，局部展开为
+
+$$
+f(\mathbf{x}+\mathbf{s})
+=f(\mathbf{x})+\nabla f^{\mathsf T}\mathbf{s}
++\tfrac12\mathbf{s}^{\mathsf T}H\mathbf{s}
++o(\|\mathbf{s}\|^2).
+$$
+
+$o(\|\mathbf{s}\|^2)$ 表示余项相对 $\|\mathbf{s}\|^2$ 趋于零。对本例这个精确二次函数，余项就是零。在 $(1,1)$ 处，完整变化量为
+
+$$
+\Delta f=2s_x+4s_y+s_x^2+2s_y^2.
+$$
+
+若取 $(s_x,s_y)=(0.1,-0.05)$，一阶项相消，但真实变化为 $0.015$。切线方向只保证一阶变化为零，不保证走一段直线后还留在原等高线上。
+
+### 曲率与 Newton 方向
+
+在驻点附近，若所有方向二次项均为正，则该点具有严格局部极小的充分条件；有正有负则是鞍点。二次项为零的方向需要继续分析，不能只凭 Hessian 判定。
+
+把局部二次模型对 $\mathbf{s}$ 的梯度设为零，得到
+
+$$
+H\mathbf{s}=-\nabla f.
+$$
+
+这是 Newton 最优化的线性子问题。工程上应求解该方程，不是先显式构造完整逆矩阵。对椭圆碗，由于模型精确且 Hessian 正定，完整步直接到原点；一般非线性函数没有这个一步性质。
+
+梯度只给出一阶变化；Hessian 帮助解释各方向的响应尺度。正定性、线搜索、Gauss–Newton 与局部收敛条件详见[二阶近似与 Hessian 矩阵](/knowledge/hessian-matrix/)。
+
+## 物理中的约束梯度、能量梯度与力
+
+### 从两粒子位置定义弹簧
+
+现在使用物理单位。设两个粒子位置为 $\mathbf{x}_a,\mathbf{x}_b$，单位为米，静止长度为 $\ell_0>0$，刚度 $k$ 的单位为 $\mathrm{N/m}$。定义
+
+$$
+\mathbf{d}=\mathbf{x}_b-\mathbf{x}_a,\qquad
+\ell=\|\mathbf{d}\|,\qquad
+\mathbf{n}=\frac{\mathbf{d}}\ell,\qquad
+C=\ell-\ell_0.
+$$
+
+本节先假设 $\ell>0$。$C$ 是带长度单位的约束误差：拉长时为正，压缩时为负。它不是力，也不是能量。
+
+### 一步步求距离约束梯度
+
+把相对位置写成分量，
+
+$$
+\ell=\sqrt{d_x^2+d_y^2+d_z^2}.
+$$
+
+用平方根和平方函数的链式法则，
+
+$$
+\frac{\partial\ell}{\partial d_x}
+=\frac{1}{2\sqrt{d_x^2+d_y^2+d_z^2}}\,2d_x
+=\frac{d_x}{\ell}.
+$$
+
+其他分量同理，所以 $\nabla_{\mathbf{d}}\ell=\mathbf{n}$。由于增加 $\mathbf{x}_b$ 会同向增加 $\mathbf{d}$，而增加 $\mathbf{x}_a$ 会反向改变 $\mathbf{d}$，最终得到
+
+$$
+\nabla_a C=-\mathbf{n},\qquad
+\nabla_b C=\mathbf{n}.
+$$
+
+这里 $\nabla_a$ 表示对粒子 $a$ 的三个位置分量求导。两者方向相反，意味着同样朝右移动端点 $a$ 与端点 $b$，对距离变化的贡献相反。
+
+对任意小位移，一阶误差变化为
+
+$$
+\Delta C\approx
+-\mathbf{n}^{\mathsf T}\Delta\mathbf{x}_a
++\mathbf{n}^{\mathsf T}\Delta\mathbf{x}_b.
+$$
+
+若两个端点施加相同平移，该表达式为零；这是距离约束平移不变性的导数表达。
+
+### 从约束得到能量梯度
+
+弹性势能采用
+
+$$
+U=\tfrac12kC^2.
+$$
+
+位置先决定距离，距离决定伸长，伸长再决定能量。逐层求导：
+
+$$
+\nabla_aU=kC\nabla_aC=-kC\mathbf{n},\qquad
+\nabla_bU=kC\nabla_bC=kC\mathbf{n}.
+$$
+
+约束梯度只告诉我们改变哪个位置会怎样改变误差；乘上 $kC$ 后，才得到改变位置会怎样改变能量。
+
+### 为什么力是负能量梯度
+
+对保守力，微小位移上的做功等于势能减少：
+
+$$
+dW=\mathbf{f}^{\mathsf T}d\mathbf{x}=-dU
+=-(\nabla U)^{\mathsf T}d\mathbf{x}.
+$$
+
+由于它对任意小位移成立，有
+
+$$
+\mathbf{f}=-\nabla U.
+$$
+
+因此弹簧对两个端点的力分别为
+
+$$
+\mathbf{f}_a=kC\mathbf{n},\qquad
+\mathbf{f}_b=-kC\mathbf{n}.
+$$
+
+拉伸时两端相互吸引，压缩时相互推开。这一关系用于当前势能描述的保守力；阻尼、干摩擦和规定运动的驱动力不能直接用同一个位置势能公式概括。
+
+### 一个数值与量纲都能核对的例子
+
+取 $\mathbf{x}_a=(0,0,0)^{\mathsf T}\,\mathrm m$、$\mathbf{x}_b=(2,0,0)^{\mathsf T}\,\mathrm m$、$\ell_0=1\,\mathrm m$、$k=100\,\mathrm{N/m}$。则
+
+$$
+\begin{aligned}
+C&=1\,\mathrm m,&U&=50\,\mathrm J,\\
+\nabla_aU&=(-100,0,0)^{\mathsf T}\,\mathrm N,
+&\mathbf{f}_a&=(100,0,0)^{\mathsf T}\,\mathrm N.
+\end{aligned}
+$$
+
+端点 $b$ 的梯度与力分别相反。若只把 $b$ 沿正 $x$ 移动 $0.001\,\mathrm m$，一阶预测的能量增加是 $0.1\,\mathrm J$，精确增加为 $0.10005\,\mathrm J$。
+
+$C$ 的单位是米；$\nabla C$ 是长度对长度的比值，无量纲；$\nabla U$ 的单位是牛顿；位置修正的单位仍是米。能量梯度数值可以和力取负对应，却不能不经过质量、时间或求解方程就直接当作位移。
+
+### 固定端、退化与变量选择
+
+固定一个粒子不会改变原几何函数的导数；它改变的是允许修正的自由度，例如用零逆质量排除该粒子的动态响应。
+
+当 $\ell=0$ 时，$\mathbf{n}$ 未定义。对于正静止长度的距离弹簧，不能把分母随意加一个小数就宣称恢复了精确梯度；保留历史方向、使用确定的替代方向或拒绝退化状态，都需要明确行为约定。
+
+如果改用平方距离约束，必须重新推导导数、单位和柔度。若变量换成刚体平移与旋转，还需要旋转自由度对应的导数。本文的粒子位置公式不能原样充当四元数或刚体角向更新。
+
+## 这些导数如何进入物理求解器
+
+### PBD：沿约束梯度修正位置
+
+将所有粒子位置暂记为 $\mathbf{x}$，约束 Jacobian 为 $J=(\nabla C)^{\mathsf T}$。希望修正后约束为零，一阶近似要求
+
+$$
+C(\mathbf{x})+J\Delta\mathbf{x}\approx0.
+$$
+
+满足这一条件的位移可能有很多。PBD 选择质量加权的修正方向：
+
+$$
+W=\sum_i w_i\|\nabla_iC\|^2,\qquad
+\Delta\lambda=-\frac CW,\qquad
+\Delta\mathbf{x}_i=w_i\nabla_iC\,\Delta\lambda.
+$$
+
+$w_i=1/m_i$ 是逆质量，固定端取零；$W$ 是有效逆质量。约束梯度确定局部误差对位置的敏感方向，逆质量决定各粒子怎样分担修正，乘子确定本轮修正尺度。它不等于对总势能做一次固定步长梯度下降。
+
+只有 $W>0$ 且几何导数有效时，公式才可直接使用。多约束之间会互相影响，因此还需要重算与迭代。
+
+### XPBD：柔度与累计乘子
+
+对标量柔度 $\alpha$、子步长 $h$，定义 $\widetilde\alpha=\alpha/h^2$。常见 XPBD 更新为
+
+$$
+\Delta\lambda=
+\frac{-C-\widetilde\alpha\lambda}{W+\widetilde\alpha},\qquad
+\Delta\mathbf{x}_i=w_i\nabla_iC\,\Delta\lambda.
+$$
+
+相比前式，位置方向仍依赖约束梯度，尺度还包含柔度和子步内累计乘子。本文距离弹簧的柔度可取 $\alpha=1/k$；任意重定义的约束不能直接沿用这个数值。
+
+有限迭代、非线性和历史状态仍会影响结果，不能把柔度参数理解为彻底消除所有时间步与迭代依赖。[PBD 与 XPBD](/knowledge/pbd-xpbd-math/)维护完整子步流程与具体约束推导。
+
+### VBD：对离散时间目标求能量导数
+
+一种隐式 Euler 位置目标写为
+
+$$
+\Phi(\mathbf{x})=
+\frac{1}{2h^2}(\mathbf{x}-\mathbf{y})^{\mathsf T}M(\mathbf{x}-\mathbf{y})
++U(\mathbf{x}),
+$$
+
+$\mathbf{y}$ 是惯性预测位置，$M$ 为质量矩阵。其梯度包含惯性项和材料项：
+
+$$
+\nabla\Phi=\frac{M}{h^2}(\mathbf{x}-\mathbf{y})+\nabla U.
+$$
+
+VBD 按顶点块累加这些梯度与局部 Hessian，再计算块更新。注意材料保守力是 $-\nabla U$，而 $-\nabla\Phi$ 还包括离散惯性项，不能把后者整体直接叫作材料力。
+
+### AVBD：增广项也需要一致求导
+
+以单个硬等式约束的增广项作机制示意：
+
+$$
+\mathcal L(\mathbf{x},\Lambda)
+=\Phi(\mathbf{x})+\Lambda C(\mathbf{x})+\tfrac12\rho C(\mathbf{x})^2.
+$$
+
+固定本轮乘子与罚参数，对位置求梯度得到
+
+$$
+\nabla\mathcal L=\nabla\Phi+(\Lambda+\rho C)\nabla C.
+$$
+
+同一条链式法则再次出现，但系数现在带有对偶状态。完整 AVBD 还涉及乘子更新、罚参数调度、正则化和接触处理；有限刚度材料与硬约束的状态策略也不同，不能把这个简式当作完整原算法。
+
+[VBD 与 AVBD](/knowledge/vbd-avbd-math/)负责能量导数和局部块，[PBD、XPBD、VBD 与 AVBD 对比](/knowledge/pbd-xpbd-vbd-avbd-comparison/)负责目标、乘子、收敛与工程取舍。此处只说明导数的入口，不重复完整算法。
+
+## 如何验证自己计算的导数
+
+### 解析求导、有限差分与自动微分
+
+解析求导是手工应用求导规则得到公式；有限差分用附近函数值估计导数；自动微分按程序的计算路径组合局部导数。自动微分不等于有限差分，也不会自动修正错误模型、不可微切换或错误的变量约定。
+
+一元前向差分与中心差分分别为
+
+$$
+f'(x)\approx\frac{f(x+\varepsilon)-f(x)}\varepsilon,
+\qquad
+f'(x)\approx\frac{f(x+\varepsilon)-f(x-\varepsilon)}{2\varepsilon}.
+$$
+
+在足够光滑且忽略浮点舍入时，二者截断误差通常分别是一阶和二阶。$\varepsilon$ 太大会离开局部范围，太小则可能在两个相近数相减时损失精度；应根据输入尺度扫描多个步长。
+
+### 先检查方向导数，再检查每个分量
+
+对选定单位方向 $\mathbf{d}$，比较
+
+$$
+\nabla f(\mathbf{x})^{\mathsf T}\mathbf{d}
+\quad\text{与}\quad
+\frac{f(\mathbf{x}+\varepsilon\mathbf{d})-f(\mathbf{x}-\varepsilon\mathbf{d})}{2\varepsilon}.
+$$
+
+取坐标基方向就可以检查各分量；再取几个混合方向，检查分量拼接、符号与索引。方向差分不必构造大型数值 Jacobian，适合调试局部能量项。
+
+下面是可直接执行的 JavaScript 算例，采用米、牛顿和焦耳。它只验证距离弹簧的能量与梯度，不是完整积分器或 UE 实现。传入的方向需要是单位向量，差分尺度与位置使用相同长度单位。
+
+~~~js
+// knowledge-calculus-gradient-example
+export function springEnergyGradient(a, b, rest = 1, stiffness = 100) {
+  const valid = v => Array.isArray(v) && v.length === 3 && v.every(Number.isFinite);
+  if (!valid(a) || !valid(b) || !Number.isFinite(rest) || rest <= 0 ||
+      !Number.isFinite(stiffness) || stiffness <= 0) throw new Error('invalid input');
+  const delta = b.map((value, i) => value - a[i]);
+  const length = Math.hypot(...delta);
+  if (!Number.isFinite(length) || length <= 1e-12) throw new Error('degenerate distance');
+  const constraint = length - rest;
+  const gradientB = delta.map(value => stiffness * constraint * value / length);
+  return {
+    energy: 0.5 * stiffness * constraint ** 2,
+    constraint,
+    gradient: [...gradientB.map(value => -value), ...gradientB],
+  };
 }
 
-// 视野检测
-bool IsInFieldOfView(FVector Forward, FVector ToTarget, float FOVDegrees)
-{
-    float CosAngle = FVector::DotProduct(Forward, ToTarget.GetSafeNormal());
-    return CosAngle >= FMath::Cos(FMath::DegreesToRadians(FOVDegrees * 0.5f));
-}
-```
-
----
-
-## 指数与对数
-
-### 指数函数
-
-$$
-f(x) = a^x \quad (a > 0, a \neq 1)
-$$
-
-自然指数 $e^x$，其中 $e = \lim_{n \to \infty}(1 + 1/n)^n \approx 2.71828$。性质：$e^{a+b} = e^a \cdot e^b$，$e^0 = 1$。
-
-### 对数函数
-
-对数是指数的逆运算：$y = \log_a x \iff a^y = x$。自然对数 $\ln x = \log_e x$。
-
-$$
-\ln(ab) = \ln a + \ln b, \quad \ln(a^b) = b\ln a
-$$
-
-### 指数衰减
-
-指数衰减描述量随时间呈指数减少：
-
-$$
-f(t) = f_0 \cdot e^{-\lambda t}
-$$
-
-半衰期 $T_{1/2} = \ln 2 / \lambda$，时间常数 $\tau = 1/\lambda$。
-
-```cpp
-// 帧率无关的平滑插值
-float ExponentialSmoothing(float Current, float Target, float Smoothness, float DeltaTime)
-{
-    float Alpha = 1.0f - FMath::Exp(-Smoothness * DeltaTime);
-    return FMath::Lerp(Current, Target, Alpha);
-}
-```
-
----
-
-## 函数与极限
-
-### 函数概念
-
-函数 $f: X \to Y$ 将定义域中每个元素映射到值域中的唯一元素。基本性质包括单调性（递增/递减）、奇偶性（$f(-x) = f(x)$ 为偶函数，$f(-x) = -f(x)$ 为奇函数）、周期性（$f(x+T) = f(x)$）。
-
-### 极限
-
-$$
-\lim_{x \to a} f(x) = L
-$$
-
-极限存在当且仅当左极限等于右极限。
-
-**重要极限**：
-
-$$
-\lim_{x \to 0} \frac{\sin x}{x} = 1, \quad \lim_{x \to \infty}\left(1 + \frac{1}{x}\right)^x = e
-$$
-
-$$
-\lim_{x \to 0} \frac{e^x - 1}{x} = 1, \quad \lim_{x \to 0} \frac{1 - \cos x}{x^2} = \frac{1}{2}
-$$
-
-### 连续性
-
-函数 $f(x)$ 在 $x = a$ 处连续当且仅当 $\lim_{x \to a} f(x) = f(a)$。
-
-### 缓动函数
-
-缓动函数让动画更自然，本质是定义在 $[0, 1]$ 上的连续函数：
-
-```cpp
-// Smoothstep：在 [0,1] 区间平滑过渡
-float SmoothStep(float x)
-{
-    x = FMath::Clamp(x, 0.0f, 1.0f);
-    return x * x * (3.0f - 2.0f * x);
+export function checkSpringDirection(a, b, direction, epsilon = 1e-5) {
+  if (!Array.isArray(direction) || direction.length !== 6 || !direction.every(Number.isFinite) ||
+      Math.abs(Math.hypot(...direction) - 1) > 1e-10 ||
+      !Number.isFinite(epsilon) || epsilon <= 0) throw new Error('invalid direction or epsilon');
+  const sample = springEnergyGradient(a, b);
+  const position = [...a, ...b];
+  const movedEnergy = sign => {
+    const q = position.map((value, i) => value + sign * epsilon * direction[i]);
+    return springEnergyGradient(q.slice(0, 3), q.slice(3)).energy;
+  };
+  const analytic = sample.gradient.reduce((sum, value, i) => sum + value * direction[i], 0);
+  const numeric = (movedEnergy(1) - movedEnergy(-1)) / (2 * epsilon);
+  return { analytic, numeric, error: Math.abs(analytic - numeric) };
 }
 
-// 缓出三次
-float EaseOutCubic(float t)
-{
-    float t1 = t - 1.0f;
-    return t1 * t1 * t1 + 1.0f;
-}
-```
+console.log(springEnergyGradient([0, 0, 0], [2, 0, 0]));
+// 能量 50；约束误差 1；全系统梯度分量为 [-100, 0, 0, 100, 0, 0]。
+console.log(checkSpringDirection([0, 0, 0], [2, 0, 0], [0, 0, 0, 1, 0, 0]));
+// 解析方向导数 100；中心差分应接近 100，误差取决于浮点与步长。
+~~~
 
----
+代码中的极短距离阈值只是本例按米设置的拒绝策略，不是材料参数，也不代表所有缩放下都适用。
 
-## 微分学
+### 除了数值差分，还要核对物理结构
 
-### 导数定义
+对本例，始终应有 $\nabla_aU+\nabla_bU=\mathbf0$，对应整体平移不改变能量。刚体旋转整个粒子对也不应改变距离与能量。静止长度处，能量和梯度都应为零；压缩与拉伸时，力方向应相反。
 
-$$
-f'(x) = \lim_{h \to 0} \frac{f(x+h) - f(x)}{h}
-$$
-
-物理意义：位置的导数是速度，速度的导数是加速度。
+如果差分不匹配，先查变量顺序、正负号、单位、零长度和函数实现是否一致；若只在切换点失败，检查是否跨越了非光滑分支。不能靠无限缩小差分步长、扩大容差或隐藏 NaN 宣称导数正确。
 
-**常用导数公式**：
+梯度验证通过之后，还要分别验证 Hessian、局部求解残差、完整时间步与接触状态。导数正确只是求解器正确性的一个环节。
 
-| 函数 | 导数 |
-|------|------|
-| $c$ | $0$ |
-| $x^n$ | $nx^{n-1}$ |
-| $\sin x$ | $\cos x$ |
-| $\cos x$ | $-\sin x$ |
-| $e^x$ | $e^x$ |
-| $\ln x$ | $1/x$ |
+## 附录：函数与近似工具
 
-**运算法则**：加法 $(f+g)' = f' + g'$，乘法 $(fg)' = f'g + fg'$，链式法则 $\frac{d}{dx}f(g(x)) = f'(g(x)) \cdot g'(x)$。
+### 幂、坐标与三角函数
 
-### 偏导数
+幂是重复乘法的推广；在有定义的范围内，同底数相乘时指数相加，幂再乘方时指数相乘。多项式由常量乘幂函数相加组成，例如 $ax^2+bx+c$。当 $a\ne0$ 时，其零点满足
 
-对于多元函数 $f(x, y)$，偏导数是固定其他变量后对单一变量的导数：
-
 $$
-\frac{\partial f}{\partial x} = \lim_{h \to 0} \frac{f(x+h, y) - f(x, y)}{h}
+x=\frac{-b\pm\sqrt{b^2-4ac}}{2a}.
 $$
 
-**Schwarz 定理**（混合偏导相等）：若 $f_{xy}$ 和 $f_{yx}$ 连续，则 $f_{xy} = f_{yx}$。
+这只是代数求根；是否有实根取决于判别式，数值实现还需考虑消减误差。空间向量、坐标变换与点积的完整说明见[UE 空间数学](/knowledge/ue-linear-algebra-guide/)。
 
-**全微分**：
+单位圆上的点是 $(\cos\theta,\sin\theta)$，满足
 
 $$
-df = \frac{\partial f}{\partial x}dx + \frac{\partial f}{\partial y}dy
+\sin^2\theta+\cos^2\theta=1,\qquad
+\sin(a+b)=\sin a\cos b+\cos a\sin b.
 $$
 
-**多元链式法则**：若 $z = f(u(x,y), v(x,y))$，则：
+因此二维极坐标可写成 $x=r\cos\theta,y=r\sin\theta$。从坐标恢复方向通常使用能识别象限的 $\operatorname{atan2}(y,x)$；原点方向仍未定义，不能因为库函数返回数值就赋予它几何方向。角度求导需统一为弧度。
 
-$$
-\frac{\partial z}{\partial x} = \frac{\partial f}{\partial u}\frac{\partial u}{\partial x} + \frac{\partial f}{\partial v}\frac{\partial v}{\partial x}
-$$
+### 指数、对数与衰减
 
-**隐函数求导**：对 $F(x, y) = 0$：
+对数是指数的逆运算。对正实数，有
 
 $$
-\frac{dy}{dx} = -\frac{F_x}{F_y} \quad (F_y \neq 0)
+\ln(ab)=\ln a+\ln b,\qquad e^{a+b}=e^ae^b.
 $$
 
-### 梯度与方向导数
+恒定衰减率 $\gamma>0$ 的精确响应为
 
-梯度是所有偏导数组成的向量，指向函数增长最快的方向：
-
 $$
-\nabla f = \left(\frac{\partial f}{\partial x}, \frac{\partial f}{\partial y}, \frac{\partial f}{\partial z}\right)
+q(t)=q_0e^{-\gamma t},\qquad T_{1/2}=\frac{\ln2}{\gamma}.
 $$
 
-方向导数是梯度在方向 $\mathbf{u}$ 上的投影：
+目标 $q_*$ 在一段时间内保持不变时，一阶平滑的精确推进为
 
 $$
-D_{\mathbf{u}} f = \nabla f \cdot \mathbf{u}
+q_{\mathrm{new}}=q_*+(q_{\mathrm{old}}-q_*)e^{-\gamma h}.
 $$
 
-```cpp
-// 地形法线：由高度梯度得到
-FVector GetTerrainNormal(FVector2D Pos)
-{
-    float h = 0.1f;
-    float Hx = (GetHeight(Pos + FVector2D(h, 0)) - GetHeight(Pos - FVector2D(h, 0))) / (2 * h);
-    float Hy = (GetHeight(Pos + FVector2D(0, h)) - GetHeight(Pos - FVector2D(0, h))) / (2 * h);
-    return FVector(-Hx, -Hy, 1.0f).GetSafeNormal();
-}
-```
+目标变化、额外约束或离散更新顺序会改变完整行为；不能只凭使用指数就声称整个动画或控制系统与帧率无关。动力系统的完整建模见[常微分方程](/knowledge/differential-equations/)。
 
-### Jacobian 矩阵
+### 连续性、中值定理与洛必达法则
 
-向量函数 $\mathbf{F}: \mathbb{R}^n \to \mathbb{R}^m$ 的雅可比矩阵是一阶偏导数矩阵：
+连续意味着输入接近某点时，函数值也接近该点的函数值；一元可导蕴含连续，反过来不成立。连续缓动曲线若在拼接处斜率不连续，仍可能出现速度突变；需要根据用途检查相应阶数。
 
+若 $f$ 在闭区间 $[a,b]$ 连续、开区间 $(a,b)$ 可导，则存在内部点 $c$ 满足
+
 $$
-J = \begin{pmatrix} \frac{\partial f_1}{\partial x_1} & \cdots & \frac{\partial f_1}{\partial x_n} \\ \vdots & \ddots & \vdots \\ \frac{\partial f_m}{\partial x_1} & \cdots & \frac{\partial f_m}{\partial x_n} \end{pmatrix}
+f'(c)=\frac{f(b)-f(a)}{b-a}.
 $$
-
-雅可比行列式描述坐标变换的体积缩放因子。极坐标变换 $x = r\cos\theta, y = r\sin\theta$ 的雅可比行列式为 $r$——这就是极坐标积分乘 $r$ 的原因。
 
-详见《[Jacobian 矩阵与局部线性化](/knowledge/jacobian-matrix/)》。
+这是拉格朗日中值定理；端点值相同时得到罗尔定理。对相应连续且可导的 $f,g$，柯西中值定理给出交叉形式
 
-### Hessian 矩阵
-
-标量函数 $f: \mathbb{R}^n \to \mathbb{R}$ 的海森矩阵是二阶偏导数矩阵：
-
 $$
-H = \begin{pmatrix} f_{xx} & f_{xy} \\ f_{yx} & f_{yy} \end{pmatrix}
+[f(b)-f(a)]g'(c)=[g(b)-g(a)]f'(c).
 $$
 
-由 Schwarz 定理，$H$ 是对称矩阵。特征值决定曲率：全正为局部最小值，全负为局部最大值，有正有负为鞍点。
+只有额外确认相关分母非零，才能改写为比值。它们描述连续曲线上的性质，不保证有限帧差分恰好等于某个指定采样时刻的导数。
 
-二阶泰勒展开：
-
-$$
-f(\mathbf{x} + \Delta\mathbf{x}) \approx f(\mathbf{x}) + \nabla f^T \Delta\mathbf{x} + \frac{1}{2}\Delta\mathbf{x}^T H \Delta\mathbf{x}
-$$
+洛必达法则可在满足邻域可导、分母导数非零、导数比极限存在等相应条件时，处理 $0/0$ 或无穷比无穷型极限。它不是允许程序执行除零，也不是所有比值都能通过分子分母分别求导保持不变。
 
-详见《[二阶近似与 Hessian 矩阵](/knowledge/hessian-matrix/)》。
+例如 $\sin x/x$ 在原点的连续延拓值为 $1$；近原点的实现可采用 $1-x^2/6$ 等局部 Taylor 近似，而不必先计算一个数值不稳定的比值。
 
-### 高阶导数与拉普拉斯算子
+### Taylor 多项式与 Fourier 展开
 
-二阶导数描述变化率的变化（急动度 Jerk 为三阶）。拉普拉斯算子是梯度的散度：
+有限阶 Taylor 公式包含余项；无限 Taylor 级数等于原函数还需要更强条件，不能仅由“无限次可导”推出。常见局部展开为
 
 $$
-\nabla^2 f = \frac{\partial^2 f}{\partial x^2} + \frac{\partial^2 f}{\partial y^2} + \frac{\partial^2 f}{\partial z^2}
+e^x=1+x+\tfrac12x^2+\cdots,\quad
+\sin x=x-\tfrac16x^3+\cdots,\quad
+\cos x=1-\tfrac12x^2+\cdots.
 $$
-
-应用：热传导、流体扩散、网格平滑。
-
-```cpp
-// 拉普拉斯平滑：顶点移向邻居平均位置
-FVector SmoothVertex(FVector Center, TArray<FVector> Neighbors)
-{
-    FVector Average = FVector::ZeroVector;
-    for (const FVector& N : Neighbors) Average += N;
-    Average /= Neighbors.Num();
-    return Center + 0.5f * (Average - Center);
-}
-```
 
-### 微分中值定理
+Taylor 围绕一个位置使用局部导数。Fourier 则使用正弦余弦基函数描述周期信号；周期为 $T$ 时，令 $\omega=2\pi/T$，形式为
 
-**罗尔定理**：若 $f$ 在 $[a,b]$ 连续、$(a,b)$ 可导且 $f(a) = f(b)$，则存在 $c \in (a,b)$ 使 $f'(c) = 0$。
-
-**拉格朗日中值定理**：若 $f$ 在 $[a,b]$ 连续、$(a,b)$ 可导，则存在 $c \in (a,b)$ 使：
-
 $$
-f'(c) = \frac{f(b) - f(a)}{b - a}
+f(t)\sim\frac{a_0}{2}+\sum_{n=1}^{\infty}
+\left[a_n\cos(n\omega t)+b_n\sin(n\omega t)\right].
 $$
 
-物理意义：某时刻瞬时速度等于平均速度。
+这里用展开符号而不无条件写逐点相等：收敛方式需要额外假设，跳跃点还涉及左右极限均值与 Gibbs 现象。两种展开解决的问题不同。
 
-**柯西中值定理**：$\frac{f'(c)}{g'(c)} = \frac{f(b)-f(a)}{g(b)-g(a)}$，是洛必达法则的基础。
+## 附录：积分与累积
 
-### 洛必达法则
+### 不定积分与定积分
 
-对于 $\frac{0}{0}$ 或 $\frac{\infty}{\infty}$ 型不定式：
+导数描述局部变化率，积分描述累积。若 $F'=f$，则不定积分写为
 
 $$
-\lim_{x \to a} \frac{f(x)}{g(x)} = \lim_{x \to a} \frac{f'(x)}{g'(x)}
+\int f(x)\,dx=F(x)+c.
 $$
 
-```cpp
-// 数值稳定：避免 0/0
-float SafeSinc(float x)
-{
-    if (FMath::Abs(x) < 1e-4f)
-        return 1.0f - x * x / 6.0f; // 洛必达结果
-    return FMath::Sin(x) / x;
-}
-```
+常数 $c$ 表示所有原函数之间相差的常量。例如 $\int2x\,dx=x^2+c$，而 $\int(1/x)\,dx=\ln|x|+c$，后者在不跨越零点的区间讨论。
 
-### 泰勒级数
+定积分可以由许多小区间上的函数值乘宽度求和，再取极限定义。它是带符号的累积，函数在轴线下方时贡献为负；不一定等于几何面积。
 
-函数 $f(x)$ 在 $x = a$ 处的泰勒展开：
+对连续函数，微积分基本定理把累积与原函数联系起来：
 
 $$
-f(x) = \sum_{n=0}^{\infty} \frac{f^{(n)}(a)}{n!}(x-a)^n
+\int_a^b f(x)\,dx=F(b)-F(a).
 $$
 
-麦克劳林级数（$a = 0$）：
-
-$$
-e^x = 1 + x + \frac{x^2}{2!} + \frac{x^3}{3!} + \cdots
-$$
+若 $A(x)=\int_a^x f(t)\,dt$，则 $A'(x)=f(x)$。连续性等条件与完整表述见[微积分基本定理](https://openstax.org/books/calculus-volume-1/pages/5-3-the-fundamental-theorem-of-calculus)。连续函数还在区间某点取得其积分平均值。
 
-$$
-\sin x = x - \frac{x^3}{3!} + \frac{x^5}{5!} - \cdots
-$$
+对运动，位置变化是速度的时间积分：
 
 $$
-\cos x = 1 - \frac{x^2}{2!} + \frac{x^4}{4!} - \cdots
+x(t)-x(t_0)=\int_{t_0}^{t}v(\tau)\,d\tau.
 $$
 
-```cpp
-// 快速 sin 近似（小角度）
-float FastSin(float x)
-{
-    float x2 = x * x;
-    return x - x2 * x / 6.0f + x2 * x2 * x / 120.0f;
-}
+已知位置可以求速度，但只知道速度还需要初始位置才能恢复完整运动。这也是初值问题需要初始状态的原因。
 
-// 快速开方倒数（Quake III 算法）
-float FastInvSqrt(float x)
-{
-    float halfx = 0.5f * x;
-    int i = *(int*)&x;
-    i = 0x5f3759df - (i >> 1);
-    float y = *(float*)&i;
-    y = y * (1.5f - halfx * y * y); // 牛顿迭代
-    return y;
-}
-```
+### 换元与分部积分
 
-### 傅里叶级数
+换元是链式法则的逆向使用。令 $u=\phi(x)$，有
 
-周期为 $T$ 的函数可表示为正弦余弦之和：
-
 $$
-f(x) = \frac{a_0}{2} + \sum_{n=1}^{\infty}\left[a_n\cos(n\omega x) + b_n\sin(n\omega x)\right]
+\int f(\phi(x))\phi'(x)\,dx=F(\phi(x))+c.
 $$
-
-复数形式：$f(x) = \sum_{n=-\infty}^{\infty} c_n e^{in\omega x}$。
-
-应用：波形合成、音频效果、地形纹理生成。
-
----
 
-## 积分学
+例如 $\int2xe^{x^2}\,dx=e^{x^2}+c$。定积分换元还要变换上下限，并确认变换与定义域适用；三角换元常用来处理平方根中的二次项。
 
-### 不定积分
+分部积分来自乘积求导：
 
-积分是导数的逆运算：
-
 $$
-\int f(x)\,dx = F(x) + C \quad (F'(x) = f(x))
+\int u\,dv=uv-\int v\,du.
 $$
 
-| 函数 | 不定积分 |
-|------|----------|
-| $x^n$ ($n \neq -1$) | $\frac{x^{n+1}}{n+1} + C$ |
-| $1/x$ | $\ln\|x\| + C$ |
-| $e^x$ | $e^x + C$ |
-| $\sin x$ | $-\cos x + C$ |
-| $\cos x$ | $\sin x + C$ |
+例如 $\int xe^x\,dx=xe^x-e^x+c$。这些是解析积分工具，与时间求解器每子步怎样更新状态是不同层面的事情。
 
-### 定积分与微积分基本定理
+### 数值求积与时间推进
 
-**Newton-Leibniz 公式**：
+当函数已知但积分难以解析时，可用矩形、梯形或 Simpson 求积。等宽节点 $x_i=a+i\Delta x$，$\Delta x=(b-a)/n$ 下，复合梯形公式是
 
 $$
-\int_a^b f(x)\,dx = F(b) - F(a)
+\int_a^b f(x)\,dx\approx
+\frac{\Delta x}{2}\sum_{i=0}^{n-1}[f(x_i)+f(x_{i+1})].
 $$
-
-**积分中值定理**：存在 $\xi \in [a,b]$ 使 $\int_a^b f(x)\,dx = f(\xi)(b-a)$。
-
-### 换元积分法
 
-**第一类换元（凑微分）**：
+对正偶数 $n$，复合 Simpson 公式是
 
 $$
-\int f[\phi(x)]\phi'(x)\,dx = F[\phi(x)] + C
+\int_a^b f(x)\,dx\approx\frac{\Delta x}{3}
+\left[f(x_0)+4\sum_{\substack{i=1\\i\text{ 为奇数}}}^{n-1}f(x_i)
++2\sum_{\substack{i=2\\i\text{ 为偶数}}}^{n-2}f(x_i)+f(x_n)\right].
 $$
 
-例：$\int 2x\,e^{x^2}\,dx$，令 $u = x^2$，则 $\int e^u\,du = e^{x^2} + C$。
+在适当有界高阶导数条件下，复合梯形与 Simpson 的全局误差分别为二阶和四阶；非光滑函数不能直接套用这些精度结论。步数还须为正，不能只检查偶数性。
 
-**第二类换元（三角换元）**：
+已知函数的求积，与力依赖未知位置和速度时的动力学时间推进不同。Euler、Verlet、RK 与隐式方法见[数值积分：方法、误差与稳定性](/knowledge/numerical-integration-methods/)。
 
-- 含 $\sqrt{a^2 - x^2}$：令 $x = a\sin t$
-- 含 $\sqrt{a^2 + x^2}$：令 $x = a\tan t$
-- 含 $\sqrt{x^2 - a^2}$：令 $x = a\sec t$
+### 多重积分、路径与曲面
 
-### 分部积分法
+空间分布需要对面积或体积积分。例如密度 $\rho$ 给出总质量与质心：
 
 $$
-\int u\,dv = uv - \int v\,du
+m=\iiint_\Omega\rho\,dV,\qquad
+\mathbf{x}_{\mathrm{com}}=\frac1m\iiint_\Omega\mathbf{x}\rho\,dV.
 $$
-
-例：$\int x e^x\,dx = xe^x - e^x + C$。
-
-循环积分例：$\int e^x \sin x\,dx$，两次分部后得 $I = \frac{e^x(\sin x - \cos x)}{2} + C$。
-
-### 数值积分
-
-**矩形法**：$\int_a^b f(x)\,dx \approx \sum f(x_i)\Delta x$
 
-**梯形法**：
+换坐标必须包含体积缩放：极坐标中 $dA=r\,dr\,d\theta$；球坐标以极角 $\phi$、方位角 $\theta$ 表示时，$dV=r^2\sin\phi\,dr\,d\phi\,d\theta$。其来源是 Jacobian 行列式，不能只替换函数表达式而遗漏测度。
 
-$$
-\int_a^b f(x)\,dx \approx \frac{\Delta x}{2}\sum_{i=0}^{n-1}[f(x_i) + f(x_{i+1})]
-$$
-
-**辛普森法则**（高精度）：
+沿参数曲线 $\mathbf{r}(t)$，标量的弧长积分与力的做功分别为
 
 $$
-\int_a^b f(x)\,dx \approx \frac{\Delta x}{3}\left[f(x_0) + 4\sum_{\text{odd}} f(x_i) + 2\sum_{\text{even}} f(x_i) + f(x_n)\right]
+\int_\Gamma f\,ds=\int_a^b f(\mathbf{r}(t))\|\mathbf{r}'(t)\|\,dt,
 $$
 
-```cpp
-float SimpsonsIntegration(TFunction<float(float)> Function, float a, float b, int Steps)
-{
-    ensure(Steps % 2 == 0);
-    float dx = (b - a) / Steps;
-    float Sum = Function(a) + Function(b);
-    for (int i = 1; i < Steps; i += 2) Sum += 4.0f * Function(a + i * dx);
-    for (int i = 2; i < Steps; i += 2) Sum += 2.0f * Function(a + i * dx);
-    return Sum * dx / 3.0f;
-}
-```
-
-### 多重积分
-
-**二重积分**：
-
 $$
-\iint_D f(x, y)\,dA = \int_a^b \int_{g_1(x)}^{g_2(x)} f(x, y)\,dy\,dx
+W=\int_\Gamma\mathbf{F}\cdot d\mathbf{r}
+=\int_a^b\mathbf{F}(\mathbf{r}(t))^{\mathsf T}\mathbf{r}'(t)\,dt.
 $$
-
-**极坐标**：$dA = r\,dr\,d\theta$（雅可比行列式）。
 
-**三重积分**：球坐标 $dV = \rho^2 \sin\phi\,d\rho\,d\phi\,d\theta$。
+曲面积分则累积曲面上的标量或通量。曲线方向、曲面法线和参数化都参与符号约定，涉及闭合边界的关系见下节。
 
-应用：质心 $\bar{x} = \frac{\iiint x\rho\,dV}{\iiint \rho\,dV}$，转动惯量 $I = \iiint r^2 \rho\,dV$。
+## 附录：向量场与空间微分
 
-### 曲线积分与曲面积分
+### 梯度、散度、旋度与拉普拉斯
 
-**第一类曲线积分**（对弧长）：
+梯度将标量场的空间变化组织为向量；对三维向量场 $\mathbf{F}=(F_x,F_y,F_z)^{\mathsf T}$，散度将各方向流出变化相加，结果为标量：
 
 $$
-\int_C f(x,y)\,ds = \int_a^b f(x(t),y(t))\sqrt{x'^2 + y'^2}\,dt
+\nabla\cdot\mathbf{F}=\partial_xF_x+\partial_yF_y+\partial_zF_z.
 $$
 
-**第二类曲线积分**（对坐标，力沿路径做功）：
+旋度是描述局部旋转的向量，采用标准右手定向的分量公式：
 
 $$
-\int_C \mathbf{F} \cdot d\mathbf{r} = \int_a^b \mathbf{F}(\mathbf{r}(t)) \cdot \mathbf{r}'(t)\,dt
+\nabla\times\mathbf{F}=
+\begin{bmatrix}
+\partial_yF_z-\partial_zF_y\\
+\partial_zF_x-\partial_xF_z\\
+\partial_xF_y-\partial_yF_x
+\end{bmatrix}.
 $$
 
-**Green 公式**：
+接入具体引擎时，要核对坐标定向、叉乘和角向量约定。拉普拉斯算子对标量场是梯度的散度：
 
 $$
-\oint_C P\,dx + Q\,dy = \iint_D \left(\frac{\partial Q}{\partial x} - \frac{\partial P}{\partial y}\right)dA
+\nabla^2f=\nabla\cdot\nabla f=\partial_{xx}f+\partial_{yy}f+\partial_{zz}f.
 $$
 
-**Gauss 散度定理**：
+它是 Hessian 的迹，是一个数；Hessian 保留全部二阶方向信息，是矩阵。二者不能互换。
 
-$$
-\iiint_\Omega \nabla \cdot \mathbf{F}\,dV = \oiint_{\partial\Omega} \mathbf{F} \cdot d\mathbf{S}
-$$
-
-**Stokes 公式**：
-
-$$
-\iint_S (\nabla \times \mathbf{F}) \cdot d\mathbf{S} = \oint_{\partial S} \mathbf{F} \cdot d\mathbf{r}
-$$
-
----
+对速度场，不可压缩条件是散度为零；对力场，散度为零并不能直接解释为流体不可压缩。场代表什么物理量，必须先定义。压力、黏性与流体方程见[PDE](/knowledge/partial-differential-equations/)和[流体动力学](/knowledge/fluid-dynamics/)。
 
-## 向量微积分
+### 恒等式与积分定理
 
-### 梯度
+在足够光滑的区域，混合偏导相等给出
 
 $$
-\nabla f = \left(\frac{\partial f}{\partial x}, \frac{\partial f}{\partial y}, \frac{\partial f}{\partial z}\right)
+\nabla\times\nabla f=\mathbf0,\qquad
+\nabla\cdot(\nabla\times\mathbf{F})=0,
 $$
 
-梯度指向函数增长最快方向，垂直于等值面。运算法则：$\nabla(fg) = f\nabla g + g\nabla f$。
-
-### 散度
-
 $$
-\nabla \cdot \mathbf{F} = \frac{\partial P}{\partial x} + \frac{\partial Q}{\partial y} + \frac{\partial R}{\partial z}
+\nabla\times(\nabla\times\mathbf{F})
+=\nabla(\nabla\cdot\mathbf{F})-\nabla^2\mathbf{F}.
 $$
-
-$\nabla \cdot \mathbf{F} > 0$ 为源（发散），$< 0$ 为汇（收敛），$= 0$ 为无源场（不可压缩流体）。
 
-### 旋度
+Green 定理把平面正向边界上的线积分与内部旋度分量联系起来：
 
 $$
-\nabla \times \mathbf{F} = \left(\frac{\partial R}{\partial y} - \frac{\partial Q}{\partial z}, \frac{\partial P}{\partial z} - \frac{\partial R}{\partial x}, \frac{\partial Q}{\partial x} - \frac{\partial P}{\partial y}\right)
+\oint_{\partial D}P\,dx+Q\,dy
+=\iint_D(\partial_xQ-\partial_yP)\,dA.
 $$
 
-$\nabla \times \mathbf{F} = \mathbf{0}$ 为保守场/无旋场。流体力学中表示涡量。
+散度定理与 Stokes 定理分别写为
 
-### 重要恒等式
-
 $$
-\nabla \times (\nabla f) = \mathbf{0} \quad \text{（梯度场无旋）}
+\iiint_\Omega\nabla\cdot\mathbf{F}\,dV
+=\iint_{\partial\Omega}\mathbf{F}\cdot\mathbf{n}\,dS,
 $$
 
 $$
-\nabla \cdot (\nabla \times \mathbf{F}) = 0 \quad \text{（旋度场无散）}
+\iint_S(\nabla\times\mathbf{F})\cdot\mathbf{n}\,dS
+=\oint_{\partial S}\mathbf{F}\cdot d\mathbf{r}.
 $$
 
-$$
-\nabla \times (\nabla \times \mathbf{F}) = \nabla(\nabla \cdot \mathbf{F}) - \nabla^2 \mathbf{F}
-$$
+这些关系要求相应光滑场、规则区域和一致边界定向，不能在穿过奇点时无条件使用。它们也是连续守恒律与通量离散的基础，进一步见[连续介质](/knowledge/continuum-mechanics/)。
+
+### 保守场与势函数
 
-### 保守场
+若向量场存在势函数 $\phi$，使 $\mathbf{F}=\nabla\phi$，则沿路径的积分仅由端点决定，称为保守场。物理力使用势能 $U$ 时通常采用 $\mathbf{F}=-\nabla U$，二者只差势函数的符号约定。
 
-向量场 $\mathbf{F}$ 是保守场当且仅当存在势函数 $\phi$ 使 $\mathbf{F} = \nabla\phi$，等价于 $\nabla \times \mathbf{F} = \mathbf{0}$（单连通区域），且曲线积分与路径无关。
+光滑梯度场无旋；反过来，从无旋推出存在全局势函数，还需要定义域条件，例如在单连通开区域内的适当光滑场。绕过奇点的有孔区域可能存在无旋但不保守的场。[保守向量场](https://openstax.org/books/calculus-volume-3/pages/6-3-conservative-vector-fields)说明了这种局部与全局的区别。
 
----
+## 来源与继续阅读
 
-## 参考文献
+基础定义与条件参考上方对应的 OpenStax 教材章节；文中的抛物线、椭圆碗与弹簧是按统一符号自行展开的数学算例，不是论文性能复现。
 
-1. Stewart, J. *Calculus: Early Transcendentals*. ——标准微积分教材。
-2. Strang, G. *Calculus*. MIT OpenCourseWare. ——免费在线教材。
-3. 《[常微分方程：状态、初值与动力系统](/knowledge/differential-equations/)》 — ODE 与数值积分方法。
-4. 《[偏微分方程：场、边界与空间离散](/knowledge/partial-differential-equations/)》 — PDE 与有限差分。
-5. 《[数学符号与 LaTeX 速查](/knowledge/mathematical-notation-reference/)》 — 数学符号书写规范。
-6. 《[Jacobian 矩阵与局部线性化](/knowledge/jacobian-matrix/)》 — 雅可比矩阵深拆。
-7. 《[二阶近似与 Hessian 矩阵](/knowledge/hessian-matrix/)》 — 海森矩阵深拆。
+- [Jacobian 矩阵与局部线性化](/knowledge/jacobian-matrix/)：多输出映射、IK 与导数的对偶关系。
+- [二阶近似与 Hessian 矩阵](/knowledge/hessian-matrix/)：曲率、Newton、Gauss–Newton 与导数检查。
+- [常微分方程](/knowledge/differential-equations/)与[数值积分](/knowledge/numerical-integration-methods/)：从连续运动方程到离散时间推进。
+- [PBD 与 XPBD](/knowledge/pbd-xpbd-math/)、[VBD 与 AVBD](/knowledge/vbd-avbd-math/)及[四种方法对比](/knowledge/pbd-xpbd-vbd-avbd-comparison/)：导数参与实际求解的目标、状态与边界。
+- [数学符号与 LaTeX 速查](/knowledge/mathematical-notation-reference/)：按需查询记号。

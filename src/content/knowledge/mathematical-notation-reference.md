@@ -30,7 +30,7 @@ sources: []
 ---
 这是一份按需查阅的符号表，不是阅读其他文章之前必须完成的章节。同一符号在不同领域可能有不同含义，正文中的局部定义优先；公式推导分别见[微积分](/knowledge/calculus-foundations/)与[空间数学](/knowledge/ue-linear-algebra-guide/)。
 
-> 数学符号是技术写作的"字母表"。本文按领域归类高等数学中最常用的符号及其 LaTeX 代码，统一使用 `$...$` 与 `$$...$$` 语法（本站 KaTeX 渲染管线同样依赖这两种分隔符）。阅读本站《[工程微积分：变化率、累积与局部近似](/knowledge/calculus-foundations/)》、《[UE 空间数学：向量、矩阵与变换](/knowledge/ue-linear-algebra-guide/)》、《[常微分方程：状态、初值与动力系统](/knowledge/differential-equations/)》 等文章时遇到不熟悉的记号，可随时回到本篇对照。
+> 数学符号是技术写作的"字母表"。本文按领域归类高等数学中最常用的符号及其 LaTeX 代码，统一使用 `$...$` 与 `$$...$$` 语法（本站 KaTeX 渲染管线同样依赖这两种分隔符）。阅读本站《[微分基础：从导数到梯度与物理求解](/knowledge/calculus-foundations/)》、《[UE 空间数学：向量、矩阵与变换](/knowledge/ue-linear-algebra-guide/)》、《[常微分方程：状态、初值与动力系统](/knowledge/differential-equations/)》 等文章时遇到不熟悉的记号，可随时回到本篇对照。
 
 ---
 

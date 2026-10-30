@@ -13,6 +13,8 @@ import React, { useEffect } from "react";
 import { createRoot, type Root } from "react-dom/client";
 
 export const DEMO_REGISTRY: Record<string, () => Promise<React.ComponentType>> = {
+  'calculus-secant': () => import('./CalculusDemos').then(m => m.SecantDemo),
+  'calculus-gradient': () => import('./CalculusDemos').then(m => m.GradientDemo),
   'course-points': () => import('./CourseLabs').then(m => m.PointsLab),
   'course-timestep': () => import('./CourseLabs').then(m => m.TimestepLab),
   'course-pose': () => import('./CourseLabs').then(m => m.PoseLab),

@@ -27,7 +27,7 @@ sources: []
 
 > 偏微分方程（PDE）描述涉及多个自变量的物理过程：热扩散、波传播、流体运动。从烟雾扩散到水面波纹，从气流模拟到稳态场，PDE 是连续物理模拟的数学语言。
 >
-> 本文为教材式总览，微积分基础见《[工程微积分：变化率、累积与局部近似](/knowledge/calculus-foundations/)》，ODE 与数值积分方法见《[常微分方程：状态、初值与动力系统](/knowledge/differential-equations/)》。Navier-Stokes 方程的粒子离散化（SPH/PBF）见《[SPH 流体：核插值、压力与边界](/knowledge/sph-fluid-simulation/)》与《[PBF 流体：密度约束与位置修正](/knowledge/pbf-fluid-simulation/)》。
+> 本文为教材式总览，微分基础见《[微分基础：从导数到梯度与物理求解](/knowledge/calculus-foundations/)》，ODE 与数值积分方法见《[常微分方程：状态、初值与动力系统](/knowledge/differential-equations/)》。Navier-Stokes 方程的粒子离散化（SPH/PBF）见《[SPH 流体：核插值、压力与边界](/knowledge/sph-fluid-simulation/)》与《[PBF 流体：密度约束与位置修正](/knowledge/pbf-fluid-simulation/)》。
 
 ---
 
@@ -393,7 +393,7 @@ $
 1. Stam, J. (1999). *Stable Fluids*. ACM SIGGRAPH. ——网格法流体模拟的经典方法。
 2. Bridson, R. *Fluid Simulation for Computer Graphics*. ——流体模拟权威教材。
 3. LeVeque, R. *Finite Difference Methods for Ordinary and Partial Differential Equations*. ——有限差分方法教材。
-4. 《[工程微积分：变化率、累积与局部近似](/knowledge/calculus-foundations/)》 — 拉普拉斯算子、梯度、散度、旋度的理论基础。
+4. 《[微分基础：从导数到梯度与物理求解](/knowledge/calculus-foundations/)》 — 导数与梯度的推导；空间算子见[向量场附录](/knowledge/calculus-foundations/#附录向量场与空间微分)。
 5. 《[常微分方程：状态、初值与动力系统](/knowledge/differential-equations/)》 — ODE 数值积分方法。
 6. 《[SPH 流体：核插值、压力与边界](/knowledge/sph-fluid-simulation/)》 — Navier-Stokes 的粒子离散化。
 7. 《[PBF 流体：密度约束与位置修正](/knowledge/pbf-fluid-simulation/)》 — 位置基不可压缩流体。

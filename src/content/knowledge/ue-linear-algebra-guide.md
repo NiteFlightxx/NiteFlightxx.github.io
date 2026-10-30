@@ -1157,7 +1157,7 @@ Body->AddTorqueInRadians(Torque);
 
 ### 数学与数值方法
 
-- 《[工程微积分：变化率、累积与局部近似](/knowledge/calculus-foundations/)》
+- 《[微分基础：从导数到梯度与物理求解](/knowledge/calculus-foundations/)》
 - 《[常微分方程：状态、初值与动力系统](/knowledge/differential-equations/)》
 - 《[Jacobian 矩阵与局部线性化](/knowledge/jacobian-matrix/)》
 - 《[二阶近似与 Hessian 矩阵](/knowledge/hessian-matrix/)》

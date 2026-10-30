@@ -30,6 +30,8 @@ PBD、XPBD、VBD、AVBD 都能通过修改位置推进物理，但它们不是�
 
 本文以同一套粒子模型推导差异，再扩展到刚体、材料与接触。它是一篇**跨方法比较主文**；约束几何和有效质量详见[物理约束](/knowledge/physics_constraints_deep_dive/)，具体约束导数见[PBD/XPBD](/knowledge/pbd-xpbd-math/)，能量及局部块装配见[VBD/AVBD](/knowledge/vbd-avbd-math/)，不再重复所有距离、体积和弯曲约束的完整实现。
 
+导数、偏导数与梯度的基础推导见[微分基础](/knowledge/calculus-foundations/)；其中的[双粒子弹簧](/knowledge/calculus-foundations/#物理中的约束梯度能量梯度与力)串起了约束误差、能量梯度与力的符号和单位。
+
 ## 先给结论
 
 - **PBD**：从预测位置逐约束投影，适合低成本几何控制；传统投影强度不等于有单位的材料刚度。
