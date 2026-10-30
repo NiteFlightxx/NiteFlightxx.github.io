@@ -252,4 +252,64 @@ assert.throws(()=>springEnergyGradient([0,0,0],[1,0,0],1,0),/invalid/);
 assert.throws(()=>springEnergyGradient([NaN,0,0],[1,0,0]),/invalid/);
 assert.throws(()=>checkSpringDirection([0,0,0],[2,0,0],[0,0,0,2,0,0]),/invalid/);
 assert.throws(()=>checkSpringDirection([0,0,0],[2,0,0],directions[0],0),/invalid/);
-console.log('Document examples passed: calculus gradients, dynamics, materials, integration, linear solvers, XPBD, grid candidates and published PBD/XPBD/VBD/ALM comparisons. Not an engine runtime test.');
+const { circleState } = await example('calculus-foundations', 'knowledge-calculus-circle-example');
+for (const [theta, sign] of [[Math.PI/4, 1], [5*Math.PI/4, -1]]) {
+  const circle = circleState(theta), multiplier = sign/Math.sqrt(2);
+  near(circle.constraint,0); near(circle.objectiveRate,0);
+  near(circle.objective,sign*Math.sqrt(2));
+  circle.constraintGradient.forEach(g=>near(multiplier*g,1));
+  for (const offset of [-.1,.1]) {
+    assert.ok(sign*(circle.objective-circleState(theta+offset).objective)>0);
+  }
+}
+near(circleState(0).objectiveRate,1);
+for (const theta of [0,.4,1,2,4]) {
+  const circle=circleState(theta);
+  near(circle.constraintGradient.reduce((s,g,i)=>s+g*circle.tangent[i],0),0);
+}
+assert.throws(()=>circleState(NaN),/invalid/);
+const { twoOutput, jacobianAt, localPrediction } = await example('jacobian-matrix','knowledge-jacobian-local-example');
+const prediction=localPrediction();
+assert.deepEqual(prediction.J,[[4,1],[-1,6]]);
+prediction.predicted.forEach((v,i)=>near(v,[.6,1.1][i]));
+prediction.actual.forEach((v,i)=>near(v,[.61,1.14][i]));
+prediction.remainder.forEach((v,i)=>near(v,[.01,.04][i]));
+const halfPrediction=localPrediction([2,3],[.05,.1]);
+halfPrediction.remainder.forEach((v,i)=>near(4*v,prediction.remainder[i]));
+for (const q of [[2,3],[-1,.4],[0,0]]) {
+  const J=jacobianAt(q), epsilon=1e-5;
+  for(let column=0;column<2;column++){
+    const before=q.slice(),after=q.slice();
+    before[column]-=epsilon; after[column]+=epsilon;
+    const lo=twoOutput(before),hi=twoOutput(after);
+    for(let row=0;row<2;row++) near((hi[row]-lo[row])/(2*epsilon),J[row][column],1e-8);
+  }
+}
+const scalarEnergy=q=>twoOutput(q).reduce((sum,v)=>sum+.5*v*v,0);
+for (let j=0;j<2;j++){
+  const a=[2,3],b=[2,3]; a[j]-=1e-5; b[j]+=1e-5;
+  near((scalarEnergy(b)-scalarEnergy(a))/2e-5,[21,49][j],1e-7);
+}
+assert.throws(()=>localPrediction([2,3],[NaN,0]),/invalid/);
+const { distanceRow, transposeAction } = await example('jacobian-matrix','knowledge-jacobian-constraint-example');
+const row=distanceRow([0,0],[3,4]);
+near(row.C,0); row.J.forEach((v,i)=>near(v,[-.6,-.8,.6,.8][i]));
+const action=transposeAction(row.J,-10);
+action.forEach((v,i)=>near(v,[6,8,-6,-8][i]));
+near(action[0]+action[2],0); near(action[1]+action[3],0);
+const dot=(a,b)=>a.reduce((sum,v,i)=>sum+v*b[i],0);
+near(dot(row.J,[0,0,1,0]),.6);
+near(dot(row.J,[0,0,-.8,.6]),0);
+near(dot(action,[0,0,-.8,.6]),0);
+for(const delta of [[1,2,3,4],[-2,.7,.3,-1]]) near(dot(action,delta),-10*dot(row.J,delta));
+for(const q of [[0,0,3,4],[.2,-.3,1.4,.8]]){
+  const J=distanceRow(q.slice(0,2),q.slice(2)).J;
+  for(let j=0;j<4;j++){
+    const a=q.slice(),b=q.slice(); a[j]-=1e-5;b[j]+=1e-5;
+    const lo=distanceRow(a.slice(0,2),a.slice(2)).C,hi=distanceRow(b.slice(0,2),b.slice(2)).C;
+    near((hi-lo)/2e-5,J[j],1e-8);
+  }
+}
+assert.throws(()=>distanceRow([0,0],[0,0]),/degenerate/);
+assert.throws(()=>transposeAction([1,NaN],2),/invalid/);
+console.log('Document examples passed: derivatives, constrained extrema, Jacobian predictions and virtual work, dynamics, materials, integration and solver comparisons. Not an engine runtime test.');

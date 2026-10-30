@@ -5,7 +5,7 @@ date: '2026-09-06'
 category: Mathematics
 subtopic: Calculus
 tags: [微积分, 导数, 偏导数, 梯度, 物理求解]
-readTime: 阅读约60分钟
+readTime: 阅读约75分钟
 kind: theory
 level: foundation
 pageType: guide
@@ -31,6 +31,8 @@ sources:
     url: https://openstax.org/books/calculus-volume-3/pages/4-5-the-chain-rule
   - title: OpenStax Calculus Volume 3 — Directional Derivatives and the Gradient
     url: https://openstax.org/books/calculus-volume-3/pages/4-6-directional-derivatives-and-the-gradient
+  - title: OpenStax Calculus Volume 3 — Lagrange Multipliers
+    url: https://openstax.org/books/calculus-volume-3/pages/4-8-lagrange-multipliers
   - title: OpenStax Calculus Volume 1 — The Fundamental Theorem of Calculus
     url: https://openstax.org/books/calculus-volume-1/pages/5-3-the-fundamental-theorem-of-calculus
   - title: OpenStax Calculus Volume 3 — Conservative Vector Fields
@@ -39,7 +41,7 @@ sources:
 
 导数回答“输入稍微变化，输出会怎样变化”；偏导数把这个问题分解到各个输入；梯度把这些信息合在一起，用来预测任意小位移造成的标量变化。物理中的约束修正、弹性力和能量最小化，都建立在这条关系上。
 
-本文从函数和变化量开始，不预设读者已经理解微积分。三个贯穿示例是抛物线、二维椭圆碗和双粒子弹簧：先看变化，再计算导数，最后解释这些导数怎样进入求解器。除明确标出物理单位的部分外，数学算例均采用无量纲变量；一般数学推导不代表某个 UE 插件已经采用或验证了对应实现。
+本文从函数和变化量开始，不预设读者已经理解微积分。先用抛物线理解一个输入的变化，再用二维椭圆碗理解多个输入；接着在单位圆上寻找极值，解释约束与拉格朗日乘子，最后用双粒子弹簧连接物理求解。数学算例先采用无量纲变量，弹簧部分再明确物理单位。
 
 积分、三角函数与向量场的既有内容整理在文末附录，按需查阅。Jacobian、Hessian 和四种位置求解方法的完整技术展开，分别链接对应主文。
 
@@ -65,12 +67,12 @@ $$
 \mathbf{x}=\begin{bmatrix}x\\y\\z\end{bmatrix}.
 $$
 
-全文向量默认采用列向量。$\mathbb R^n$ 表示由 $n$ 个实数分量组成的空间。函数的输入维度和输出维度是两件事：
+全文向量默认竖着写成列向量。先通过几个具体对象区分输入与输出：
 
-- $x(t):\mathbb R\to\mathbb R$：时间输入，一个位置分量输出。
-- $\mathbf{x}(t):\mathbb R\to\mathbb R^3$：时间输入，三维位置输出。
-- $h(x,y):\mathbb R^2\to\mathbb R$：平面坐标输入，地形高度输出。
-- $U(\mathbf{x}):\mathbb R^{3N}\to\mathbb R$：全部粒子的位置输入，一个总势能输出。
+- 输入时间，输出一个位置分量，是一个输入、一个输出。
+- 输入时间，输出三维位置，是一个输入、三个输出分量。
+- 输入地面横纵坐标，输出地形高度，是两个输入、一个输出。
+- 输入两个三维粒子的位置，输出弹簧势能，是六个输入分量、一个输出。
 
 一元与多元描述输入；标量输出与向量输出描述输出。一个多元函数完全可以只输出一个数，势能就是这种情况。
 
@@ -307,17 +309,28 @@ $$
 f(x,y)=x^2+2y^2.
 $$
 
-固定 $y$，只改变 $x$，得到一条一元函数曲线。对这条曲线求导，就是对 $x$ 的偏导数：
+先固定 $y=1$，函数变成 $f(x,1)=x^2+2$。常数项 $2$ 不随 $x$ 改变，沿这条曲线求导得到 $2x$。把固定值换成任意 $y$，$2y^2$ 仍然是相对于 $x$ 的常数，因此
 
 $$
 \frac{\partial f}{\partial x}
-=\lim_{s\to0}\frac{f(x+s,y)-f(x,y)}s=2x.
+=\frac{\partial}{\partial x}(x^2)+\frac{\partial}{\partial x}(2y^2)
+=2x+0=2x.
 $$
 
-同理，固定 $x$，得到
+这就是偏导数（Partial Derivative）：暂时固定其他输入，只沿一个输入方向计算变化率。从极限定义也可以逐项验证：
 
 $$
-\frac{\partial f}{\partial y}=4y.
+\frac{\partial f}{\partial x}
+=\lim_{s\to0}\frac{(x+s)^2+2y^2-(x^2+2y^2)}s
+=\lim_{s\to0}(2x+s)=2x.
+$$
+
+再对 $y$ 求偏导。这次 $x^2$ 是常数，而 $2y^2$ 的导数为 $4y$：
+
+$$
+\frac{\partial f}{\partial y}
+=\frac{\partial}{\partial y}(x^2)+\frac{\partial}{\partial y}(2y^2)
+=0+4y=4y.
 $$
 
 符号 $\partial$ 提醒我们：输入不止一个，此次只改变其中一个。几何上，两条偏导数分别来自沿坐标方向切开曲面的截线。[偏导数的定义与截面解释](https://openstax.org/books/calculus-volume-3/pages/4-3-partial-derivatives)给出了对应教材表述。
@@ -344,27 +357,13 @@ $$
 
 对地形高度求时间导数同样如此：坡度还要乘上行进速度。更一般的依赖传播见[多元链式法则](https://openstax.org/books/calculus-volume-3/pages/4-5-the-chain-rule)。
 
-### 偏导数存在不代表整体可微
-
-分别沿坐标轴观察，只覆盖了全部接近路径中的很小一部分。例如定义
-
-$$
-q(x,y)=
-\begin{cases}
-\dfrac{xy}{x^2+y^2},&(x,y)\ne(0,0),\\
-0,&(x,y)=(0,0).
-\end{cases}
-$$
-
-沿两条坐标轴，函数恒为零，所以原点两个偏导数都是零；沿 $y=x$ 接近原点，函数却恒为 $1/2$。它在原点甚至不连续，当然无法用一个统一的平面近似。
-
-常用的充分条件是：各一阶偏导在该点附近存在，并在该点连续，则函数在该点可微。可微要求所有足够小的方向共享同一个一阶模型，而不仅是坐标轴上算得出斜率。
-
 ## 全微分、方向导数与梯度
 
 ### 多个输入同时变化
 
-对可微函数，二维的一阶模型为
+现在两个输入同时改变：在 $(1,1)$ 处，横向改变 $0.1$，纵向也改变 $0.1$。横向的一阶贡献是 $2\times0.1=0.2$，纵向的一阶贡献是 $4\times0.1=0.4$，相加得到 $0.6$。
+
+为什么可以相加？因为局部线性模型把各个输入的影响分别计算，再叠加。对这里的光滑函数，任意小扰动 $(s_x,s_y)$ 满足
 
 $$
 f(x+s_x,y+s_y)
@@ -381,7 +380,29 @@ $$
 
 ### 梯度把偏导数组合起来
 
-定义梯度（Gradient）为偏导数组成的列向量：
+我们已经算出两个偏导数：$2x$ 与 $4y$。它们分别回答两个坐标方向的问题。为了同时保存这两条信息，把它们按输入顺序排列为列向量：
+
+$$
+\nabla f(x,y)=\begin{bmatrix}2x\\4y\end{bmatrix}.
+$$
+
+这个向量叫梯度（Gradient）。$\nabla$ 读作 nabla；在这里，它表示对标量函数的各个输入分别求偏导并组成向量。在 $(1,1)$ 处，梯度为 $(2,4)^{\mathsf T}$：第一个分量是横向变化率，第二个分量是纵向变化率。
+
+现在回到全微分，把一次普通乘法展开：
+
+$$
+df=2\,dx+4\,dy
+=\begin{bmatrix}2&4\end{bmatrix}
+\begin{bmatrix}dx\\dy\end{bmatrix}.
+$$
+
+这个“对应分量相乘后相加”的运算就是内积。上标 $\mathsf T$ 表示转置，把梯度列向量转为行向量后，得到
+
+$$
+df=\nabla f^{\mathsf T}d\mathbf{x}.
+$$
+
+所以把偏导数组成向量的用途已经明确：给定实际位移的各个分量，就能用一次内积预测标量输出的一阶变化。最后再推广到 $n$ 个输入；$\mathbb R^n$ 表示由 $n$ 个实数分量组成的空间，梯度写成
 
 $$
 \nabla f=
@@ -390,25 +411,20 @@ $$
 \end{bmatrix}.
 $$
 
-向量内积 $\mathbf{a}^{\mathsf T}\mathbf{b}=\sum_i a_ib_i$ 将对应分量相乘后相加。因此全微分可以简写为
-
-$$
-df=\nabla f^{\mathsf T}d\mathbf{x}.
-$$
-
-梯度的每个分量都回答“只改这个输入，输出变化多快”；内积把实际位移在各个输入上的贡献汇总起来。它不是另一个与偏导无关的运算。
-
-在椭圆碗的 $(1,1)$ 处，
-
-$$
-\nabla f=\begin{bmatrix}2\\4\end{bmatrix}.
-$$
-
 注意梯度生活在输入空间中。地形高度函数的二维梯度位于水平参数平面，不是高度曲面的三维法线；三维曲面法线可由 $(-h_x,-h_y,1)$ 归一化得到。
 
 ### 方向导数是指定方向上的变化率
 
-单位向量 $\mathbf{u}$ 满足 $\|\mathbf{u}\|=1$，只表示方向。沿它移动距离 $s$，得到方向导数
+有了梯度，现在可以回答“如果斜着走，会怎样”。先把移动分成方向与距离：单位向量 $\mathbf{u}$ 满足 $\|\mathbf{u}\|=1$，只表示方向；沿它移动距离 $s$，位移就是 $s\mathbf{u}$。
+
+代入一阶模型，得到
+
+$$
+\Delta f\approx\nabla f^{\mathsf T}(s\mathbf{u})
+=s(\nabla f^{\mathsf T}\mathbf{u}).
+$$
+
+再除以移动距离 $s$ 并取极限，就得到方向导数：
 
 $$
 D_{\mathbf{u}}f(\mathbf{x})
@@ -418,7 +434,20 @@ $$
 
 最后一个等号要求函数在该点可微。对非单位向量也能计算路径导数，但其大小还包含参数化速度，不能再直接解释为“每单位移动距离”的变化率。
 
-在 $(1,1)$ 沿 $\mathbf{u}=(1,-1)^{\mathsf T}/\sqrt2$ 行进：
+仍在 $(1,1)$，先选几个可以直接核对的单位方向：
+
+$$
+\begin{aligned}
+\mathbf{u}=(1,0)^{\mathsf T}&:\quad D_{\mathbf u}f=2,\\
+\mathbf{u}=(0,1)^{\mathsf T}&:\quad D_{\mathbf u}f=4,\\
+\mathbf{u}=\frac{(2,4)^{\mathsf T}}{\sqrt{20}}
+&:\quad D_{\mathbf u}f=\frac{2\times2+4\times4}{\sqrt{20}}=\sqrt{20}.
+\end{aligned}
+$$
+
+前两个方向就是偏导数；第三个方向是梯度归一化后的方向，变化率约为 $4.472$。如果把第三个方向反过来，变化率变成 $-\sqrt{20}$。因此梯度长度描述局部最大的每单位距离增长率，不是当前函数值。
+
+再沿 $\mathbf{u}=(1,-1)^{\mathsf T}/\sqrt2$ 行进：
 
 $$
 D_{\mathbf{u}}f=\frac{2-4}{\sqrt2}=-\sqrt2.
@@ -445,7 +474,9 @@ $\theta$ 是二者的夹角。在所有单位方向中，$\cos\theta=1$ 时变�
 
 ### 等值面、驻点与步长
 
-等值线上的点满足 $f(\mathbf{x})=c$。沿等值线的切线方向 $\mathbf{t}$ 运动，函数一阶变化为零，因此
+等值线上的点满足 $f(\mathbf{x})=c$。例如椭圆碗通过 $(1,1)$ 的等值线满足 $x^2+2y^2=3$。在这个点，方向 $(2,-1)^{\mathsf T}$ 与梯度 $(2,4)^{\mathsf T}$ 的内积为零：横向增长与纵向下降的一阶贡献恰好抵消。
+
+一般地，沿等值线的切线方向 $\mathbf{t}$ 运动，函数一阶变化为零，因此
 
 $$
 \nabla f^{\mathsf T}\mathbf{t}=0.
@@ -457,11 +488,166 @@ $$
 
 即使当前负梯度是下降方向，也不代表沿它走任意远都会下降。对 $f(x)=x^2$，在 $x=1$ 用 $x_{\mathrm{new}}=x-\eta f'(x)$：取 $\eta=0.1$ 得到 $0.8$，函数下降；取 $\eta=2$ 得到 $-3$，函数反而增大。方向和步长必须分别考虑。
 
+## 约束极值与拉格朗日乘子
+
+### 只能沿单位圆移动时，怎样寻找极值
+
+考虑一个简单问题：让 $f(x,y)=x+y$ 尽可能大，但位置必须满足
+
+$$
+g(x,y)=x^2+y^2-1=0.
+$$
+
+在整个平面上，沿右上方可以一直增加目标值；单位圆约束限制了我们能够到达的位置。例如 $(1,0)$ 是可行点，但直接沿目标梯度 $(1,1)^{\mathsf T}$ 走一小段，会离开圆周。
+
+因此首先要问：在当前位置，哪些方向是圆周允许的切向方向？其次才问：在这些方向中，是否还能提高目标值？
+
+### 从约束不变得到允许方向
+
+设一条圆周上的光滑路径为 $\mathbf{r}(s)$，参数 $s$ 表示沿路径的位置，且 $\mathbf{r}(0)=\mathbf{p}$。因为路径始终满足约束，
+
+$$
+g(\mathbf{r}(s))=0.
+$$
+
+两边对 $s$ 求导，左边使用链式法则：
+
+$$
+\frac{d}{ds}g(\mathbf{r}(s))\bigg|_{s=0}
+=\nabla g(\mathbf p)^{\mathsf T}\mathbf r'(0)=0.
+$$
+
+$\mathbf t=\mathbf r'(0)$ 是切向量，因此允许的切向变化满足 $\nabla g^{\mathsf T}\mathbf t=0$。在 $(1,0)$，约束梯度为 $(2,0)^{\mathsf T}$，切线是竖直方向。沿正切向 $(0,1)^{\mathsf T}$，目标变化率为 $1$，所以这个点还不是极大点。
+
+这里描述的是一阶方向。沿切线直着走一段距离一般会离开圆周：从 $(1,0)$ 走到 $(1,s)$，约束误差为 $s^2$。真正沿圆周运动时，路径还会弯曲。切向量不能直接当作任意有限可行位移。
+
+### 极值点为什么要求两个梯度平行
+
+假设圆周上某个点已经是局部极大或极小点。把目标函数限制在圆周路径上，它就变成一元函数 $f(\mathbf r(s))$。在这个内部极值点，一元导数必须为零：
+
+$$
+\frac{d}{ds}f(\mathbf r(s))\bigg|_{s=0}
+=\nabla f(\mathbf p)^{\mathsf T}\mathbf t=0.
+$$
+
+现在得到两个条件：约束梯度与切线垂直，目标梯度也与切线垂直。在二维中，非零切线的法向空间只有一个维度，因此目标梯度必然是约束梯度的标量倍数：
+
+$$
+\nabla f=\lambda\nabla g.
+$$
+
+$\lambda$ 叫拉格朗日乘子（Lagrange Multiplier）。它表示这里两个梯度之间的比例；它的数值由具体目标、约束定义和解的位置共同决定。
+
+![单位圆上的目标等值线、约束法线及最大值与最小值候选](/images/knowledge/lagrange-circle.svg)
+
+图中目标等值线满足 $x+y=\text{常数}$。在正向极值点，目标等值线与单位圆相切，目标梯度和约束梯度同向；负向极值点对应最小值。示意图采用等比例坐标，箭头长度仅用于区分方向。
+
+### 把两个候选点都算出来
+
+首先逐项求导：
+
+$$
+\nabla f=\begin{bmatrix}1\\1\end{bmatrix},\qquad
+\nabla g=\begin{bmatrix}2x\\2y\end{bmatrix}.
+$$
+
+把梯度关系与原约束一起写成三个标量方程：
+
+$$
+\begin{cases}
+1=2\lambda x,\\
+1=2\lambda y,\\
+x^2+y^2=1.
+\end{cases}
+$$
+
+前两式说明 $\lambda\ne0$ 且 $x=y$。代入约束得到 $2x^2=1$，因此有两个候选点：
+
+$$
+\mathbf p_+=\begin{bmatrix}1/\sqrt2\\1/\sqrt2\end{bmatrix},\qquad
+\mathbf p_-=\begin{bmatrix}-1/\sqrt2\\-1/\sqrt2\end{bmatrix}.
+$$
+
+目标值分别为 $\sqrt2$ 与 $-\sqrt2$，对应乘子分别为 $1/\sqrt2$ 与 $-1/\sqrt2$。又因为圆周上恒有 $|x+y|\le\sqrt2\sqrt{x^2+y^2}=\sqrt2$，这两个值分别是全局最大值和最小值。只求出正号分支会漏掉另一个极值。
+
+下面的代码采样单位圆及其切向量，用于核对这两个候选点的一阶条件。它直接使用圆周参数化，不是寻找极值的迭代算法，所有量均无量纲。
+
+~~~js
+// knowledge-calculus-circle-example
+export function circleState(theta) {
+  if (!Number.isFinite(theta)) throw new Error('invalid angle');
+  const position = [Math.cos(theta), Math.sin(theta)];
+  const tangent = [-position[1], position[0]];
+  return {
+    position, tangent,
+    objective: position[0]+position[1],
+    objectiveRate: tangent[0]+tangent[1],
+    constraint: position[0]**2+position[1]**2-1,
+    constraintGradient: position.map(value => 2*value),
+  };
+}
+~~~
+
+### 从几何条件写出拉格朗日函数
+
+为了把三个条件组织成统一的求导问题，定义
+
+$$
+\mathcal L(x,y,\lambda)=f(x,y)-\lambda g(x,y).
+$$
+
+分别对三个输入求偏导并令其为零：
+
+$$
+\begin{aligned}
+\partial_x\mathcal L&=f_x-\lambda g_x=0,\\
+\partial_y\mathcal L&=f_y-\lambda g_y=0,\\
+\partial_\lambda\mathcal L&=-g=0.
+\end{aligned}
+$$
+
+前两式正是梯度平行条件，最后一式恢复原约束。因此这个函数只是把已经推导出的关系组织起来。若改用 $f+\lambda g$，乘子的符号约定随之改变，不能把两个约定的乘子直接混用。
+
+### 适用条件与多约束推广
+
+上面的必要条件要求目标和约束足够光滑，并在候选点有 $\nabla g\ne0$，使约束局部具有规则切线或切平面。在三维中，要对整个切平面内的所有允许方向检查目标的一阶变化，而不能只选择其中一条切线。具体条件见 [OpenStax 乘子定理](https://openstax.org/books/calculus-volume-3/pages/4-8-lagrange-multipliers)。
+
+满足乘子方程只说明找到了候选点，通常还要比较目标值、检查二阶性质或边界。约束退化时也可能漏解：一元约束 $g(x)=x^2=0$ 只允许 $x=0$，此时目标 $f(x)=x$ 在可行集合上同时取得最大和最小值，但没有任何 $\lambda$ 能使 $1=\lambda\,0$。
+
+多个独立等式约束限制了更多方向。相应正则条件下，目标梯度位于各约束法线张成的空间：
+
+$$
+\nabla f=\sum_j\lambda_j\nabla g_j.
+$$
+
+把多条约束的导数组织成矩阵后，这个关系会写成 $\nabla f=J^{\mathsf T}\boldsymbol\lambda$。下一节先解释矩阵如何组织这些导数；[Jacobian 的约束接口](/knowledge/jacobian-matrix/#约束接口速度映射与力的对偶)再从虚功解释理想约束反力为什么也具有转置映射的结构。
+
 ## 向量输入、Jacobian 与多元链式法则
 
 ### 从一个输出到多个输出
 
-对向量输出函数 $\mathbf{F}:\mathbb R^n\to\mathbb R^m$，每个输出分量都有自己的梯度。把这些梯度转置后逐行排列，得到 Jacobian：
+前面每次只研究一个标量输出。现在同时观察椭圆碗的函数值与单位圆的约束值，把它们作为两个输出：
+
+$$
+\mathbf F(x,y)=\begin{bmatrix}x^2+2y^2\\x^2+y^2-1\end{bmatrix}.
+$$
+
+第一项对两个输入的偏导分别为 $2x,4y$；第二项分别为 $2x,2y$。每个输出占一行，各输入按列排列：
+
+$$
+J=\begin{bmatrix}2x&4y\\2x&2y\end{bmatrix}.
+$$
+
+这个矩阵叫 Jacobian（雅可比矩阵）。它把两个输出各自的一阶变化一起写出来：
+
+$$
+\begin{bmatrix}\Delta F_1\\\Delta F_2\end{bmatrix}
+\approx
+\begin{bmatrix}2x&4y\\2x&2y\end{bmatrix}
+\begin{bmatrix}\Delta x\\\Delta y\end{bmatrix}.
+$$
+
+如果只有一个输出，只需要一行；如果有更多输出，就继续往下加行。对一般函数 $\mathbf F:\mathbb R^n\to\mathbb R^m$，输入有 $n$ 个分量，输出有 $m$ 个分量，于是
 
 $$
 J_{ij}=\frac{\partial F_i}{\partial x_j},\qquad
@@ -485,7 +671,14 @@ d\mathbf{z}=J_Gd\mathbf{x},\qquad
 dU=(\nabla_{\mathbf{z}}\phi)^{\mathsf T}d\mathbf{z}.
 $$
 
-代入并整理为输入变化量的内积，得到
+先把第一式代入第二式，再把行列次序写清楚：
+
+$$
+dU=(\nabla_{\mathbf z}\phi)^{\mathsf T}J_Gd\mathbf x
+=\left(J_G^{\mathsf T}\nabla_{\mathbf z}\phi\right)^{\mathsf T}d\mathbf x.
+$$
+
+另一方面，根据输入梯度的定义，$dU=(\nabla_{\mathbf x}U)^{\mathsf T}d\mathbf x$。比较任意输入变化量前面的系数，就得到
 
 $$
 \nabla_{\mathbf{x}}U=J_G^{\mathsf T}\nabla_{\mathbf{z}}\phi.
@@ -507,62 +700,6 @@ $$
 对单个粒子求梯度，得到三个分量；对整个系统求梯度，得到 $3N$ 个分量。某条弹簧只连接两个粒子时，它对其他粒子位置的梯度为零。这种局部依赖产生稀疏性，也决定了求解器需要访问哪些邻居。
 
 Jacobian 的局部线性化、IK、奇异性与伪逆详见[Jacobian 矩阵与局部线性化](/knowledge/jacobian-matrix/)，这里不再重复完整推导。
-
-## 从一阶变化到二阶变化
-
-### 二阶导数与 Hessian
-
-一阶导数描述函数怎样变化；二阶导数描述一阶导数怎样变化。对 $f(x)=x^2$，$f'(x)=2x$，$f''(x)=2$：越往右走，斜率按固定速率增加。
-
-多元函数把所有二阶偏导排列成 Hessian 矩阵：
-
-$$
-H_{ij}=\frac{\partial}{\partial x_j}
-\left(\frac{\partial f}{\partial x_i}\right),\qquad
-H=J_{\nabla f}.
-$$
-
-当二阶偏导连续时，混合偏导相等，Hessian 对称。对椭圆碗，
-
-$$
-\nabla f=\begin{bmatrix}2x\\4y\end{bmatrix},\qquad
-H=\begin{bmatrix}2&0\\0&4\end{bmatrix}.
-$$
-
-沿 $y$ 方向，梯度变化比沿 $x$ 更快，这与等高线在 $y$ 方向更紧密一致。
-
-### 从切平面到局部二次模型
-
-对二阶连续可微函数，局部展开为
-
-$$
-f(\mathbf{x}+\mathbf{s})
-=f(\mathbf{x})+\nabla f^{\mathsf T}\mathbf{s}
-+\tfrac12\mathbf{s}^{\mathsf T}H\mathbf{s}
-+o(\|\mathbf{s}\|^2).
-$$
-
-$o(\|\mathbf{s}\|^2)$ 表示余项相对 $\|\mathbf{s}\|^2$ 趋于零。对本例这个精确二次函数，余项就是零。在 $(1,1)$ 处，完整变化量为
-
-$$
-\Delta f=2s_x+4s_y+s_x^2+2s_y^2.
-$$
-
-若取 $(s_x,s_y)=(0.1,-0.05)$，一阶项相消，但真实变化为 $0.015$。切线方向只保证一阶变化为零，不保证走一段直线后还留在原等高线上。
-
-### 曲率与 Newton 方向
-
-在驻点附近，若所有方向二次项均为正，则该点具有严格局部极小的充分条件；有正有负则是鞍点。二次项为零的方向需要继续分析，不能只凭 Hessian 判定。
-
-把局部二次模型对 $\mathbf{s}$ 的梯度设为零，得到
-
-$$
-H\mathbf{s}=-\nabla f.
-$$
-
-这是 Newton 最优化的线性子问题。工程上应求解该方程，不是先显式构造完整逆矩阵。对椭圆碗，由于模型精确且 Hessian 正定，完整步直接到原点；一般非线性函数没有这个一步性质。
-
-梯度只给出一阶变化；Hessian 帮助解释各方向的响应尺度。正定性、线搜索、Gauss–Newton 与局部收敛条件详见[二阶近似与 Hessian 矩阵](/knowledge/hessian-matrix/)。
 
 ## 物理中的约束梯度、能量梯度与力
 
@@ -678,6 +815,62 @@ $C$ 的单位是米；$\nabla C$ 是长度对长度的比值，无量纲；$\nab
 当 $\ell=0$ 时，$\mathbf{n}$ 未定义。对于正静止长度的距离弹簧，不能把分母随意加一个小数就宣称恢复了精确梯度；保留历史方向、使用确定的替代方向或拒绝退化状态，都需要明确行为约定。
 
 如果改用平方距离约束，必须重新推导导数、单位和柔度。若变量换成刚体平移与旋转，还需要旋转自由度对应的导数。本文的粒子位置公式不能原样充当四元数或刚体角向更新。
+
+## 从一阶变化到二阶变化
+
+### 二阶导数与 Hessian
+
+一阶导数描述函数怎样变化；二阶导数描述一阶导数怎样变化。对 $f(x)=x^2$，$f'(x)=2x$，$f''(x)=2$：越往右走，斜率按固定速率增加。
+
+多元函数把所有二阶偏导排列成 Hessian 矩阵：
+
+$$
+H_{ij}=\frac{\partial}{\partial x_j}
+\left(\frac{\partial f}{\partial x_i}\right),\qquad
+H=J_{\nabla f}.
+$$
+
+当二阶偏导连续时，混合偏导相等，Hessian 对称。对椭圆碗，
+
+$$
+\nabla f=\begin{bmatrix}2x\\4y\end{bmatrix},\qquad
+H=\begin{bmatrix}2&0\\0&4\end{bmatrix}.
+$$
+
+沿 $y$ 方向，梯度变化比沿 $x$ 更快，这与等高线在 $y$ 方向更紧密一致。
+
+### 从切平面到局部二次模型
+
+对二阶连续可微函数，局部展开为
+
+$$
+f(\mathbf{x}+\mathbf{s})
+=f(\mathbf{x})+\nabla f^{\mathsf T}\mathbf{s}
++\tfrac12\mathbf{s}^{\mathsf T}H\mathbf{s}
++o(\|\mathbf{s}\|^2).
+$$
+
+$o(\|\mathbf{s}\|^2)$ 表示余项相对 $\|\mathbf{s}\|^2$ 趋于零。对本例这个精确二次函数，余项就是零。在 $(1,1)$ 处，完整变化量为
+
+$$
+\Delta f=2s_x+4s_y+s_x^2+2s_y^2.
+$$
+
+若取 $(s_x,s_y)=(0.1,-0.05)$，一阶项相消，但真实变化为 $0.015$。切线方向只保证一阶变化为零，不保证走一段直线后还留在原等高线上。
+
+### 曲率与 Newton 方向
+
+在驻点附近，若所有方向二次项均为正，则该点具有严格局部极小的充分条件；有正有负则是鞍点。二次项为零的方向需要继续分析，不能只凭 Hessian 判定。
+
+把局部二次模型对 $\mathbf{s}$ 的梯度设为零，得到
+
+$$
+H\mathbf{s}=-\nabla f.
+$$
+
+这是 Newton 最优化的线性子问题。工程上应求解该方程，不是先显式构造完整逆矩阵。对椭圆碗，由于模型精确且 Hessian 正定，完整步直接到原点；一般非线性函数没有这个一步性质。
+
+梯度只给出一阶变化；Hessian 帮助解释各方向的响应尺度。正定性、线搜索、Gauss–Newton 与局部收敛条件详见[二阶近似与 Hessian 矩阵](/knowledge/hessian-matrix/)。
 
 ## 这些导数如何进入物理求解器
 
@@ -832,6 +1025,21 @@ console.log(checkSpringDirection([0, 0, 0], [2, 0, 0], [0, 0, 0, 1, 0, 0]));
 梯度验证通过之后，还要分别验证 Hessian、局部求解残差、完整时间步与接触状态。导数正确只是求解器正确性的一个环节。
 
 ## 附录：函数与近似工具
+
+### 偏导数存在不代表整体可微
+
+正文使用的多项式在各个方向都足够光滑。一般函数需要另外检查：分别沿坐标轴观察，只覆盖了所有接近路径中的一部分。例如定义
+
+$$
+q(x,y)=\begin{cases}
+\dfrac{xy}{x^2+y^2},&(x,y)\ne(0,0),\\
+0,&(x,y)=(0,0).
+\end{cases}
+$$
+
+沿两条坐标轴，函数恒为零，所以原点两个偏导数都是零；沿 $y=x$ 接近原点，函数却恒为 $1/2$。它在原点不连续，无法用一个统一的平面近似。
+
+常用充分条件是：各一阶偏导在该点附近存在，并在该点连续，则函数在该点可微。可微要求所有足够小的方向共享同一个一阶模型；只有各坐标偏导存在，尚不足以保证正文的梯度方向公式。
 
 ### 幂、坐标与三角函数
 

@@ -34,6 +34,8 @@ sources:
 
 本篇从约束函数推进到 Jacobian、有效质量和累计投影。先将每个公式对应回接触点与力臂；需要矩阵工具或残差分析时，再查[Jacobian](/knowledge/jacobian-matrix/)和[线性迭代](/knowledge/iterative-linear-solvers/)。[PBD/XPBD](/knowledge/pbd-xpbd-math/)与[VBD/AVBD](/knowledge/vbd-avbd-math/)分别展开位置与变分分支。
 
+约束为什么限制允许的运动方向，先看[单位圆与拉格朗日乘子](/knowledge/calculus-foundations/#约束极值与拉格朗日乘子)；约束反力为什么使用 Jacobian 转置，见[虚功推导](/knowledge/jacobian-matrix/#用虚功直接核对转置)。这里继续讨论这些几何关系怎样进入动力学求解。
+
 ## 状态、单位与符号
 
 用 $q$ 表示广义配置，$v$ 表示广义速度，$M$ 为质量矩阵。对于刚体，配置含位置和姿态，速度含线速度和角速度；姿态的局部增量使用三维旋转向量，不能直接把四元数四个分量当成独立转动自由度。
