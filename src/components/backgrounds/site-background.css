@@ -13,7 +13,8 @@
 .site-background-enabled .site-app,
 .site-background-enabled .graph-page { background: transparent; }
 .site-background-enabled .site-header {
-  background: color-mix(in srgb, var(--color-surface-base) 92%, transparent);
+  /* Keep scrolling text and formulas fully hidden behind the sticky navigation. */
+  background: var(--color-surface-base);
 }
 @media print {
   .site-background-layer { display: none; }
