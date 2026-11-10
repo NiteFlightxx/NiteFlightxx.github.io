@@ -69,11 +69,18 @@ for (const group of order) for (const section of group.sections) {
     }
   });
 }
-assert.match(home, /精选研究/);
-assert.match(home, /探索网站/);
+assert.match(home, /home-landing/);
+assert.doesNotMatch(home, /精选研究|最近收录|一点好玩的|上次读到这里|studio-work-grid|studio-bottom-grid/);
+assert.match(read('research/index.html'), /studio-work-grid/);
+assert.doesNotMatch(home, /studio-entry-strip/);
 assert.match(home, /studio-shell/);
-assert.doesNotMatch(home, /<canvas\b|avbd\/avbd\.js|createAvbdModule/);
-assert.equal((knowledge.match(/class="browser-article"/g) ?? []).length, manifest.length, 'Public articles must render without client JavaScript');
+assert.doesNotMatch(home, /avbd\/avbd\.js|createAvbdModule/);
+for (const route of ['index.html', 'research/index.html', 'about/index.html', 'knowledge/library/index.html', 'knowledge/graph/index.html', 'projects/ue-chaos-physics/index.html']) {
+  assert.equal((read(route).match(/data-site-background(?:\s|>)/g) ?? []).length, 1, route + ': one shared decorative background');
+}
+const renderedArticleCards = [...knowledge.matchAll(/<a\b[^>]*\bclass="([^"]*)"/g)]
+  .filter((match) => match[1].split(/\s+/).includes('browser-article'));
+assert.equal(renderedArticleCards.length, manifest.length, 'Public articles must render without client JavaScript');
 assert.match(knowledge, /aria-label="搜索知识库"|搜索知识库/);
 for (const legacy of ['course-math-points-vectors', 'course-animation-pose-spaces', 'course-physics-state-timestep']) {
   const html = read(`knowledge/${legacy}/index.html`);
@@ -107,6 +114,7 @@ for (const match of home.matchAll(/href="([^"\s]+)"/g)) {
 
 for (const entry of manifest) {
   const html = read(`knowledge/${entry.slug}/index.html`);
+  assert.equal((html.match(/data-site-background(?:\s|>)/g) ?? []).length, 1, entry.slug + ': one shared decorative background');
   assert.match(html, /id="main-content"/);
   assert.match(html, /data-pagefind-body/);
   assert.doesNotMatch(html, /class="katex-error"/);

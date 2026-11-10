@@ -68,14 +68,14 @@ export default function KnowledgeTree({ articles, currentSlug, showQuickLinks = 
   return (
     <nav className="knowledge-tree glass-panel overflow-hidden rounded-xl border border-border-subtle" aria-label="知识目录" data-reader-version={version}>
       <div className="flex items-center justify-between border-b border-border-subtle px-4 py-3">
-        <span className="flex items-center gap-2 font-mono text-[11px] uppercase tracking-widest text-text-muted"><FolderTree className="h-4 w-4 text-accent-primary" />知识目录</span>
-        <a href={`${BASE_URL}knowledge/`} className="text-[10px] text-text-faint hover:text-accent-primary">全部</a>
+        <span className="flex items-center gap-2 font-sans text-[12px] text-text-muted"><FolderTree className="h-4 w-4 text-accent-primary" />知识目录</span>
+        <a href={`${BASE_URL}knowledge/library/`} className="text-[12px] text-text-faint hover:text-accent-primary">全部</a>
       </div>
       {showQuickLinks && <div className="grid grid-cols-2 gap-2 border-b border-border-subtle p-3">
         {quickItems.map(({ icon: Icon, label, count }) => (
-          <a key={label} href={`${BASE_URL}knowledge/?scope=${label === '收藏' ? 'favorites' : 'recents'}`} className="rounded-lg border border-border-subtle bg-surface-base/40 px-3 py-2 hover:border-accent-primary/30">
-            <span className="flex items-center gap-1.5 whitespace-nowrap text-[10px] text-text-muted"><Icon className="h-3 w-3 shrink-0" />{label === '最近阅读' ? '最近' : label}</span>
-            <strong className="mt-1 block font-mono text-sm text-text-primary">{count}</strong>
+          <a key={label} href={`${BASE_URL}knowledge/library/?scope=${label === '收藏' ? 'favorites' : 'recents'}`} className="rounded-lg border border-border-subtle bg-surface-base/40 px-3 py-2 hover:border-accent-primary/30">
+            <span className="flex items-center gap-1.5 whitespace-nowrap text-[12px] text-text-muted"><Icon className="h-3 w-3 shrink-0" />{label === '最近阅读' ? '最近' : label}</span>
+            <strong className="mt-1 block font-sans text-sm text-text-primary">{count}</strong>
           </a>
         ))}
       </div>}
@@ -88,7 +88,7 @@ export default function KnowledgeTree({ articles, currentSlug, showQuickLinks = 
               <button onClick={() => toggle(category)} className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-sm text-text-secondary hover:bg-surface-raised/50 hover:text-text-primary" aria-expanded={categoryOpen}>
                 <ChevronDown className={`h-3.5 w-3.5 text-text-faint transition-transform ${categoryOpen ? '' : '-rotate-90'}`} />
                 <span className="min-w-0 flex-1 truncate font-semibold">{category}</span>
-                <span className="font-mono text-[9px] text-text-faint">{count}</span>
+                <span className="font-sans text-[12px] text-text-faint">{count}</span>
               </button>
               {categoryOpen && [...subtopics.entries()].map(([subtopic, items]) => {
                 const key = `${category}/${subtopic}`;
@@ -98,10 +98,10 @@ export default function KnowledgeTree({ articles, currentSlug, showQuickLinks = 
                     <button onClick={() => toggle(key)} className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-xs text-text-muted hover:text-text-primary" aria-expanded={open}>
                       <ChevronDown className={`h-3 w-3 transition-transform ${open ? '' : '-rotate-90'}`} />
                       <span className="min-w-0 flex-1 truncate">{subtopic}</span>
-                      <span className="font-mono text-[8px] text-text-faint">{items.length}</span>
+                      <span className="font-sans text-[12px] text-text-faint">{items.length}</span>
                     </button>
                     {open && items.map((article) => (
-                      <a key={article.slug} href={`${BASE_URL}knowledge/${article.slug}/`} aria-current={article.slug === currentSlug ? 'page' : undefined} className={`flex items-start gap-2 rounded px-2 py-1.5 text-[11px] leading-relaxed ${article.slug === currentSlug ? 'bg-accent-primary/10 text-accent-primary' : 'text-text-faint hover:bg-surface-raised/40 hover:text-text-secondary'}`}>
+                      <a key={article.slug} href={`${BASE_URL}knowledge/${article.slug}/`} aria-current={article.slug === currentSlug ? 'page' : undefined} className={`flex items-start gap-2 rounded px-2 py-1.5 text-[12px] leading-relaxed ${article.slug === currentSlug ? 'bg-accent-primary/10 text-accent-primary' : 'text-text-faint hover:bg-surface-raised/40 hover:text-text-secondary'}`}>
                         <BookOpen className="mt-0.5 h-3 w-3 shrink-0" /><span>{compactTitle(article.title)}</span>
                       </a>
                     ))}

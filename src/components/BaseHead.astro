@@ -36,20 +36,20 @@ const imageUrl = new URL(image, `${SITE.url}/`).href;
 <meta name="author" content={SITE.author} />
 
 <!-- Match browser chrome to the site's selected theme. -->
-<meta name="theme-color" content="#F4F2ED" />
+<meta name="theme-color" content="#120f17" />
 
 <!-- Apply the saved preference before paint; new visitors start in the
-     light studio theme. Header.tsx keeps later theme changes in sync. -->
+     dark theme. Header.tsx keeps later theme changes in sync. -->
 <script is:inline>
   (function () {
     var stored = null;
     try { stored = localStorage.getItem('theme'); } catch (e) {}
     if (stored !== 'light' && stored !== 'dark') {
-      stored = 'light';
+      stored = 'dark';
       try { localStorage.setItem('theme', stored); } catch (e) {}
     }
     if (stored === 'light') document.documentElement.classList.add('light-theme');
-    document.querySelector('meta[name="theme-color"]').setAttribute('content', stored === 'dark' ? '#171C18' : '#F4F2ED');
+    document.querySelector('meta[name="theme-color"]').setAttribute('content', stored === 'dark' ? '#120f17' : '#ffffff');
   })();
 </script>
 

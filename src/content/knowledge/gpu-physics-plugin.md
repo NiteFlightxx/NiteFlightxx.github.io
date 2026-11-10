@@ -1,6 +1,6 @@
 ---
-title: GPUPhysicsLab：UE GPU 物理实现
-excerpt: 追踪 UE 宿主、RDG 资源、AVBD 状态提交与 Niagara 发布，区分移植与独立扩展。
+title: GPUPhysicsLab：从 Compute Shader 到 UE 物理求解
+excerpt: 从线程索引、GPU 缓冲与 RDG 调度开始，逐步解释碰撞、染色、AVBD 求解与状态发布。
 date: '2026-10-18'
 category: Physics
 subtopic: ConstraintSolver
@@ -9,22 +9,24 @@ tags:
   - AVBD
   - Unreal Engine
   - RDG
-  - 碰撞检测
+  - Compute Shader
   - 源码精读
-readTime: 阅读约60分钟
+readTime: 阅读约95分钟
 kind: source
 level: advanced
 pageType: source-analysis
 aliases:
+  - GPUPhysicsLab：UE GPU 物理实现
   - GPU Physics
   - three-avbd UE 移植
   - GPUPhysicsLab AVBD
   - GPUPhysicsLab 插件详解 — three-avbd 的 Unreal RDG 移植、GPU AVBD 与工程扩展
 prerequisites:
-  - three-avbd-gpu-solver
-  - vbd-avbd-math
+  - numerical-integration-methods
 nextArticles: []
 related:
+  - three-avbd-gpu-solver
+  - vbd-avbd-math
   - avbd-demo3d-implementation
   - collision-detection-gjk-epa-sat
   - jacobian-matrix
@@ -35,6 +37,13 @@ topics:
     role: source
     order: 40
 sources:
+  - title: Microsoft HLSL 线程索引语义
+    url: https://learn.microsoft.com/en-us/windows/win32/direct3dhlsl/sv-dispatchthreadid
+  - title: Microsoft HLSL 组内同步边界
+    url: https://learn.microsoft.com/en-us/windows/win32/direct3dhlsl/groupmemorybarrierwithgroupsync
+  - title: GPUPhysicsLab Compute Shader 注册与平台准入
+    url: >-
+      https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Source/GPUPhysicsLab/Private/CSDispatch/GPUPhysicsLabIntegrateBodiesCS.cpp
   - title: GPUPhysicsLab 参考版本与移植范围
     url: >-
       https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Doc/Porting/REFERENCE.lock.json
@@ -49,9 +58,457 @@ sources:
       https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Doc/Porting/P32_RESULTS.json
 featured: false
 ---
-GPUPhysicsLab 的重点不仅是把公式写成 shader，还包括 GT/RT 所有权、RDG 依赖、有效状态提交与失败恢复。本文区分来自[three-avbd](/knowledge/three-avbd-gpu-solver/)的设计、UE 宿主适配以及独立扩展；曲面接触和布料的实际算法分别说明，不把所有 GPU pass 都归为统一 AVBD。
+GPUPhysicsLab 把刚体状态放在 GPU 缓冲中，通过多个 Compute Shader 完成碰撞检测和约束求解；UE C++ 负责准备输入、组织执行与发布结果。理解它的起点是：**一个线程处理什么数据，多个线程如何协作，一个阶段的结果何时能被下一阶段读取。**
 
-## 范围与核心机制：这不是旧 PBD 插件的换名介绍
+本文先用一个质点说明 Compute Shader，再把同样的读写关系放回 GPUPhysicsLab，最后展开 AVBD 和宿主工程。通用数学只保留当前步骤需要的定义，完整推导链接到[数值积分](/knowledge/numerical-integration-methods/)和[VBD / AVBD](/knowledge/vbd-avbd-math/)。
+
+源码分析固定在 `779b2e09cc531d39d8d2ad7d5813823cc5c26bd6`，并非插件最新开发状态。2026-11-02 本次重写通过本地 Git 读取该提交，新增核对 shader 映射、注册、参数、积分、扫描与 Primal；保留的扩展和历史验收也属于该快照。后续分支及未提交修改不混入本文。**文中的最小示例、真实源码和工程建议分别标注；本轮没有运行 UE 或测量 GPU 性能。**
+
+## Compute Shader 如何执行一次物理更新
+
+### 从 CPU 循环开始
+
+先暂时去掉旋转、碰撞和约束。假设有一组互不影响的质点，每个质点保存位置 $\mathbf x_i$、速度 $\mathbf v_i$ 和逆质量 $w_i$。时间步长为 $h$，重力加速度为 $\mathbf g$；本例约定 $w_i=0$ 表示固定点。
+
+CPU 上可以写出这样的循环。以下是**讲解用伪代码**，不是插件函数：
+
+~~~cpp
+for (uint32 i = 0; i < ParticleCount; ++i)
+{
+    if (InverseMass[i] == 0.0f) continue;
+    Velocity[i] += Gravity * Dt;
+    Position[i] += Velocity[i] * Dt;
+}
+~~~
+
+这里使用半隐式 Euler：先更新速度，再用新速度更新位置。
+
+$$
+\begin{aligned}
+\mathbf v_i^{n+1}&=\mathbf v_i^n+h\mathbf g,\\
+\mathbf x_i^{n+1}&=\mathbf x_i^n+h\mathbf v_i^{n+1}.
+\end{aligned}
+$$
+
+$n$ 是时间步编号。重力是加速度，因此这段更新中不再除以质量；若输入改为力 $\mathbf f_i$，才使用 $w_i\mathbf f_i$。更换执行设备不会自动改变积分公式或它的误差。
+
+这组计算适合先讲 GPU，因为第 $i$ 次更新只读写第 $i$ 个质点。不同质点之间没有依赖，不必让一个线程等另一个线程。
+
+### 把循环体变成 shader 入口
+
+Compute Shader 是 GPU 上的计算入口，不需要先画三角形。CPU 发出一次 Dispatch，GPU 启动一批线程；入口代码决定每个线程读写哪个元素。
+
+下面是**独立的最小 HLSL 示例**。它解释积分和资源访问，尚不包含 GPUPhysicsLab 的刚体布局、旋转、约束、状态检查或失败恢复。
+
+~~~hlsl
+// DemoIntegrate.usf：独立示例，位置单位 m，时间单位 s，Y 轴向上。
+#include "/Engine/Public/Platform.ush"
+
+uint ParticleCount;
+float Dt;
+float3 Gravity;
+StructuredBuffer<float4> Positions; // xyz：位置，w：非负逆质量
+StructuredBuffer<float4> Velocities; // xyz：速度，w：保留为 0
+RWStructuredBuffer<float4> OutPositions;
+RWStructuredBuffer<float4> OutVelocities;
+
+[numthreads(64, 1, 1)]
+void MainCS(uint3 Id : SV_DispatchThreadID)
+{
+    uint i = Id.x;
+    if (i >= ParticleCount) return;
+
+    float4 p = Positions[i];
+    float3 v = Velocities[i].xyz;
+    if (p.w > 0.0f)
+    {
+        v += Gravity * Dt;
+        p.xyz += v * Dt;
+    }
+    OutPositions[i] = p;
+    OutVelocities[i] = float4(v, 0.0f);
+}
+~~~
+
+逐行看执行含义：`numthreads` 定义**每个线程组**有多少线程；`SV_DispatchThreadID` 给出本次派发中的全局索引；边界检查屏蔽多派发的尾部线程；输入缓冲被读取，输出缓冲由当前线程独占写入。固定点也要复制到输出，不能让对应元素保留未初始化数据。
+
+这里的线程不是一个 CPU 线程，也不对应一个物理 GPU 核心。硬件如何安排执行由平台决定，代码首先要定义正确的数据映射。
+
+### 线程组数量不是物体数量
+
+设每组 $T=64$ 个线程，总质点数为 $N$，所需线程组数为：
+
+$$
+G=\left\lceil\frac{N}{T}\right\rceil.
+$$
+
+当 $N=1000$ 时，$G=16$。GPU 得到 $1024$ 个线程，其中 $24$ 个越过有效范围，必须通过边界检查退出。不能把 Dispatch 的组数直接填成 $1000$。
+
+对这个一维例子，全局索引为：
+
+$$
+i=\mathrm{GroupID}_x\,T+\mathrm{GroupThreadID}_x.
+$$
+
+例如第 $15$ 组的第 $39$ 个局部线程处理元素 $999$；局部线程 $40$ 对应元素 $1000$，应退出。这个索引关系来自 [HLSL 线程语义](https://learn.microsoft.com/en-us/windows/win32/direct3dhlsl/sv-dispatchthreadid)。
+
+![一维 Compute Shader 派发：16 个线程组，每组 64 个线程，最后一组有 24 个无效线程。](/images/knowledge/gpu-dispatch.svg)
+
+图中只展开首尾两个线程组，格子是索引范围示意，并不代表硬件核心数量。
+
+### 实际算一次自由落体
+
+令初始高度 $y^n=10\,\mathrm m$、初速度 $v_y^n=0$、$g_y=-9.81\,\mathrm{m/s^2}$、$h=1/60\,\mathrm s$。这个示例的一步结果为：
+
+$$
+\begin{aligned}
+v_y^{n+1}&=-9.81/60=-0.1635\,\mathrm{m/s},\\
+y^{n+1}&=10-0.1635/60\\
+&=9.997275\,\mathrm m.
+\end{aligned}
+$$
+
+匀加速解析解对应高度是 $9.9986375\,\mathrm m$。两者的差是该积分方法的截断误差，不能因为 GPU 算出前一个值就认定 shader 错了。这个单步模型也不能证明刚体接触稳定。
+
+下面的 JavaScript 复现**文中的数学算例与索引规则**，供构建审计执行；它不模拟 GPU 调度器，也不是 CPU 生产求解器。
+
+~~~js
+// knowledge-gpu-dispatch-example
+export function dispatchPlan(count, width = 64) {
+  if (!Number.isSafeInteger(count) || count < 0 ||
+      !Number.isSafeInteger(width) || width < 1 || width > 1024) {
+    throw new RangeError('invalid dispatch input');
+  }
+  const groups = Math.ceil(count / width);
+  // 本例只讨论一维派发，使用 65535 组的示例边界。
+  if (groups > 65535) throw new RangeError('dispatch exceeds example limit');
+  return { groups, threads: groups * width, tail: groups * width - count };
+}
+
+export function gravityStep(y = 10, v = 0, h = 1 / 60, g = -9.81) {
+  if (![y, v, h, g].every(Number.isFinite) || h <= 0) {
+    throw new RangeError('invalid integration input');
+  }
+  const nextV = v + g * h;
+  return { y: y + nextV * h, v: nextV };
+}
+~~~
+
+## GPU 缓冲与数据读写
+
+### Buffer、SRV 和 UAV 分别表示什么
+
+Buffer 是资源；SRV（Shader Resource View）和 UAV（Unordered Access View）是 shader 访问资源的视图。
+
+- `StructuredBuffer<T>` 在这里通过 SRV 读取结构化元素。
+- `RWStructuredBuffer<T>` 在这里通过 UAV 读取或写入元素。
+- `groupshared` 是同一线程组协作使用的暂存数据，不跨组、不跨 Dispatch 保存状态。
+- shader 入口里的普通局部变量保存当前线程的中间值，不是其他线程能直接访问的共享记录。
+
+最小示例把输入与输出拆成四个资源，便于辨认旧状态和新状态。实际 GPUPhysicsLab 的 `Bodies` 可以原地更新；这依赖各阶段的访问规则。**能通过 UAV 写入，不代表多个线程可以任意同时写同一元素。**
+
+真实参数声明见 [GPUPhysicsLabPasses.h:6–13](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Source/GPUPhysicsLab/Private/CSDispatch/GPUPhysicsLabPasses.h#L6-L13)：`BodyDynamics` 是 SRV，`Bodies`、`ReferencePoses`、`StepStatus` 是 UAV；这也说明“Body pass”不只是一个位置数组。
+
+### CPU 与 HLSL 必须读到相同的字节
+
+最小例子使用 `float4`：一个元素 $16$ 字节，CPU 对应 `FVector4f`。C++ 上传时的元素步长，必须与 HLSL 解释记录的方式一致；不能把双精度 `FVector` 当成 `float3` 原样上传。
+
+如果第 $i$ 条记录步长是 $s$，它的起始字节位置就是：
+
+$$
+\mathrm{offset}(i)=i\,s.
+$$
+
+shader 编译成功并不能检测“CPU 认为步长是一个值，GPU 按另一个值读取”这种业务错误。GPUPhysicsLab 因此对 Body 的大小、对齐和成员偏移做静态断言：[BodyData.h:7–32](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Source/GPUPhysicsLab/Private/GPUData/GPUPhysicsLabBodyData.h#L7-L32)。稍后再展开它的 $160$ 字节真实记录。
+
+### 一次上传、多步计算、按需观察
+
+最小示例可以每次从 CPU 提供初值。但物理运行时通常要让上一步 GPU 结果成为下一步输入，否则每次上传旧 CPU 缓存都会覆盖 GPU 刚算出的运动。
+
+因此需要区分三个方向：初始化和外部命令从 CPU 到 GPU；位姿、速度和约束状态在 GPU 多阶段演化；诊断或事件通过异步回读返回 CPU。显示还可以直接消费 GPU 发布的资源，后文会解释 Niagara 路径为何仍有复制成本。
+
+## 在 UE 中注册 Compute Shader
+
+### 从磁盘文件到 shader 虚拟路径
+
+`.usf` 通常保存入口，`.ush` 通常保存被包含的类型和辅助函数。这是这里的组织约定；一个 `.usf` 也可能有多个入口，一个 shader 文件不等于一次 Dispatch。
+
+GPUPhysicsLab 的模块启动时找到插件安装位置，把磁盘 `Shaders` 目录映射到 `/Plugin/GPUPhysicsLab`：[GPUPhysicsLab.cpp:8–23](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Source/GPUPhysicsLab/Private/GPUPhysicsLab.cpp#L8-L23)。因此真实积分 shader 的注册使用虚拟路径：
+
+~~~cpp
+// 真实源码摘录，IntegrateBodiesCS.cpp:3。
+IMPLEMENT_GLOBAL_SHADER(
+    FGPUPhysicsLabIntegrateBodiesCS,
+    "/Plugin/GPUPhysicsLab/Private/Simulation/Integration/IntegrateBodies.usf",
+    "MainCS",
+    SF_Compute);
+~~~
+
+这四个参数分别是 C++ shader 类型、虚拟文件路径、HLSL 入口和 shader 阶段。只新增 `.usf` 文件，不会自动让 UE 在每帧执行它；注册和调度是两件事。
+
+宿主还需要在合适的加载时机注册 shader，并在模块依赖中加入所用的渲染接口。这个快照的核心模块使用 `PostConfigInit`，依赖 `RenderCore`、`RHI` 等；示例模块稍后加载。[GPUPhysicsLab.uplugin:12–24](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/GPUPhysicsLab.uplugin#L12-L24)、[GPUPhysicsLab.Build.cs:4–19](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Source/GPUPhysicsLab/GPUPhysicsLab.Build.cs#L4-L19)。文件路径找不到、C++ 模块没有依赖、shader 没有编译、运行时没有添加 pass，是四种不同的故障。
+
+### C++ shader 类型与参数结构
+
+下面继续使用前面的 `DemoIntegrate.usf`。这是**独立示例的 C++ 声明**，不是插件现有公开接口。假设文件放在插件映射目录的 `Private/DemoIntegrate.usf`，宿主已配置对应模块依赖和加载时机。
+
+~~~cpp
+#include "GlobalShader.h"
+#include "ShaderParameterStruct.h"
+#include "DataDrivenShaderPlatformInfo.h"
+
+class FDemoIntegrateCS : public FGlobalShader
+{
+public:
+    DECLARE_GLOBAL_SHADER(FDemoIntegrateCS);
+    SHADER_USE_PARAMETER_STRUCT(FDemoIntegrateCS, FGlobalShader);
+
+    BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
+        SHADER_PARAMETER(uint32, ParticleCount)
+        SHADER_PARAMETER(float, Dt)
+        SHADER_PARAMETER(FVector3f, Gravity)
+        SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<float4>, Positions)
+        SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<float4>, Velocities)
+        SHADER_PARAMETER_RDG_BUFFER_UAV(RWStructuredBuffer<float4>, OutPositions)
+        SHADER_PARAMETER_RDG_BUFFER_UAV(RWStructuredBuffer<float4>, OutVelocities)
+    END_SHADER_PARAMETER_STRUCT()
+
+    static bool ShouldCompilePermutation(
+        const FGlobalShaderPermutationParameters& Parameters)
+    {
+        return IsFeatureLevelSupported(
+            Parameters.Platform, ERHIFeatureLevel::SM6);
+    }
+};
+
+IMPLEMENT_GLOBAL_SHADER(FDemoIntegrateCS,
+    "/Plugin/GPUPhysicsLab/Private/DemoIntegrate.usf", "MainCS", SF_Compute);
+~~~
+
+参数名称和类型要与 HLSL 对应。`FGlobalShader` 把这个计算入口接入全局 shader 系统；它不需要绑定某个 Mesh 的材质。`ShouldCompilePermutation` 决定为哪些平台编译，并不负责在运行时选择可用设备。
+
+这里选择 SM6 是为了与本文插件快照的准入一致，不表示 Compute Shader 这个概念只能从 SM6 开始。真实 shader 的同等声明和准入见 [IntegrateBodiesCS.h:4–14](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Source/GPUPhysicsLab/Private/CSDispatch/GPUPhysicsLabIntegrateBodiesCS.h#L4-L14)、[IntegrateBodiesCS.cpp:3–5](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Source/GPUPhysicsLab/Private/CSDispatch/GPUPhysicsLabIntegrateBodiesCS.cpp#L3-L5)。
+
+### Shader Permutation 与运行时参数
+
+真实积分类型声明 `FReferencesPrepared` 排列，控制参考位姿更新那段代码是否参与编译。完整碰撞步已经提前更新 reference，因此采用对应排列；独立自由体路径保留入口内的 reference 更新。
+
+`ParticleCount`、时间步长这类每步数据应作为参数；不是每个取值都编译一个 shader。排列适合区分少量会改变代码或资源访问的分支，但排列数增多也会增加编译与维护成本。这里的事实依据是 [IntegrateBodiesCS.h:10–12](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Source/GPUPhysicsLab/Private/CSDispatch/GPUPhysicsLabIntegrateBodiesCS.h#L10-L12) 和 [IntegrateBodies.usf:32–46](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Shaders/Private/Simulation/Integration/IntegrateBodies.usf#L32-L46)。
+
+## 用 RDG 把数据交给 shader
+
+### 注册、添加 pass 与 GPU 完成是三个时刻
+
+有了 shader 类型，CPU 仍要提供资源、填参数和指定组数。RDG（Render Dependency Graph）把这些计算阶段及资源依赖组织为图。
+
+对前面的示例，数据经过：
+
+~~~text
+CPU 初始位置 / 速度
+  → 上传输入 Buffer
+  → 分配输出 Buffer
+  → 填入 SRV / UAV / 常量参数
+  → AddPass：记录一次计算
+  → Graph.Execute：执行图的编译与命令提交工作
+  → GPU 在设备时间线上完成计算
+  → 后继 GPU 消费者使用结果，或 CPU 等待异步回读就绪
+~~~
+
+`IMPLEMENT_GLOBAL_SHADER` 是类型注册，`AddPass` 是把工作加入图，`Graph.Execute` 也不是“所有 GPU 结果已经回到 CPU”。这三者不能互相替代。
+
+### 一个可对照 HLSL 的 RDG 调度片段
+
+以下是**独立示例的 Render Thread 调度函数**。它承接前面的 shader 声明，展示初始化与一次执行，不是持续仿真管理器。调用者必须持有 `SavedPositions` 和 `SavedVelocities` 直到图执行完成，且不能把输出所有者放在提前销毁的栈对象中。
+
+~~~cpp
+#include "RenderGraphBuilder.h"
+#include "RenderGraphUtils.h"
+#include "RenderingThread.h"
+
+void AddDemoIntegratePass(
+    FRDGBuilder& Graph,
+    const TArray<FVector4f>& InitialPositions,
+    const TArray<FVector4f>& InitialVelocities,
+    float Dt,
+    TRefCountPtr<FRDGPooledBuffer>& SavedPositions,
+    TRefCountPtr<FRDGPooledBuffer>& SavedVelocities)
+{
+    check(IsInRenderingThread());
+    check(InitialPositions.Num() == InitialVelocities.Num());
+    check(FMath::IsFinite(Dt) && Dt > 0.0f);
+    const uint32 Count = uint32(InitialPositions.Num());
+    if (Count == 0) return; // 本例不派发空任务。
+    const uint32 Groups = FMath::DivideAndRoundUp(Count, 64u);
+    check(Groups <= 65535u); // 本例的一维组数边界。
+
+    auto Positions = CreateStructuredBuffer(Graph, TEXT("Demo.Positions"),
+        sizeof(FVector4f), Count, InitialPositions.GetData(),
+        uint64(Count) * sizeof(FVector4f));
+    auto Velocities = CreateStructuredBuffer(Graph, TEXT("Demo.Velocities"),
+        sizeof(FVector4f), Count, InitialVelocities.GetData(),
+        uint64(Count) * sizeof(FVector4f));
+    const auto Desc = FRDGBufferDesc::CreateStructuredDesc(sizeof(FVector4f), Count);
+    auto OutPositions = Graph.CreateBuffer(Desc, TEXT("Demo.OutPositions"));
+    auto OutVelocities = Graph.CreateBuffer(Desc, TEXT("Demo.OutVelocities"));
+
+    auto* P = Graph.AllocParameters<FDemoIntegrateCS::FParameters>();
+    P->ParticleCount = Count;
+    P->Dt = Dt;
+    P->Gravity = FVector3f(0.0f, -9.81f, 0.0f);
+    P->Positions = Graph.CreateSRV(Positions);
+    P->Velocities = Graph.CreateSRV(Velocities);
+    P->OutPositions = Graph.CreateUAV(OutPositions);
+    P->OutVelocities = Graph.CreateUAV(OutVelocities);
+
+    TShaderMapRef<FDemoIntegrateCS> Shader(GetGlobalShaderMap(GMaxRHIFeatureLevel));
+    FComputeShaderUtils::AddPass(Graph, RDG_EVENT_NAME("Demo.Integrate"),
+        Shader, P, FIntVector(Groups, 1, 1));
+    Graph.QueueBufferExtraction(OutPositions, &SavedPositions);
+    Graph.QueueBufferExtraction(OutVelocities, &SavedVelocities);
+}
+~~~
+
+输出 extraction 让结果在图外保留，并使图知道这些结果有后续用途；它**不是 CPU 数据回读**。下一张图可通过 `RegisterExternalBuffer` 使用持久输出，而不是每步重新上传初值。真正连续运行还需要明确资源所有权、跨图访问和退出时机，不能只把这个函数放进 Actor Tick。
+
+该片段未在 UE 中独立编译验收；实际插件调用方式应以固定源码为准。真实的参数分配、组数和派发可逐项对照 [SolverPasses.cpp:156–175](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Source/GPUPhysicsLab/Private/CSDispatch/GPUPhysicsLabSolverPasses.cpp#L156-L175)。
+
+### 资源依赖决定阶段可见性
+
+假设预测 pass 写 `Bodies`，求解 pass 再读写同一个 `Bodies`。两个 pass 都必须通过参数结构声明访问；RDG 才能识别依赖、处理所需资源状态转换和同步。
+
+一个 pass 写 UAV，另一个 pass 改用 SRV，不会变成另一份数据。相反，两份名字不同但实际上指向同一底层资源的视图，也不能因为命名不同就忽略冲突。资源绑定与算法的旧值、新值约定必须一起设计。
+
+这里将“pass”理解为图中的计算阶段，将“Dispatch”理解为启动线程组的命令。本文示例的一个计算 pass 包含一次派发，但两个概念并不要求在所有代码中一一对应。使用 Compute Shader 也不等于已经开启 Async Compute，是否并行执行还取决于图标记、依赖和平台。
+
+## 回到真实的 IntegrateBodies
+
+### 从入口到写回，逐步识别职责
+
+真实入口同样是 $64$ 线程一组，但它执行的是 **warm start bodies**，不能照文件名理解成“完整物理积分器”。对 [IntegrateBodies.usf:24–81](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Shaders/Private/Simulation/Integration/IntegrateBodies.usf#L24-L81) 按实际顺序阅读：
+
+1. **加载步参数与索引**：取得本步 `BodyCount`、时间步长等，检查越界和已有失败状态。
+2. **读取当前 Body**：把该体的记录装入线程局部变量。
+3. **按排列维护参考位姿**：完整碰撞步已经处理过时，不重复更新时间戳。
+4. **读取单体动力属性**：确定重力倍率、阻尼与质心偏移；对动态体施加本步阻尼。
+5. **构造惯性目标**：计算没有约束时的预测位置和旋转，写入 `InertialPos / InertialRot`。
+6. **保存本步初态**：写 `InitialPos / InitialRot`，供后续速度重建使用。
+7. **构造求解初值**：依据动态状态和暖启动权重更新当前求解位置；该位置不必等于惯性目标。
+8. **推进运动学体并写回**：质量通道不表示动态、但有指定速度的记录也有自己的分支。
+
+前面的质点示例直接更新速度和位置；这里需要保留“步初状态、惯性目标、求解候选”三套含义。后续约束会改变候选位姿，再由速度 pass 重建结果，不能把示例中的速度更新重复叠加到真实链路。
+
+### 惯性目标与初始猜测为什么分开
+
+忽略阻尼、风、质心偏移和旋转，只看动态体的平移目标：
+
+$$
+\mathbf y_i=\mathbf x_i^n+h\mathbf v_i^n+h^2\mathbf g_i.
+$$
+
+目标 $\mathbf y_i$ 进入惯性能量，候选位置 $\mathbf x_i^{(0)}$ 是迭代开始的位置。上标 $(0)$ 表示步内第零轮，和时间步 $n$ 不同。调整初值有可能减少迭代，但不能因此把求解目标一同改掉。
+
+对应源码分别是 [IntegrateBodies.usf:55–59](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Shaders/Private/Simulation/Integration/IntegrateBodies.usf#L55-L59) 和 [IntegrateBodies.usf:63–79](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Shaders/Private/Simulation/Integration/IntegrateBodies.usf#L63-L79)。更完整的旋转、初值和局部块见后文原问题章节。
+
+## 多线程协作与同步边界
+
+### 哪些操作可以原地更新
+
+质点例子的每个线程只写自己的元素，拆成输入输出主要是为了清晰。碰撞约束则不同：约束连接两个物体，更新一个体时通常要读另一个体的位姿。
+
+即使“每个线程只写自己的物体”，也可能发生**读写竞争**：线程 A 写 Body A 的同时，线程 B 正在读 Body A。只避免两个线程写同一元素还不够。
+
+常见设计有三种：读取不可变旧状态、写另一份新状态；按颜色分批，让同批求解体之间没有直接约束；或使用原子操作解决定义明确的共享计数/归约问题。它们解决的问题不同，不能随意替换。GPUPhysicsLab 的 Primal 采用颜色分批，并在单体内部用多个 lane 分摊邻接项，见 [PrimalSolve.usf:29–110](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Shaders/Private/Solver/Primal/PrimalSolve.usf#L29-L110)。
+
+### groupshared 与组内 barrier
+
+假设一个物体有很多约束，可以让多个 lane 各算一部分局部矩阵，再归约合并。中间结果先写入 `groupshared`，调用 `GroupMemoryBarrierWithGroupSync()` 后，同组其他线程才能按这段算法读取完整的共享结果。
+
+以下是**归约示意**：假设组内 $64$ 个线程都执行该段，`OwnContribution` 已经计算好，无效尾部对应的贡献设置为零。
+
+~~~hlsl
+groupshared float Partial[64];
+
+// 位于 numthreads(64, 1, 1) 的入口内部。
+Partial[LocalId.x] = Live ? OwnContribution : 0.0f;
+GroupMemoryBarrierWithGroupSync();
+for (uint stride = 32; stride > 0; stride >>= 1)
+{
+    if (LocalId.x < stride)
+        Partial[LocalId.x] += Partial[LocalId.x + stride];
+    GroupMemoryBarrierWithGroupSync();
+}
+// 此时 lane 0 可消费 Partial[0]。
+~~~
+
+最小积分 shader 可以越界后直接 `return`，因为后面没有组同步。上面的归约则不能让一部分线程提前退出、其余线程继续到 barrier。组内所有参与线程必须按一致的控制流到达这些同步点。真实 Primal 明确保留无效尾部参与同步：[PrimalSolve.usf:91–109](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Shaders/Private/Solver/Primal/PrimalSolve.usf#L91-L109)。
+
+`GroupMemoryBarrierWithGroupSync` 的范围是**本组共享内存**。它不能让另一个组也到达这里，不能充当整个 Dispatch 的全局会合点；语义边界见 [Microsoft 文档](https://learn.microsoft.com/en-us/windows/win32/direct3dhlsl/groupmemorybarrierwithgroupsync)。真实稀疏颜色入口还使用 `DeviceMemoryBarrierWithGroupSync` 处理 UAV 写入对本组后续读取的可见性，这同样不是跨所有组的全局会合：[PrimalSolve.usf:113–138](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Shaders/Private/Solver/Primal/PrimalSolve.usf#L113-L138)。
+
+### 原子计数不是完整记录发布
+
+候选碰撞对数量是变长的，多个线程需要申请不同输出槽。下面是**局部示意**，假设计数器已清零、容量已配置，溢出会通过另一条状态通道处理：
+
+~~~hlsl
+uint slot;
+InterlockedAdd(PairCounter[0], 1u, slot);
+if (slot < PairCapacity)
+    Pairs[slot] = uint2(bodyA, bodyB);
+// slot 越界时不能静默当作完整候选集合；生产路径必须报告溢出。
+~~~
+
+原子操作让申请者获得不同的旧计数值，但不意味着读到新计数的其他线程已经能读取完整的 `Pairs[slot]`。下一个消费阶段还需要正确的资源依赖与同步。输出顺序也不应默认等同于物体编号顺序。
+
+GPUPhysicsLab 对 Pair 哈希、接触记录和容量各有实际实现，不能由这几行示意替代；具体见后文窄相、接触缓存与容量章节。
+
+## 从单个 Dispatch 走向物理流水线
+
+### 先分清每一阶段的工作单位
+
+一个完整物理步不是“对所有物体并行执行一次积分”。它至少还要建立碰撞集合、连接关系，再在存在依赖的系统里迭代。
+
+~~~text
+每体状态
+  → 宽相：哪些物体可能接触？       输出候选 Pair
+  → 窄相：接触在哪里、法线是什么？ 输出 Manifold / Contact
+  → CSR：每个体连接哪些约束？      输出邻接区间
+  → 染色：哪些体可在同一批更新？   输出颜色桶与间接派发参数
+  → 暖启动：准备本步目标与初值
+  → 多轮 Primal / Dual：更新位姿、乘子与罚参数
+  → 速度重建与检查
+  → 接受状态，交给显示或异步观察
+~~~
+
+这是阅读本文快照的顺序；其完整步在刚体暖启动之前建立碰撞集合。不要从其他引擎常见的“先预测、再碰撞”反推这里的调用顺序，实际入口见 [SolverPasses.cpp:46–67、155–175](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Source/GPUPhysicsLab/Private/CSDispatch/GPUPhysicsLabSolverPasses.cpp#L46-L175)。
+
+同样的 $64$ 个线程，可以分别处理物体、候选对或约束，不能把所有 pass 都理解成“一线程一刚体”。真实扫描 pass 更是 $256$ 个线程一组、每组处理 $512$ 项：[ScanBlocks.usf:7–22](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Shaders/Private/Broadphase/Sort/ScanBlocks.usf#L7-L22)。
+
+### Count、Scan、Scatter 为什么总是一起出现
+
+CPU 可以向每个物体的可变长数组不断 `push_back`。GPU 通常先统计数量，再计算紧凑输出区间，最后写入。设三个物体分别有 $[2,0,3]$ 条邻接，则 exclusive scan 得到起点 $[0,2,2]$；补上总长后，CSR offsets 为：
+
+$$
+\mathrm{offsets}=[0,2,2,5].
+$$
+
+第一个体使用 $[0,2)$，第二个体使用空区间 $[2,2)$，第三个体使用 $[2,5)$。后续 shader 只遍历本体区间，不必每个体都扫描整个接触数组。
+
+数据过长时，一个线程组算不完所有前缀和。真实实现先扫描各块，再扫描块和，最后把块偏移加回去；跨块依赖由多个 RDG pass 建立，而不是让所有组在一个 shader 里自旋等待：[SequencePasses.cpp:9–29](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Source/GPUPhysicsLab/Private/CSDispatch/GPUPhysicsLabSequencePasses.cpp#L9-L29)。
+
+### 颜色顺序为什么会影响求解结果
+
+设三体沿链条连接：A—B—C。一种合法颜色是 A、C 同色，B 另一色。先更新 A、C，再更新 B，B 就能使用这一轮已经更新的邻居位置；若全部同时读取旧值，则是另一种更新顺序。
+
+因此染色不仅是把任务平均分配给 GPU。它保护分块 Gauss–Seidel 所需的依赖结构；颜色间的资源可见性也是数值算法的一部分。把若干颜色随意塞进多个并发线程组，会改变读到的状态，甚至产生竞争。方法区别见[迭代求解](/knowledge/iterative-linear-solvers/)。
+
+### GPU 间接派发如何避免回读数量
+
+窄相不知道 CPU 预先估计的候选数量，而是消费 GPU 本步实际生成的数量。GPU 可先把数量换成组数，写成三个整数的 dispatch 参数，再让后继 pass 使用间接派发。
+
+这个快照的 `SetDispatchArgs` 写入 `ceil(Count / 64)`、`1`、`1`：[BuildColors.usf:19–32](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Shaders/Private/Solver/Coloring/BuildColors.usf#L19-L32)。Primal 的颜色桶则还要考虑一体使用几个 lane，不能把前面的公式无条件用于所有入口。C++ 必须声明参数缓冲的 `IndirectArgs` 访问，之后才通过对应字节偏移派发：[Passes.h:39–47](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Source/GPUPhysicsLab/Private/CSDispatch/GPUPhysicsLabPasses.h#L39-L47)、[SolverPasses.cpp:183–193](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Source/GPUPhysicsLab/Private/CSDispatch/GPUPhysicsLabSolverPasses.cpp#L183-L193)。
+
+这样 CPU 不必为了知道候选数而阻塞读取；但 shader 类型、迭代和颜色的调度仍有 C++ 参与，不能因此称为“CPU 完全不参与”。
+
+## 实现范围与源码快照
 
 当前 GPUPhysicsLab 是以锁定 three-avbd 三维 GPU 实现为基础、使用 UE C++、HLSL、RDG/RHI 重写的独立物理运行时。核心是**按刚体分块的六维 AVBD 原对偶求解**，不是旧版文章所描述的“十五个 Compute Shader 的 PBD 系统”。[参考锁:1–36](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Doc/Porting/REFERENCE.lock.json#L1-L36) [求解调度:141–242](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Source/GPUPhysicsLab/Private/CSDispatch/GPUPhysicsLabSolverPasses.cpp#L141-L242)
 
@@ -71,7 +528,7 @@ GPUPhysicsLab 的重点不仅是把公式写成 shader，还包括 GT/RT 所有�
 
 ### 本文版本与证据口径
 
-分析目录为 E:\UnrealProjects\GASP57\Plugins\GPUPhysicsLab，读取分支为 three-avbd-rewrite，基线 HEAD：
+分析目录为 `E:\UnrealProjects\GASP57\Plugins\GPUPhysicsLab`。下面所有源码结论继续限定在原文的 `three-avbd-rewrite` 历史快照；它不是本次重写时的开发分支 HEAD：
 
 ~~~text
 779b2e09cc531d39d8d2ad7d5813823cc5c26bd6
@@ -84,13 +541,13 @@ three-avbd 0.3.0
 2bb1a318e9aad03640b4bce5b5d222484f0925f7
 ~~~
 
-分析开始时，World 的参考场景/布料配置、显示和示例存在未提交修改；分析期间这些增量已形成新提交。本文最终冻结到以上提交，并补读了新增的 30×30 布料场景与验收摘要。核心求解文件与此前读本一致；本文没有修改插件。后续新提交不自动属于本文结论。
+原文对 30×30 布料场景和验收摘要的分析也冻结到该提交。这里使用网格宽相、弹簧质点布料等描述时，均指此版本；不能据此判断后续开发分支的算法。本次只修改网站文档与算例审计，没有修改插件。
 
 以下文件路径均相对于插件根目录；正文引用给出文件别名与行号，文末映射到完整路径。远端链接需要该提交已推送且读者有访问权限，不能用远端可访问性代替本地源码证据。
 
 本文明确区分：
 
-- **源码事实**：本轮读到的实际函数、分支与数据流。
+- **源码事实**：固定提交中的实际函数、分支与数据流；本次新增核对的入口见文首。
 - **工程判断**：由实现推导出的成本、限制和建议。
 - **历史证据**：仓库记录的测试结果，本轮没有重新运行 UE。
 - **待验证**：真实场景、长时间运行、跨 GPU、Cook/Shipping 与视觉验收。
@@ -409,7 +866,10 @@ Acc 保存线、角、交叉块和右端，不建立全场景大矩阵。[局部
 六维 LDLᵀ 手工展开，第二至第六 pivot 下限为：
 
 $$
-D_k\leftarrow\max(D_k,10^{-5}H_{kk}),\qquad k=2,\ldots,6
+\begin{aligned}
+D_k&\leftarrow\max(D_k,10^{-5}H_{kk}),\\
+&\qquad k=2,\ldots,6.
+\end{aligned}
 $$
 
 随后位置减去线性解，旋转用负角增量 qadd 更新。没有选主元/线搜索的新算法。[局部块:32–88](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Shaders/Private/Common/Geometry/GPUPhysicsLabRigidBlock.ush#L32-L88)
@@ -433,10 +893,12 @@ $$
 接触行沿参考 Taylor 形式：
 
 $$
-C^*=(1-\alpha)C_0+
-\mathbf l\cdot(\Delta\mathbf x_A-\Delta\mathbf x_B)
-+(\mathbf r_A\times\mathbf l)\cdot\Delta\boldsymbol\theta_A
-+(\mathbf r_B\times(-\mathbf l))\cdot\Delta\boldsymbol\theta_B
+\begin{aligned}
+C^*={}&(1-\alpha)C_0\\
+&+\mathbf l\cdot(\Delta\mathbf x_A-\Delta\mathbf x_B)\\
+&+(\mathbf r_A\times\mathbf l)\cdot\Delta\boldsymbol\theta_A\\
+&+(\mathbf r_B\times(-\mathbf l))\cdot\Delta\boldsymbol\theta_B.
+\end{aligned}
 $$
 
 球与扩展曲面特征域使用 initial rotation 的力臂，Box/Hull 保持当前旋转规则。这样避免滚动旋转在法向线性化中制造虚假分离。[约束数学:91–135](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Shaders/Private/Common/Solver/GPUPhysicsLabRigidConstraint.ush#L91-L135)
@@ -444,9 +906,11 @@ $$
 ### 法向与摩擦
 
 $$
-\mathbf F=\mathbf k\odot\mathbf C^*+\boldsymbol\lambda,\qquad
-F_n\leftarrow\min(F_n,0),\qquad
-\|\mathbf F_t\|\le\mu|F_n|
+\begin{aligned}
+\mathbf F&=\mathbf k\odot\mathbf C^*+\boldsymbol\lambda,\\
+F_n&\leftarrow\min(F_n,0),\\
+\|\mathbf F_t\|&\le\mu|F_n|.
+\end{aligned}
 $$
 
 负法向数值表示本实现约定下的承载分支，不是吸力。摩擦是二维向量整体圆锥约束，不是两条轴分别裁成方框。[约束数学:108–126](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Shaders/Private/Common/Solver/GPUPhysicsLabRigidConstraint.ush#L108-L126)
@@ -472,9 +936,10 @@ GPU 失效约束后，JavaScript/C++ 层回调尚未到达是正常异步现象�
 默认质心零时：
 
 $$
-\mathbf v_{n+1}=\frac{\mathbf x_{n+1}-\mathbf x_n}{h},
-\qquad
-\boldsymbol\omega_{n+1}=\frac{\operatorname{qsub}(q_{n+1},q_n)}{h}
+\begin{aligned}
+\mathbf v_{n+1}&=\frac{\mathbf x_{n+1}-\mathbf x_n}{h},\\
+\boldsymbol\omega_{n+1}&=\frac{\operatorname{qsub}(q_{n+1},q_n)}{h}.
+\end{aligned}
 $$
 
 质心偏移非零时，代码还加入旋转质心位移对线速度的贡献。vel.w 保存沿 up 的历史速度。[速度更新:7–25](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Shaders/Private/Simulation/Integration/UpdateVelocity.usf#L7-L25)
@@ -675,8 +1140,10 @@ $$
 然后 IntegrateParticles 先更新速度，再更新位置：
 
 $$
-\mathbf v_{n+1}=\mathbf v_n+h(\mathbf g+m^{-1}\mathbf f),\qquad
-\mathbf x_{n+1}=\mathbf x_n+h\mathbf v_{n+1}
+\begin{aligned}
+\mathbf v_{n+1}&=\mathbf v_n+h(\mathbf g+m^{-1}\mathbf f),\\
+\mathbf x_{n+1}&=\mathbf x_n+h\mathbf v_{n+1}.
+\end{aligned}
 $$
 
 这是力基半隐式 Euler 形式；不是逐粒子 $3\times3$ AVBD、不是 XPBD lambda，也没有在刚体 iterations 中反复解这些弹簧。[布料弹簧:10–49](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Shaders/Private/Cloth/ApplySprings.usf#L10-L49) [布料积分:11–38](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Shaders/Private/Cloth/IntegrateParticles.usf#L11-L38)
@@ -740,12 +1207,11 @@ Bending 在这里是隔点距离弹簧，不是二面角能量。该预设没有
 显存至少拆成：
 
 $$
-M_{\mathrm{total}}=
-M_{\mathrm{live}}+
-M_{\mathrm{backup}}+
-M_{\mathrm{display}}+
-M_{\mathrm{scratch}}+
-M_{\mathrm{readback}}
+\begin{aligned}
+M_{\mathrm{total}}={}&M_{\mathrm{live}}+M_{\mathrm{backup}}\\
+&+M_{\mathrm{display}}+M_{\mathrm{scratch}}\\
+&+M_{\mathrm{readback}}.
+\end{aligned}
 $$
 
 对比时需报告实际分配容量、快照保留数与扩容峰值，而不是只乘活跃 Body 数。
@@ -812,9 +1278,11 @@ alpha 同时进入稳定化误差和暖启动；gamma 控制跨步历史衰减�
 当前常量含：
 
 $$
-\mathrm{margin}=0.01\ \mathrm m,\quad
-\mathrm{reuseLin}=0.002\ \mathrm m,\quad
-\mathrm{reuseAng}=0.002\ \mathrm{rad}
+\begin{aligned}
+\mathrm{margin}&=0.01\ \mathrm m,\\
+\mathrm{reuseLin}&=0.002\ \mathrm m,\\
+\mathrm{reuseAng}&=0.002\ \mathrm{rad}.
+\end{aligned}
 $$
 
 以及 penaltyMin=1、penaltyMax=$10^{10}$、pivotFloor=$10^{-5}$、restSpeed=0.1、nearestFraction=0.05。[内核常量:27–29](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Source/GPUPhysicsLab/Private/GPUData/GPUPhysicsLabLimits.h#L27-L29)
@@ -829,7 +1297,7 @@ $$
 
 ## 验证状态：不要把几种清单相互替代
 
-以下全部是本轮读取到的仓库记录，不是重新编译/运行的结果。
+以下是原文固定快照内的历史仓库记录，不是本次重新编译/运行的结果，也不代表后续分支的验收状态。
 
 ### P32 的 53 项
 
@@ -862,6 +1330,18 @@ CLOTH07 仅验证独立布料存储在一次注入错误后的恢复，不关闭
 P31 测量范围为 free-body/no-collision，只有有限规模与短长期检查，不能外推成密集接触的 RTX 性能预算。[P31 结果:1–21、38–45](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Doc/Porting/P31_RESULTS.json#L1-L45)
 
 ## 面向项目的诊断顺序
+
+### Shader 未编译或没有执行
+
+先区分 C++ 构建和 shader 编译。模块 DLL 成功生成，并不证明目标 RHI 的入口和排列都已编译。依次检查插件加载时机、虚拟路径映射、`IMPLEMENT_GLOBAL_SHADER` 的文件与入口、`ShouldCompilePermutation` 和实际 shader map。这个快照还在运行时检查真实 SM6 RHI 和所需 shader：[SolverPasses.cpp:79–131](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Source/GPUPhysicsLab/Private/CSDispatch/GPUPhysicsLabSolverPasses.cpp#L79-L131)。
+
+shader 可用后，再看 pass 是否加入实际执行的图、组数是否覆盖有效数据、输出是否被消费或 extraction。可以按文中的 `RDG_EVENT_NAME` 定位计算阶段；“有 shader 文件”和“有 GPU 事件”分别只回答路径存在和工作是否提交，不能证明物理结果正确。
+
+### 输出错误、越界与组同步问题
+
+先对最小数据集检查 SRV/UAV、元素步长、容量和参数；用 $N=1$、$N=64$、$N=65$ 这类边界区分单组、整组与部分尾组。对含 barrier 的 shader，要检查无效线程是否仍按要求到达组内同步点。
+
+如果单个 pass 正确、串起来才错，优先检查读写的资源是否属于同一版本、上一阶段输出是否真的成为下一阶段输入，以及 RDG 参数是否完整声明访问。不要先提高求解迭代数，也不要在每个 pass 后加 CPU 等待来掩盖缺失的依赖。
 
 ### 不动：先看入口，不先改求解系数
 
@@ -959,7 +1439,7 @@ GPU 正在模拟不代表显示已消费最新接受版本；CPU 数组延迟也
 
 ## 源码索引与固定版本
 
-路径相对于 E:\UnrealProjects\GASP57\Plugins\GPUPhysicsLab。正文行号属于本次读取版本，固定链接指向本文标注 HEAD；分析期间产生的新提交已单独复核，后续增量不作为这些链接的证明。课程 JSON 是历史证据，不是本轮测试输出。
+路径相对于 `E:\UnrealProjects\GASP57\Plugins\GPUPhysicsLab`。正文行号和固定链接属于文首标注的历史提交；后续增量不作为这些链接的证明。课程 JSON 是历史证据，不是本轮测试输出。Compute Shader 入门新增的独立代码片段不在插件目录中，不能作为已经实现或编译通过的接口使用。
 
 - P00：[GPUPhysicsLab.uplugin][p00] — 模块与插件依赖。
 - P01：[Doc/Porting/REFERENCE.lock.json][p01] — 参考提交、范围和默认。
@@ -1014,6 +1494,10 @@ GPU 正在模拟不代表显示已消费最新接受版本；CPU 数组延迟也
 - P50：[Shaders/Private/Broadphase/Pairs/GenerateCandidatePairs.usf][p50] — 网格探测与候选过滤。
 - P51：[Shaders/Private/Common/Geometry/GPUPhysicsLabConvexSAT.ush][p51] — 原生 Box/Hull SAT。
 - P52：[Shaders/Private/Common/Contact/GPUPhysicsLabPolyhedronClipping.ush][p52] — 多点裁剪与边接触。
+- Compute Shader 注册：[GPUPhysicsLabIntegrateBodiesCS.cpp](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Source/GPUPhysicsLab/Private/CSDispatch/GPUPhysicsLabIntegrateBodiesCS.cpp#L3-L5) — 入口、虚拟路径与 SM6 准入。
+- 参数声明：[GPUPhysicsLabPasses.h](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Source/GPUPhysicsLab/Private/CSDispatch/GPUPhysicsLabPasses.h#L6-L48) — 常量、SRV、UAV 与间接派发资源。
+- 路径映射：[GPUPhysicsLab.cpp](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Source/GPUPhysicsLab/Private/GPUPhysicsLab.cpp#L8-L23) — 插件目录到 shader 虚拟路径。
+- HLSL 语义：[SV_DispatchThreadID](https://learn.microsoft.com/en-us/windows/win32/direct3dhlsl/sv-dispatchthreadid)、[GroupMemoryBarrierWithGroupSync](https://learn.microsoft.com/en-us/windows/win32/direct3dhlsl/groupmemorybarrierwithgroupsync) — 线程索引与组内共享内存同步。
 
 [p00]: https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/GPUPhysicsLab.uplugin
 [p01]: https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Doc/Porting/REFERENCE.lock.json

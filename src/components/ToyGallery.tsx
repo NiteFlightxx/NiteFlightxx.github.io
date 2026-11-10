@@ -1,6 +1,7 @@
 import { ArrowUpRight } from 'lucide-react';
 import { TOY_CASES } from '../data/toys';
 import './featured-case.css';
+import BorderGlow from './effects/BorderGlow';
 
 export default function ToyGallery() {
   const base = import.meta.env.BASE_URL;
@@ -13,7 +14,7 @@ export default function ToyGallery() {
           {TOY_CASES.map((toy, index) => {
             const accent = toy.accent && toy.title.endsWith(toy.accent) ? toy.accent : '';
             return (
-              <a key={toy.id} className="featured-case" href={`${base}${toy.href}`} aria-label={`体验 ${toy.name}：${toy.title.replaceAll('\n', ' ')}`}>
+              <BorderGlow as="a" key={toy.id} borderRadius={12} className="featured-case" href={`${base}${toy.href}`} aria-label={`体验 ${toy.name}：${toy.title.replaceAll('\n', ' ')}`}>
                 <div className="featured-case-copy">
                   <span className="featured-case-kicker"><span>✳</span> CASE {String(index + 1).padStart(3, '0')} / {toy.category}</span>
                   <h3>{accent ? <>{toy.title.slice(0, -accent.length)}<em>{accent}</em></> : toy.title}</h3>
@@ -25,7 +26,7 @@ export default function ToyGallery() {
                   <svg viewBox={toy.preview.viewBox} preserveAspectRatio="xMidYMid meet" focusable="false"><image href={`${base}${toy.preview.src}`} x="0" y="0" width={toy.preview.width} height={toy.preview.height} /></svg>
                   <span className="featured-case-art-label">{toy.caption}</span>
                 </div>
-              </a>
+              </BorderGlow>
             );
           })}
         </div>

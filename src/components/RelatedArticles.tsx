@@ -27,7 +27,7 @@ export default function RelatedArticles({ articles, lang }: RelatedArticlesProps
     <section className="mt-16 pt-10 border-t border-border-subtle">
       <div className="flex items-center gap-2 mb-6">
         <span className="w-1 h-1 rounded-full bg-accent-primary" />
-        <span className="font-mono text-[10px] text-accent-primary uppercase tracking-widest">
+        <span className="font-sans text-[12px] text-accent-primary">
           {heading}
         </span>
       </div>
@@ -39,8 +39,8 @@ export default function RelatedArticles({ articles, lang }: RelatedArticlesProps
             href={`${BASE_URL}knowledge/${art.slug}`}
             className="group block p-5 rounded-xl border border-border-subtle bg-surface-card hover:border-accent-primary/30 transition-all duration-300"
           >
-            <div className="flex items-center justify-between text-[9px] font-mono mb-3">
-              <span className="text-accent-primary uppercase tracking-wider">
+            <div className="flex items-center justify-between text-[12px] font-sans mb-3">
+              <span className="text-accent-primary">
                 {art.category}
               </span>
               {art.readTime && (
@@ -53,12 +53,12 @@ export default function RelatedArticles({ articles, lang }: RelatedArticlesProps
             </h3>
 
             {art.excerpt && (
-              <p className="text-[11px] text-text-faint leading-relaxed font-sans line-clamp-2">
+              <p className="text-[12px] text-text-faint leading-relaxed font-sans line-clamp-2">
                 {art.excerpt}
               </p>
             )}
 
-            <div className="flex items-center gap-1 mt-3 text-[9px] font-mono text-text-faint group-hover:text-accent-primary transition-colors">
+            <div className="flex items-center gap-1 mt-3 text-[12px] font-sans text-text-faint group-hover:text-accent-primary transition-colors">
               {lang === "zh" ? "阅读" : "Read"}
               <ArrowRight className="w-3 h-3" />
             </div>

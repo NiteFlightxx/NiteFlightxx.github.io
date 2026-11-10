@@ -96,7 +96,7 @@ export default function GlobalCommandPalette() {
 
   const quickLinks = useMemo<PaletteResult[]>(() => [
     { id: 'research', title: '研究', excerpt: '自主项目、算法研究与源码专题', url: `${BASE_URL}research/`, meta: '常用入口' },
-    { id: 'knowledge', title: '知识', excerpt: '搜索文档、按领域筛选，继续收藏与阅读', url: `${BASE_URL}knowledge/`, meta: '常用入口' },
+    { id: 'knowledge', title: '知识', excerpt: '搜索文档、按领域筛选，继续收藏与阅读', url: `${BASE_URL}knowledge/library/`, meta: '常用入口' },
     { id: 'toy', title: 'TOY', excerpt: '动手体验物理、视觉与交互实验', url: `${BASE_URL}about/`, meta: '常用入口' },
     ...entries.filter((entry) => entry.featured).slice(0, 4).map((entry) => ({ id: entry.slug, title: entry.title, excerpt: entry.summary, url: entry.url, meta: `精选 · ${entry.categoryLabel}` })),
   ], [entries]);
@@ -172,12 +172,12 @@ export default function GlobalCommandPalette() {
             placeholder="搜索文章、源码类型、公式或项目…"
             className="min-w-0 flex-1 bg-transparent text-base text-text-primary outline-none placeholder:text-text-faint"
           />
-          <kbd className="hidden rounded border border-border-subtle px-2 py-1 font-mono text-[10px] text-text-faint sm:block">ESC</kbd>
+          <kbd className="hidden rounded border border-border-subtle px-2 py-1 font-sans text-[12px] text-text-faint sm:block">ESC</kbd>
           <button onClick={() => setOpen(false)} className="text-text-muted hover:text-text-primary" aria-label="关闭"><X className="h-5 w-5" /></button>
         </div>
         <div className="max-h-[62vh] overflow-y-auto p-3">
           {!query && (
-            <div className="mb-2 flex items-center gap-2 px-3 py-2 font-mono text-[10px] uppercase tracking-widest text-text-faint">
+            <div className="mb-2 flex items-center gap-2 px-3 py-2 font-sans text-[12px] text-text-faint">
               <Clock3 className="h-3.5 w-3.5" />{defaultResults.length > 0 ? '常用入口与最近阅读' : '常用入口'}
             </div>
           )}
@@ -190,9 +190,9 @@ export default function GlobalCommandPalette() {
             >
               <BookOpen className={`mt-1 h-4 w-4 shrink-0 ${index === active ? 'text-accent-primary' : 'text-text-faint'}`} />
               <span className="min-w-0 flex-1">
-                <span className="block truncate font-display text-sm font-bold">{highlightMatch(result.title, query)}</span>
+                <span className="block truncate font-display text-sm font-semibold">{highlightMatch(result.title, query)}</span>
                 <span className="mt-1 block line-clamp-2 text-xs leading-relaxed text-text-muted" dangerouslySetInnerHTML={{ __html: result.excerpt }} />
-                <span className="mt-1.5 block font-mono text-[9px] uppercase tracking-wider text-text-faint">{result.meta}</span>
+                <span className="mt-1.5 block font-sans text-[12px] text-text-faint">{result.meta}</span>
               </span>
               {index === active && <CornerDownLeft className="mt-1 h-4 w-4 shrink-0 text-accent-primary" />}
             </button>
@@ -200,7 +200,7 @@ export default function GlobalCommandPalette() {
             <div className="px-5 py-10 text-center text-sm text-text-muted">没有找到匹配内容</div>
           )}
         </div>
-        <footer className="flex flex-wrap items-center justify-between gap-3 border-t border-border-subtle px-5 py-3 font-mono text-[9px] uppercase tracking-wider text-text-faint">
+        <footer className="flex flex-wrap items-center justify-between gap-3 border-t border-border-subtle px-5 py-3 font-sans text-[12px] text-text-faint">
           <span className="flex items-center gap-2"><Command className="h-3 w-3" />↑↓ 选择 · Enter 打开</span>
           <a href={`${BASE_URL}knowledge/graph/`} className="flex items-center gap-1.5 hover:text-accent-primary"><Network className="h-3 w-3" />知识图谱</a>
         </footer>

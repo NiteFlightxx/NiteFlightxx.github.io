@@ -2,6 +2,7 @@
 import { getCollection, render, type CollectionEntry } from 'astro:content';
 import StaticSiteHeader from '../../components/StaticSiteHeader.astro';
 import BaseHead from '../../components/BaseHead.astro';
+import SiteBackground from '../../components/backgrounds/SiteBackground.astro';
 import { SITE } from '../../consts';
 import { knowledgeCategoryZh, knowledgeSubtopicZh } from '../../lib/taxonomy';
 import type { ArticleTopicRole } from '../../types';
@@ -78,8 +79,8 @@ const sortedArticles = [...articles].sort((a, b) => {
       canonicalPath={Astro.url.pathname}
     />
   </head>
-  <body class="bg-surface-base text-text-secondary">
-    <div class="fixed inset-0 -z-20 bg-surface-base"></div>
+  <body class="site-background-enabled bg-surface-base text-text-secondary">
+    <SiteBackground />
 
     <StaticSiteHeader activeTab="projects" />
 

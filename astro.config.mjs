@@ -24,6 +24,10 @@ export default defineConfig({
   output: 'static',
   integrations: [react()],
   markdown: {
+    shikiConfig: {
+      themes: { light: 'github-light', dark: 'github-dark-default' },
+      defaultColor: false,
+    },
     remarkPlugins: [remarkMath],
     rehypePlugins: [rehypeSlug, rehypeKatex, rehypeDocumentStyle],
   },

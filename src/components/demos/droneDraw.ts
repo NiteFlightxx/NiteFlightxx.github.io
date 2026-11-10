@@ -69,7 +69,7 @@ export function label(
   color: string = INK.text, size = 11, align: CanvasTextAlign = "center",
 ) {
   ctx.save();
-  ctx.font = `${size}px "JetBrains Mono", ui-monospace, monospace`;
+  ctx.font = `${size}px "Geist Mono Variable", ui-monospace, monospace`;
   ctx.textAlign = align;
   ctx.textBaseline = "middle";
   const w = ctx.measureText(text).width;

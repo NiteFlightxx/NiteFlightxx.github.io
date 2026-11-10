@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 560 540" role="img" aria-labelledby="title desc">
+  <title id="title">Compute Shader 的线程组与元素索引</title>
+  <desc id="desc">1000 个元素，每组 64 个线程，共派发 16 组。第零组处理索引 0 到 63，第十五组中索引 960 到 999 有效，1000 到 1023 被边界检查屏蔽。</desc>
+  <defs>
+    <pattern id="tail" width="10" height="10" patternUnits="userSpaceOnUse">
+      <path d="M-2 2 2-2 M0 10 10 0 M8 12 12 8" stroke="#a3a77b" stroke-width="1"/>
+    </pattern>
+    <marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+      <path d="m0 0 8 4-8 4" fill="#666b43"/>
+    </marker>
+  </defs>
+  <rect width="560" height="540" rx="16" fill="#f4f5eb"/>
+  <g font-family="'Noto Sans SC','Microsoft YaHei',sans-serif" fill="#353a24">
+    <text x="24" y="40" font-size="24" font-weight="700">1000 个元素 → 16 组 × 64 线程</text>
+    <text x="24" y="74" font-size="20">Dispatch 传组数，线程索引定位元素。</text>
+    <rect x="24" y="100" width="512" height="96" rx="10" fill="#e3e7cb" stroke="#8b925e"/>
+    <text x="44" y="137" font-size="22" font-weight="700">第 0 组：64 个有效线程</text>
+    <text x="44" y="173" font-size="21">局部 0…63 → 全局 0…63</text>
+    <text x="280" y="235" text-anchor="middle" font-size="22">⋮ 第 1…14 组 ⋮</text>
+    <rect x="24" y="260" width="512" height="96" rx="10" fill="#eaecdf" stroke="#8b925e"/>
+    <text x="44" y="297" font-size="22" font-weight="700">第 15 组：40 个有效线程</text>
+    <text x="44" y="333" font-size="21">局部 0…39 → 全局 960…999</text>
+    <path d="M280 358v24" stroke="#666b43" stroke-width="2" marker-end="url(#arrow)"/>
+    <rect x="24" y="390" width="512" height="82" rx="10" fill="url(#tail)" stroke="#8b925e"/>
+    <text x="44" y="423" font-size="21" font-weight="700">同组剩余 24 个线程：1000…1023</text>
+    <text x="44" y="453" font-size="20">i ≥ ParticleCount → return</text>
+    <text x="24" y="514" font-size="19">索引示意，不表示核心数或执行先后。</text>
+  </g>
+</svg>

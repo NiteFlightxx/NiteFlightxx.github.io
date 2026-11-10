@@ -312,4 +312,36 @@ for(const q of [[0,0,3,4],[.2,-.3,1.4,.8]]){
 }
 assert.throws(()=>distanceRow([0,0],[0,0]),/degenerate/);
 assert.throws(()=>transposeAction([1,NaN],2),/invalid/);
-console.log('Document examples passed: derivatives, constrained extrema, Jacobian predictions and virtual work, dynamics, materials, integration and solver comparisons. Not an engine runtime test.');
+const { dispatchPlan, gravityStep } = await example('gpu-physics-plugin', 'knowledge-gpu-dispatch-example');
+assert.deepEqual(dispatchPlan(1000), { groups: 16, threads: 1024, tail: 24 });
+// Every live element must have exactly one (group, local) owner, including partial tails.
+for (const count of [0, 1, 63, 64, 65, 130, 1000]) {
+  const plan = dispatchPlan(count);
+  const visits = new Uint8Array(count);
+  for (let group = 0; group < plan.groups; group++) {
+    for (let local = 0; local < 64; local++) {
+      const index = group * 64 + local;
+      if (index < count) visits[index]++;
+    }
+  }
+  assert.ok(visits.every(value => value === 1));
+  assert.ok(plan.tail >= 0 && plan.tail < 64);
+}
+assert.equal(dispatchPlan(65535 * 64).groups, 65535);
+assert.throws(() => dispatchPlan(65535 * 64 + 1), /limit/);
+assert.throws(() => dispatchPlan(-1), /invalid/);
+assert.throws(() => dispatchPlan(2.5), /invalid/);
+assert.throws(() => dispatchPlan(1, 0), /invalid/);
+const gpuFall = gravityStep();
+near(gpuFall.v, -.1635); near(gpuFall.y, 9.997275);
+const gravity = -9.81, duration = .5;
+for (const steps of [1, 30, 60]) {
+  const h = duration / steps;
+  let state = { y: 10, v: 0 };
+  for (let k = 0; k < steps; k++) state = gravityStep(state.y, state.v, h, gravity);
+  near(state.v, gravity * duration);
+  // Constant-acceleration semi-implicit Euler error is g * duration * h / 2.
+  near(state.y - (10 + .5 * gravity * duration ** 2), .5 * gravity * duration * h);
+}
+assert.throws(() => gravityStep(10, 0, 0), /invalid/);
+console.log('Document examples passed: derivatives, constrained extrema, Jacobian predictions and virtual work, dynamics, materials, integration, GPU dispatch indexing and solver comparisons. Not an engine runtime test.');

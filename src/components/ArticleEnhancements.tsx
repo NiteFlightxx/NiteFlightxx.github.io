@@ -3,7 +3,7 @@ import React, { useEffect, useRef, useState } from "react";
 /**
  * Progressive enhancement for article pages, run after hydration:
  *
- * 1. **Reading progress bar** — a fixed lime gradient bar at the very top of
+ * 1. **Reading progress bar** — a fixed accent bar at the very top of
  *    the viewport whose width tracks scroll position through the <article>.
  *    Uses a passive scroll listener + requestAnimationFrame throttling so it
  *    stays cheap even on long articles.
@@ -115,7 +115,7 @@ export default function ArticleEnhancements() {
       >
         <div
           ref={progressBarRef}
-          className="h-full w-0 bg-gradient-to-r from-brand-accent-lime via-brand-accent-gold-light to-brand-accent-lime transition-[width] duration-75 ease-out"
+          className="h-full w-0 bg-accent-primary transition-[width] duration-75 ease-out"
           style={{ width: "0%" }}
         />
       </div>

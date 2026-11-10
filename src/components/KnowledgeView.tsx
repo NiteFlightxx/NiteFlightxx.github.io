@@ -1,3 +1,4 @@
+import BorderGlow from './effects/BorderGlow';
 import { useEffect, useMemo, useState } from 'react';
 import Fuse from 'fuse.js';
 import { ArrowUpRight, BookOpen, Bookmark, Clock3, Grid2X2, List, Network, Search, X } from 'lucide-react';
@@ -83,7 +84,9 @@ export default function KnowledgeView({ articles }: KnowledgeViewProps) {
     if (value === 'all') url.searchParams.delete('scope'); else url.searchParams.set('scope', value);
     history.pushState(null, '', url);
   };
-  const resetFilters = () => { setQuery(''); chooseCategory('all'); setDifficulty('all'); setContentType('all'); chooseScope('all'); };
+  const resetFilters = () => { setQuery(''); chooseCategory('all'); setDifficulty('all'); setContentType('all'); };
+  const browseAll = () => { resetFilters(); chooseScope('all'); };
+  const hasFilters = Boolean(query || category !== 'all' || difficulty !== 'all' || contentType !== 'all');
   const scopes = [
     { id: 'all' as const, icon: BookOpen, label: '全部知识', count: articles.length },
     { id: 'favorites' as const, icon: Bookmark, label: '我的收藏', count: reader.favorites.filter((slug) => visibleSlugs.has(slug)).length },
@@ -100,13 +103,13 @@ export default function KnowledgeView({ articles }: KnowledgeViewProps) {
         <p className="sidebar-note">收藏与阅读记录仅保存在当前浏览器。</p>
       </aside>
       <div className="workspace-main">
-        <header className="page-heading"><div><span className="eyebrow">Technical knowledge</span><h1>{scope === 'favorites' ? '我的收藏' : scope === 'recents' ? '最近阅读' : '技术知识库'}</h1><p>按数学、物理、动画与引擎实现组织的原理、推导和源码文档。</p></div><a className="quiet-link" href={BASE + 'knowledge/graph/'}><Network size={15} />知识图谱<ArrowUpRight size={14} /></a></header>
+        <header className="page-heading"><div><h1>{scope === 'favorites' ? '我的收藏' : scope === 'recents' ? '最近阅读' : '技术知识库'}</h1><p>按数学、物理、动画与引擎实现组织的原理、推导和源码文档。</p></div><a className="quiet-link" href={BASE + 'knowledge/graph/'}><Network size={15} />知识图谱<ArrowUpRight size={14} /></a></header>
         <div className="browser-mobile-scopes">{scopes.map(({ id, label, count }) => <button key={id} type="button" aria-pressed={scope === id} onClick={() => chooseScope(id)}>{label}<span>{count}</span></button>)}</div>
         <label className="browser-search"><Search size={18} /><span className="sr-only">搜索知识库</span><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索标题、正文、标签或 UE 类型…" />{query && <button type="button" aria-label="清除关键词" onClick={() => setQuery('')}><X size={16} /></button>}</label>
         <div className="browser-categories"><button type="button" aria-pressed={category === 'all'} onClick={() => chooseCategory('all')}>全部领域<span>{articles.length}</span></button>{categories.map(([name, count]) => <button type="button" key={name} aria-pressed={category === name} onClick={() => chooseCategory(name)}>{name}<span>{count}</span></button>)}</div>
         {category !== 'all' && <div className="browser-subtopics"><button type="button" aria-pressed={subtopic === 'all'} onClick={() => setSubtopic('all')}>全部子主题</button>{subtopics.map((name) => <button type="button" key={name} aria-pressed={subtopic === name} onClick={() => setSubtopic(name)}>{name}</button>)}</div>}
         <div className="browser-toolbar">
-          <span className="browser-result-count" role="status">{filtered.length} 篇内容</span>
+          <div className="browser-result-summary"><span className="browser-result-count" role="status">{filtered.length} 篇内容</span>{hasFilters && <button type="button" className="browser-reset" onClick={resetFilters}><X size={13}/>清除筛选</button>}</div>
           <div className="browser-controls">
             <select aria-label="按难度筛选" value={difficulty} onChange={(event) => setDifficulty(event.target.value)}><option value="all">全部难度</option><option value="foundation">基础</option><option value="intermediate">进阶</option><option value="advanced">高级</option></select>
             <select aria-label="按内容类型筛选" value={contentType} onChange={(event) => setContentType(event.target.value)}><option value="all">全部类型</option><option value="guide">指南</option><option value="concept">概念</option><option value="source-analysis">源码分析</option><option value="project">项目</option><option value="interactive">交互演示</option></select>
@@ -114,12 +117,12 @@ export default function KnowledgeView({ articles }: KnowledgeViewProps) {
             <div className="view-toggle"><button type="button" aria-label="列表视图" aria-pressed={view === 'list'} onClick={() => setView('list')}><List size={16} /></button><button type="button" aria-label="卡片视图" aria-pressed={view === 'cards'} onClick={() => setView('cards')}><Grid2X2 size={16} /></button></div>
           </div>
         </div>
-        {filtered.length === 0 ? <div className="browser-empty"><BookOpen size={26} /><h2>{scope === 'favorites' ? '尚无匹配的收藏' : scope === 'recents' ? '尚无匹配的阅读记录' : '没有找到匹配内容'}</h2><p>{scope === 'favorites' ? '可以在文章页收藏内容，或调整当前筛选。' : '尝试其他关键词，或浏览全部知识。'}</p><button type="button" onClick={resetFilters}>浏览全部知识<ArrowUpRight size={14} /></button></div> :
+        {filtered.length === 0 ? <div className="browser-empty"><BookOpen size={26} /><h2>{scope === 'favorites' ? '尚无匹配的收藏' : scope === 'recents' ? '尚无匹配的阅读记录' : '没有找到匹配内容'}</h2><p>{scope === 'favorites' ? '可以在文章页收藏内容，或调整当前筛选。' : '尝试其他关键词，或浏览全部知识。'}</p><button type="button" onClick={browseAll}>浏览全部知识<ArrowUpRight size={14} /></button></div> :
           <div className={'browser-results ' + (view === 'cards' ? 'browser-card-view' : 'browser-list-view')}>
-            {filtered.map((article) => <a className="browser-article" key={article.slug} href={BASE + 'knowledge/' + article.slug + '/'}>
-              <div className="browser-article-main"><span className="note-meta">{article.category}{article.subtopic ? ' / ' + article.subtopic : ''}</span><h2>{highlight(compactTitle(article.title), query)}</h2>{article.excerpt && <p>{highlight(article.excerpt, query)}</p>}<div className="browser-article-tags">{article.tags.slice(0, 3).map((tag) => <span key={tag}>{tag}</span>)}</div></div>
+            {filtered.map((article) => <BorderGlow as="a" borderRadius={12} className="browser-article" key={article.slug} href={BASE + 'knowledge/' + article.slug + '/'}>
+              <div className="browser-article-main"><span className="note-meta"><BookOpen size={14}/>{article.category}{article.subtopic ? ' / ' + article.subtopic : ''}</span><h2>{highlight(compactTitle(article.title), query)}</h2>{article.excerpt && <p>{highlight(article.excerpt, query)}</p>}<div className="browser-article-tags">{article.tags.slice(0, 3).map((tag) => <span key={tag}>{tag}</span>)}</div></div>
               <div className="browser-article-end"><span>{article.date}</span><span>{article.readTime}</span><ArrowUpRight size={16} /></div>
-            </a>)}
+            </BorderGlow>)}
           </div>}
       </div>
     </div>

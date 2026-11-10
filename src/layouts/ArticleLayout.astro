@@ -1,5 +1,6 @@
 ---
 import BaseHead from '../components/BaseHead.astro';
+import SiteBackground from '../components/backgrounds/SiteBackground.astro';
 import StaticSiteHeader from '../components/StaticSiteHeader.astro';
 import { SITE } from '../consts';
 import 'katex/dist/katex.min.css';
@@ -110,7 +111,8 @@ const {
     {difficulty && <meta data-pagefind-meta="difficulty" content={difficulty} />}
     {pageType && <meta data-pagefind-meta="pageType" content={pageType} />}
   </head>
-  <body class="bg-surface-base text-text-secondary">
+  <body class="site-background-enabled bg-surface-base text-text-secondary">
+    <SiteBackground />
     {/* Progressive enhancements: reading progress bar + code copy buttons.
         Hydrated as a client component; no-ops if .article-body isn't present. */}
     <ArticleEnhancements client:load />
@@ -130,7 +132,7 @@ const {
             <div class="border-t border-border-subtle p-3"><DocumentNavigation groups={readingGroups} current={currentSlug} /></div>
           </details>
           <details class="document-reader-tools rounded-lg border border-border-subtle">
-            <summary class="cursor-pointer px-4 py-3 text-xs text-text-muted">本文目录与阅读设置</summary>
+            <summary class="cursor-pointer px-4 py-3 text-xs text-text-muted">目录与阅读设置</summary>
             <div class="space-y-3 border-t border-border-subtle p-3">
               <ArticleToc client:load headings={headings} lang={lang} />
               <ReaderActions client:media="(max-width: 1099px)" slug={currentSlug} title={title} category={category} url={canonicalPath} />
@@ -138,23 +140,23 @@ const {
           </details>
         </div>
       <article class="article-body w-full" data-pagefind-body={indexBody ? true : undefined}>
-        <a href={backHref} class="inline-flex items-center gap-2 mb-6 text-xs font-mono text-text-muted hover:text-accent-primary transition-colors group"><ArrowLeft className="w-4 h-4 transition-transform group-hover:-translate-x-1" />{backLabel}</a>
+        <a href={backHref} class="inline-flex items-center gap-2 mb-6 text-xs font-sans text-text-muted hover:text-accent-primary transition-colors group"><ArrowLeft className="w-4 h-4 transition-transform group-hover:-translate-x-1" />{backLabel}</a>
         {/* Header metadata */}
         <header class="article-header border-b border-border-subtle pb-8 mb-10">
           {breadcrumbs.length > 0 && (
-            <nav aria-label="面包屑" class="mb-5 flex flex-wrap items-center gap-2 text-[10px] font-mono text-text-faint">
+            <nav aria-label="面包屑" class="mb-5 flex flex-wrap items-center gap-2 text-[12px] font-sans text-text-faint">
               {breadcrumbs.map((crumb, index) => <span>{index > 0 && '/ '}{crumb.href ? <a href={crumb.href} class="hover:text-accent-primary">{crumb.label}</a> : crumb.label}</span>)}
             </nav>
           )}
-          <div class="flex items-center gap-2 text-[10px] font-mono text-accent-primary uppercase tracking-wider mb-3">
+          <div class="flex items-center gap-2 text-[12px] font-sans text-accent-primary mb-3">
             <span data-pagefind-filter={`category:${category}`}>{category}</span>
             {subtopic && <span data-pagefind-filter={`subtopic:${subtopic}`} class="sr-only">{subtopic}</span>}
             {difficulty && <span data-pagefind-filter={`difficulty:${difficulty}`} class="sr-only">{difficulty}</span>}
             {pageType && <span data-pagefind-filter={`pageType:${pageType}`} class="sr-only">{pageType}</span>}
           </div>
           {topicContext && (
-            <div class="mb-5 flex flex-wrap items-center gap-2 text-[10px] font-mono">
-              <span class="text-text-faint uppercase tracking-wider">专题路径</span>
+            <div class="mb-5 flex flex-wrap items-center gap-2 text-[12px] font-sans">
+              <span class="text-text-faint">专题路径</span>
               <a href={`${import.meta.env.BASE_URL}projects/${topicContext.slug}/`} class="text-accent-primary hover:text-text-primary transition-colors">
                 {topicContext.title}
               </a>
@@ -168,7 +170,7 @@ const {
           {excerpt && (
             <p class="article-summary text-sm text-text-muted leading-relaxed mb-5">{excerpt}</p>
           )}
-          <div class="flex flex-wrap items-center gap-x-6 gap-y-2 text-xs font-mono text-text-faint">
+          <div class="flex flex-wrap items-center gap-x-6 gap-y-2 text-xs font-sans text-text-faint">
             <span class="flex items-center gap-1.5">
               <Calendar className="w-3.5 h-3.5 text-text-faint" />
               {date}
@@ -200,7 +202,7 @@ const {
           <section class="mt-12 pt-8 border-t border-border-subtle grid grid-cols-1 md:grid-cols-2 gap-6" aria-label="文章学习关系">
             {learningLinks.prerequisites.length > 0 && (
               <div>
-                <div class="text-[9px] font-mono text-text-faint uppercase tracking-wider mb-3">阅读前建议</div>
+                <div class="text-[12px] font-sans text-text-faint mb-3">阅读前建议</div>
                 <div class="space-y-2">
                   {learningLinks.prerequisites.map((article) => <a href={`${import.meta.env.BASE_URL}knowledge/${article.slug}/`} class="block text-sm text-text-muted hover:text-accent-primary transition-colors">{article.title}</a>)}
                 </div>
@@ -208,7 +210,7 @@ const {
             )}
             {learningLinks.nextArticles.length > 0 && (
               <div>
-                <div class="text-[9px] font-mono text-text-faint uppercase tracking-wider mb-3">接下来阅读</div>
+                <div class="text-[12px] font-sans text-text-faint mb-3">接下来阅读</div>
                 <div class="space-y-2">
                   {learningLinks.nextArticles.map((article) => <a href={`${import.meta.env.BASE_URL}knowledge/${article.slug}/`} class="block text-sm text-text-muted hover:text-accent-primary transition-colors">{article.title}</a>)}
                 </div>
@@ -221,19 +223,19 @@ const {
           <section class="mt-12 grid grid-cols-1 gap-5 border-t border-border-subtle pt-8 md:grid-cols-2" aria-label="知识关系与来源">
             {outgoingLinks.length > 0 && (
               <div class="rounded-xl border border-border-subtle bg-surface-card/40 p-5">
-                <h2 class="!mt-0 !border-0 !p-0 font-mono !text-xs uppercase tracking-widest text-text-muted">本文引用</h2>
+                <h2 class="!mt-0 !border-0 !p-0 font-sans !text-xs text-text-muted">本文引用</h2>
                 <div class="mt-3 space-y-2">{outgoingLinks.slice(0, 10).map((link) => <a href={`${import.meta.env.BASE_URL}knowledge/${link.slug}/`} class="block text-sm text-text-secondary hover:text-accent-primary">{link.title}</a>)}</div>
               </div>
             )}
             {backlinks.length > 0 && (
               <div class="rounded-xl border border-border-subtle bg-surface-card/40 p-5">
-                <h2 class="!mt-0 !border-0 !p-0 font-mono !text-xs uppercase tracking-widest text-text-muted">被这些页面引用</h2>
+                <h2 class="!mt-0 !border-0 !p-0 font-sans !text-xs text-text-muted">被这些页面引用</h2>
                 <div class="mt-3 space-y-2">{backlinks.slice(0, 10).map((link) => <a href={`${import.meta.env.BASE_URL}knowledge/${link.slug}/`} class="block text-sm text-text-secondary hover:text-accent-primary">{link.title}</a>)}</div>
               </div>
             )}
             {sources.length > 0 && (
               <div class="rounded-xl border border-border-subtle bg-surface-card/40 p-5 md:col-span-2">
-                <h2 class="!mt-0 !border-0 !p-0 font-mono !text-xs uppercase tracking-widest text-text-muted">资料来源</h2>
+                <h2 class="!mt-0 !border-0 !p-0 font-sans !text-xs text-text-muted">资料来源</h2>
                 <div class="mt-3 flex flex-wrap gap-2">{sources.map((source) => <a href={source.url} target="_blank" rel="noreferrer" class="rounded-lg border border-border-subtle px-3 py-2 text-xs text-text-secondary hover:border-accent-primary/40 hover:text-accent-primary">{source.title}</a>)}</div>
               </div>
             )}
@@ -243,7 +245,7 @@ const {
         {/* Tag cloud */}
         <div class="mt-12 pt-8 border-t border-border-subtle flex flex-wrap gap-2">
           {tags.map((tag) => (
-            <span class="px-2.5 py-1 text-[10px] font-mono bg-surface-raised text-text-muted border border-border-subtle rounded">
+            <span class="px-2.5 py-1 text-[12px] font-sans bg-surface-raised text-text-muted border border-border-subtle rounded">
               #{tag.toUpperCase()}
             </span>
           ))}
@@ -253,13 +255,13 @@ const {
           <nav class="mt-8 grid grid-cols-1 md:grid-cols-2 gap-3" aria-label="专题文章导航">
             {topicContext.previous ? (
               <a href={`${import.meta.env.BASE_URL}knowledge/${topicContext.previous.slug}/`} class="p-4 rounded-xl border border-border-subtle bg-surface-card hover:border-accent-primary/40 transition-colors">
-                <span class="block text-[9px] font-mono text-text-faint uppercase tracking-wider">专题上一篇</span>
+                <span class="block text-[12px] font-sans text-text-faint">专题上一篇</span>
                 <span class="mt-2 block text-sm text-text-secondary hover:text-text-primary">{topicContext.previous.title}</span>
               </a>
             ) : <div />}
             {topicContext.next && (
               <a href={`${import.meta.env.BASE_URL}knowledge/${topicContext.next.slug}/`} class="p-4 rounded-xl border border-border-subtle bg-surface-card hover:border-accent-primary/40 transition-colors md:text-right">
-                <span class="block text-[9px] font-mono text-text-faint uppercase tracking-wider">专题下一篇</span>
+                <span class="block text-[12px] font-sans text-text-faint">专题下一篇</span>
                 <span class="mt-2 block text-sm text-text-secondary hover:text-text-primary">{topicContext.next.title}</span>
               </a>
             )}
@@ -271,7 +273,7 @@ const {
           <RelatedArticles client:load articles={relatedArticles} lang={lang} />
         )}
         {(historyUrl || rawUrl) && (
-          <footer class="mt-10 flex flex-wrap gap-4 border-t border-border-subtle pt-6 font-mono text-[10px] text-text-faint">
+          <footer class="mt-10 flex flex-wrap gap-4 border-t border-border-subtle pt-6 font-sans text-[12px] text-text-faint">
             {historyUrl && <a href={historyUrl} target="_blank" rel="noreferrer" class="hover:text-accent-primary">查看 Git 修改历史</a>}
             {rawUrl && <a href={rawUrl} target="_blank" rel="noreferrer" class="hover:text-accent-primary">查看原始 Markdown</a>}
           </footer>
@@ -283,7 +285,7 @@ const {
         <div class="sticky top-24 space-y-4">
           <ReaderActions client:media="(min-width: 1100px)" slug={currentSlug} title={title} category={category} url={canonicalPath} />
           <ArticleToc client:load headings={headings} lang={lang} />
-          <a href={`${import.meta.env.BASE_URL}knowledge/graph/?center=${currentSlug}`} class="block rounded-xl border border-border-subtle bg-surface-card/40 px-4 py-3 text-center font-mono text-[10px] uppercase tracking-wider text-text-muted hover:border-accent-primary/30 hover:text-accent-primary">在知识图谱中查看</a>
+          <a href={`${import.meta.env.BASE_URL}knowledge/graph/?center=${currentSlug}`} class="block rounded-xl border border-border-subtle bg-surface-card/40 px-4 py-3 text-center font-sans text-[12px] text-text-muted hover:border-accent-primary/30 hover:text-accent-primary">在知识图谱中查看</a>
         </div>
       </aside>
     </div>

@@ -19,8 +19,8 @@ interface ArticleTocProps {
  *
  * Hierarchy is collapsible per H2 section: each `##` heading owns the `###`
  * entries that follow it, and its chevron toggles just those children open/
- * closed (the whole list is never hidden at once). Body entries use Source Han
- * Sans CN (font-sans); only the small "目录" label keeps font-mono.
+ * closed (the whole list is never hidden at once). Entries and labels use
+ * the same sans-serif family as the rest of the reading interface.
  */
 export default function ArticleToc({ headings, lang }: ArticleTocProps) {
   const items = headings.filter((h) => h.depth === 2 || h.depth === 3);
@@ -120,7 +120,7 @@ export default function ArticleToc({ headings, lang }: ArticleTocProps) {
       {/* Header label (static — folding happens per H2 below, not here) */}
       <div className="flex items-center gap-2 px-5 py-4 border-b border-border-subtle">
         <List className="w-3.5 h-3.5 text-accent-primary" />
-        <span className="font-mono text-[13px] text-text-muted uppercase tracking-widest">
+        <span className="font-sans text-[13px] text-text-muted">
           {lang === "zh" ? "目录" : "Contents"}
         </span>
       </div>
@@ -156,7 +156,7 @@ export default function ArticleToc({ headings, lang }: ArticleTocProps) {
                   onClick={(e) => scrollTo(e, group.h2.slug)}
                   className={`flex-1 block py-2 pr-2 pl-2 text-[15px] font-sans leading-relaxed transition-all duration-300 border-l-2 ${
                     isH2Active
-                      ? "text-accent-primary border-accent-primary drop-shadow-[0_0_8px_rgba(188,253,73,0.35)]"
+                      ? "text-accent-primary border-accent-primary"
                       : "text-text-secondary border-transparent hover:text-text-primary"
                   }`}
                 >
@@ -183,7 +183,7 @@ export default function ArticleToc({ headings, lang }: ArticleTocProps) {
                             onClick={(e) => scrollTo(e, child.slug)}
                             className={`block py-2 pr-2 pl-3 text-[14px] font-sans leading-relaxed transition-all duration-300 border-l-2 ${
                               isActive
-                                ? "text-accent-primary border-accent-primary drop-shadow-[0_0_8px_rgba(188,253,73,0.35)]"
+                                ? "text-accent-primary border-accent-primary"
                                 : "text-text-muted border-transparent hover:text-text-secondary hover:border-border-strong"
                             }`}
                           >

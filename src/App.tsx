@@ -37,7 +37,7 @@ export default function App({ knowledgeArticles = [], knowledgeDomains = [], ini
   const navigateToTab = useCallback((tab: string) => {
     if (tab === 'projects') { location.assign(`${import.meta.env.BASE_URL}research/`); return; }
     if (tab === 'home' && location.pathname !== import.meta.env.BASE_URL) { location.assign(import.meta.env.BASE_URL); return; }
-    if (tab === 'knowledge') { location.assign(`${import.meta.env.BASE_URL}knowledge/`); return; }
+    if (tab === 'knowledge') { location.assign(`${import.meta.env.BASE_URL}knowledge/library/`); return; }
     if (tab === 'archive') { location.assign(`${import.meta.env.BASE_URL}about/`); return; }
     if (!VALID_TABS.includes(tab)) return;
     setActiveTab(tab);
@@ -89,14 +89,7 @@ export default function App({ knowledgeArticles = [], knowledgeDomains = [], ini
     switch (activeTab) {
       case "home":
         return (
-          <HomeView
-            projects={projects}
-            knowledgeArticles={knowledge}
-            knowledgeDomains={knowledgeDomains}
-            onSelectProject={openProject}
-            setActiveTab={navigateToTab}
-            lang={lang}
-          />
+          <HomeView />
         );
       case "knowledge":
         return (

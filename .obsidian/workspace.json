@@ -11,14 +11,17 @@
             "id": "673de8c37e95b321",
             "type": "leaf",
             "state": {
-              "type": "markdown",
+              "type": "canvas",
               "state": {
-                "file": "knowledge/iterative-linear-solvers.md",
-                "mode": "source",
-                "source": false
+                "file": "未命名.canvas",
+                "viewState": {
+                  "x": 0,
+                  "y": 0,
+                  "zoom": 0
+                }
               },
-              "icon": "lucide-file",
-              "title": "iterative-linear-solvers"
+              "icon": "lucide-layout-dashboard",
+              "title": "未命名"
             }
           }
         ]
@@ -187,12 +190,12 @@
   },
   "active": "673de8c37e95b321",
   "lastOpenFiles": [
-    "src/content/knowledge/ue-linear-algebra-guide.md",
     "knowledge/iterative-linear-solvers.md",
+    "未命名.canvas",
+    "src/content/knowledge/ue-linear-algebra-guide.md",
     "node_modules/svgo/node_modules/commander/Readme.md",
     "knowledge/mathematical-notation-reference.md",
     "knowledge",
-    "未命名.canvas",
     "未命名.base",
     "node_modules/commander/Readme.md"
   ]
