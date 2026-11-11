@@ -29,15 +29,9 @@ topics:
     order: 40
 sources: []
 ---
-这里讨论的是 avbd-demo3d 的具体刚体实现，不是通用 AVBD 的另一份完整推导。阅读主线是一次时间步中数据如何从预测状态进入六自由度块更新，再经接触与对偶状态完成迭代。理论目标见[VBD 与 AVBD](/knowledge/vbd-avbd-math/)，GPU 排程另见[three-avbd](/knowledge/three-avbd-gpu-solver/)。
+avbd-demo3d 用刚体的位置与局部旋转构造六自由度更新块。一次时间步先建立惯性预测，再在碰撞与约束数据上交替更新刚体块和对偶状态，最后重建速度。
 
-> 本站已有《[变分物理求解：VBD 与 AVBD](/knowledge/vbd-avbd-math/)》一文，从变分隐式积分出发推导了 VBD 的能量泛函、块坐标下降（BCD）、约束梯度/海森，以及 AVBD 用增广拉格朗日（ALM）化解硬约束刚性的原理。那篇是**理论骨架**——以布料/软体的**逐顶点 3×3 牛顿步**为主视角。
->
-> 本文是它的**工程对照面**：以开源项目 `avbd-demo3d` 为锚，精读一个把 AVBD 落到**刚体 6 自由度**上的完整实现。刚体推广带来三个本质变化——块从"顶点（3 DOF）"变成"刚体（6 DOF）"，牛顿步从 3×3 变成 6×6，角向惯性用四元数 log/exp 而非线性位置差。更重要的是，工程实现为了**实时与稳定**做出了若干与论文教科书不同的取舍：对偶变量每轮迭代交替更新（而非外层独立收敛）、罚参数按违反量比例增长（而非几何增长）、固定迭代无收敛早停、跨帧热启动作为稳定性核心。
->
-> 阅读建议：先读理论文搭好框架，再读本文看工程如何裁剪理论。第九节是两文的逐项勘误对照，可直接跳转查证。
-
----
+本文先写清这份实现采用的目标与局部导数，再逐项对应 Solver::step、约束类型、碰撞和默认参数。公式用于解释当前代码的状态读写，源码定位与运行验证分别列明。
 
 ## avbd-demo3d 项目概览
 
@@ -96,7 +90,7 @@ struct Force {
 
 ### 变分隐式欧拉：积分即最小化
 
-隐式欧拉 $\mathbf{M}\dot{\mathbf{v}}=\mathbf{f}(\mathbf{x})$ 经离散化与整理（见[VBD/AVBD 的时间步目标](/knowledge/vbd-avbd-math/#时间步模型与符号)），等价于最小化：
+隐式欧拉 $\mathbf{M}\dot{\mathbf{v}}=\mathbf{f}(\mathbf{x})$ 经离散化与整理，等价于最小化：
 
 $$
 E(\mathbf{x}) = \underbrace{\frac{1}{2h^2}\|\mathbf{x}-\mathbf{y}\|_{\mathbf{M}}^2}_{\text{惯性势能}} + \underbrace{W(\mathbf{x})}_{\text{约束/弹性势能}}
@@ -128,7 +122,7 @@ $$
 
 ### 增广拉格朗日：硬约束的对偶解法
 
-AVBD 把硬约束 $c(\mathbf{x})=0$ 的纯罚形式 $\frac{k}{2}c^2$（$k\to\infty$ 时条件数爆炸）替换为增广拉格朗日泛函（见[VBD/AVBD 的增广机制](/knowledge/vbd-avbd-math/#avbd-的增广拉格朗日机制)）：
+AVBD 把硬约束 $c(\mathbf{x})=0$ 的纯罚形式 $\frac{k}{2}c^2$（$k\to\infty$ 时条件数爆炸）替换为增广拉格朗日泛函：
 
 $$
 \mathcal{L}(\mathbf{x},\boldsymbol\lambda) = E_{\text{inertia}}(\mathbf{x}) + \sum_j\Bigl[\boldsymbol\lambda_j\,c_j(\mathbf{x}) + \frac{\rho_j}{2}\,c_j(\mathbf{x})^2\Bigr]
@@ -582,7 +576,7 @@ for (p : clippedVertices) {
 
 ## 实现与通用模型的对应
 
-这份实现按刚体而非粒子顶点建立局部块，使用三个平移和三个局部旋转自由度。通用目标与导数见[VBD/AVBD](/knowledge/vbd-avbd-math/)，本文保留具体数据结构、局部矩阵和执行链。
+这份实现按刚体而非粒子顶点建立局部块，使用三个平移和三个局部旋转自由度。前文的惯性目标、局部导数和原对偶循环，分别在这里对应到刚体数据结构、局部矩阵和执行链。
 
 本仓库的 native/avbd/source/solver.cpp:134 起可以对照 Solver::step，:191 起的循环每轮执行原问题与对偶更新；默认 iterations 在 :113 为 10。固定预算表示实际采用有限迭代近似，不等于目标已经收敛，也不能证明任意场景确定性。
 
@@ -596,4 +590,8 @@ joint.cpp:42–45 在初始化中对乘子与罚参数使用热启动缩放；:1
 
 检查时分别记录局部线性系统残差、约束违反、原对偶状态、接触特征和总步耗时。固定轮数、子步数、热启动、罚参数和实际误差需要一起比较，不给出没有场景依据的性能或稳定性保证。
 
-理论见[VBD/AVBD](/knowledge/vbd-avbd-math/)，GPU 版本见[three-avbd](/knowledge/three-avbd-gpu-solver/)，UE 宿主与提交边界见[GPUPhysicsLab](/knowledge/gpu-physics-plugin/)。
+## 延伸查阅
+
+- [变分物理求解：VBD 与 AVBD](/knowledge/vbd-avbd-math/)
+- [three-avbd：WebGPU 刚体求解流水线](/knowledge/three-avbd-gpu-solver/)
+- [GPUPhysicsLab：从 Compute Shader 到 UE 物理求解](/knowledge/gpu-physics-plugin/)

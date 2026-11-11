@@ -32,7 +32,9 @@ sources:
   - title: Netlib — Templates for the Solution of Linear Systems
     url: 'https://netlib.org/templates/templates.html'
 ---
-迭代求解从初值出发，逐步降低方程残差。方法是否有效取决于矩阵、更新顺序、预条件与停止判据，不能只比较迭代次数。本文负责线性系统的完整求解主线；非线性 Newton 外迭代见[Hessian](/knowledge/hessian-matrix/)，接触投影和状态更新见[物理约束](/knowledge/physics_constraints_deep_dive/)。
+线性迭代从一个候选解出发，反复修正方程残差。能否收敛以及收敛多快，取决于矩阵、更新顺序、预条件与停止判据。
+
+本文用同一组方程比较 Jacobi、Gauss–Seidel、SOR、CG 与 PCG，再说明非对称问题、Chebyshev 和多重网格。残差、对称正定和条件数在使用前定义，统一代码提供可以直接复算的比较。
 
 ## 问题、符号与比较基准
 
@@ -354,4 +356,10 @@ export const benchmark = { A: [[4, 1], [1, 3]], b: [9, 8], exact: [19 / 11, 23 /
 
 线性系统只在算子固定时成立。非线性材料需要更新线性化；接触需要非负冲量与摩擦可行域；PBD/XPBD 可能在每个约束后重新计算梯度。它们可以采用 Jacobi 或 GS 风格排程，但不能由线性谱半径直接推断完整场景必然收敛。
 
-方法定义、预条件和停止判据可对照 [Netlib《Templates》](https://netlib.org/templates/templates.html)。从固定算子进入非线性优化见[Hessian](/knowledge/hessian-matrix/)；从矩阵进入接触与关节见[物理约束](/knowledge/physics_constraints_deep_dive/)；时间步与内迭代的区别见[数值积分](/knowledge/numerical-integration-methods/)。
+方法定义、预条件和停止判据可对照 [Netlib《Templates》](https://netlib.org/templates/templates.html)。从固定算子进入非线性优化见Hessian；从矩阵进入接触与关节见物理约束；时间步与内迭代的区别见数值积分。
+
+## 延伸查阅
+
+- [二阶近似与 Hessian 矩阵](/knowledge/hessian-matrix/)
+- [物理约束：建模、有效质量与迭代求解](/knowledge/physics_constraints_deep_dive/)
+- [数值积分：方法、误差与稳定性](/knowledge/numerical-integration-methods/)

@@ -32,9 +32,9 @@ sources:
   - title: MIT ES.1803：ODE 与初值
     url: 'https://ocw.mit.edu/courses/es-1803-differential-equations-spring-2024/mites_1803_s24_topic_full.pdf'
 ---
-给定位置还不能预测运动：同一位置上的物体可能静止，也可能高速穿过。常微分方程负责描述状态如何连续变化，初始条件选定其中一条轨迹；数值积分只是推进这条轨迹的离散方法。把这三件事分开，才能判断问题来自模型、输入还是计算。
+运动方程既描述当前位置受到什么作用，也描述状态接下来怎样变化。把位置、速度及其他需要记忆的量组成状态，再给出初值，就得到一个可以沿时间推进的问题。
 
-本文只维护模型与初值的解释。Euler、Verlet 和 Runge–Kutta 的完整更新及稳定性比较见[数值积分](/knowledge/numerical-integration-methods/)，空间差分与 CFL 条件见[PDE](/knowledge/partial-differential-equations/)。
+本文从状态方程和初值开始，用自由落体、阻尼振子与刚性系统解释解析解、数值更新、时间尺度和事件。需要用到的导数关系与最小离散步骤在正文中给出。
 
 <span id="学习位置" aria-hidden="true"></span>
 <span id="一微分方程基础" aria-hidden="true"></span>
@@ -228,7 +228,19 @@ $$
 \dot y_1=-y_1,\qquad \dot y_2=-1000y_2.
 $$
 
-即使主要关注缓慢变化的第一分量，快速衰减分量也可能强迫某些显式方法使用很小步长。这体现了刚性问题的典型困难，但“刚性”不能简单等同于弹簧参数很大：还要看时间尺度、观察区间和离散方法。隐式方法为何可能有用，见[稳定性分析](/knowledge/numerical-integration-methods/#7-用测试方程比较稳定域)。
+即使主要关注缓慢变化的第一分量，快速衰减分量也可能强迫某些显式方法使用很小步长。这体现了刚性问题的典型困难，但“刚性”不能简单等同于弹簧参数很大：还要看时间尺度、观察区间和离散方法。例如衰减方程的显式更新会限制步长，而隐式更新在新状态上求衰减作用；下面直接比较这两种更新。
+
+对 $y'=-1000y$ 与步长 $h>0$，两种最小更新分别为
+
+$$
+\begin{aligned}
+y_{n+1}^{\mathrm{explicit}}&=(1-1000h)y_n,\\
+y_{n+1}^{\mathrm{implicit}}&=y_n-1000h y_{n+1}^{\mathrm{implicit}}
+=\frac{y_n}{1+1000h}.
+\end{aligned}
+$$
+
+当 $h=0.01$ 时，显式放大因子为 $-9$，数值会交替增大；隐式因子为 $1/11$，保持衰减。但真实因子是 $e^{-10}$，所以隐式更新的稳定并不等于准确。这一例子已经足以区分连续解、离散更新、稳定性与误差。
 
 <span id="七有限差分" aria-hidden="true"></span>
 <span id="八cfl-稳定性条件" aria-hidden="true"></span>
@@ -243,11 +255,11 @@ $$
 \mathbf v^+=\mathbf v^-+\mathbf M^{-1}\mathbf J^{\mathsf T}\boldsymbol\Lambda.
 $$
 
-这里 $\mathbf J$ 是约束 Jacobian，$\boldsymbol\Lambda$ 是冲量乘子。它不能简单当成有限大小的平滑力，再假定高阶 RK 会自动准确处理。事件、约束修正和速度回算见[物理约束](/knowledge/physics_constraints_deep_dive/)。
+这里 $\mathbf J$ 是约束 Jacobian，$\boldsymbol\Lambda$ 是冲量乘子。它不能简单当成有限大小的平滑力，再假定高阶 RK 会自动准确处理。离散实现需要先定位事件或接触，再施加冲量，并规定接受状态和速度重建的顺序。
 
-闭环控制把输入变成状态或误差的函数；PID 中的积分状态、执行器限幅和离散更新也有自己的状态与时序。实际串级飞控、预测跟踪与局部避障如何组合，见[AircraftLab](/knowledge/quadcopter-flight-control-math/)，这里不再维护一份缺少抗饱和和异常步长处理的“通用 PID”。
+闭环控制把输入变成状态或误差的函数；PID 中的积分状态、执行器限幅和离散更新也有自己的状态与时序。控制输入参与状态方程，但积分记忆、限幅与更新时机也属于控制器自身状态，不能在每帧求导时隐式重置。
 
-当未知量是空间场时，问题转入[PDE 与空间离散](/knowledge/partial-differential-equations/)。CFL 限制属于特定方程、网格和格式的分析，不是所有 ODE 的统一步长公式。
+当未知量是空间场时，每个网格点或粒子都可贡献状态分量，空间导数的离散还会引入邻接依赖。CFL 限制属于特定方程、网格和格式的分析，不是所有 ODE 的统一步长公式。
 
 <span id="四欧拉法" aria-hidden="true"></span>
 <span id="41-显式欧拉" aria-hidden="true"></span>
@@ -266,9 +278,17 @@ $$
 
 先确定状态、单位、输入和初值，再选离散方法。若结果不符，先比较一个具有解析解的简化情形，分别检查模型误差、时间离散误差与求解残差，不用额外阻尼把三者一起盖住。
 
-- 时间步、误差、Euler/Verlet/RK：见[数值积分](/knowledge/numerical-integration-methods/)。
-- 力、能量与广义坐标：见[经典力学](/knowledge/classical-mechanics/)。
-- 约束修正与接触：见[物理约束](/knowledge/physics_constraints_deep_dive/)。
-- 场量、边界与空间差分：见[PDE](/knowledge/partial-differential-equations/)。
+- 时间步、误差、Euler/Verlet/RK：见数值积分。
+- 力、能量与广义坐标：见经典力学。
+- 约束修正与接触：见物理约束。
+- 场量、边界与空间差分：见PDE。
 
 本文给出一般数学模型和独立推导，不声称某一 UE 模块正在按上述简化系统运行。
+
+## 延伸查阅
+
+- [数值积分：方法、误差与稳定性](/knowledge/numerical-integration-methods/)
+- [偏微分方程：场、边界与空间离散](/knowledge/partial-differential-equations/)
+- [物理约束：建模、有效质量与迭代求解](/knowledge/physics_constraints_deep_dive/)
+- [AircraftLab：动力学、飞控与仿真架构](/knowledge/quadcopter-flight-control-math/)
+- [经典力学：牛顿、拉格朗日与哈密顿](/knowledge/classical-mechanics/)

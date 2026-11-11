@@ -29,13 +29,9 @@ related: []
 sources: []
 featured: true
 ---
-空间计算出错，往往不是公式不会写，而是把点和方向、局部和世界空间、行列向量或变换顺序混在了一起。本文在一篇文档内串联这些约定，并对照 UE 类型与源码。这里同时承担点、位移、方向和父子变换的基础语义；IK、约束和线性求解仅保留接口，完整推导链接各自主文。
+空间计算需要区分点与方向、局部与世界、矩阵与变换，以及旋转的不同表示。数学表达和 UE API 还必须采用一致的向量、乘法及组合顺序。
 
-> 本文以当前 `E:\UnrealEngine\UnrealEngine_Source` 源码快照为 UE 行为依据。数学公式会明确采用列向量还是 UE 的行向量语义；代码示例区分可直接使用的 UE API 与算法伪代码，避免把教材约定直接套进 Unreal Engine。
->
-> 物理积分、弹簧、碰撞、PBD/XPBD、IK 和动画节点已有独立专题。本文保留它们与线性代数的接口，但不重复完整推导。
-
----
+本文从向量与几何关系开始，逐步解释矩阵、FTransform、FRotator 和 FQuat，再用空间转换、骨骼传播、最小二乘与力臂算例连接实际代码。数学关系与 UE 约定分别说明，具体签名以文中的源码范围为准。
 
 ## 范围与核心机制
 
@@ -799,8 +795,6 @@ $$
 - CG：大型稀疏对称正定系统；
 - Gauss-Seidel/Jacobi：约束和实时迭代系统中的基础方法。
 
-延伸阅读：《[线性系统的迭代求解](/knowledge/iterative-linear-solvers/)》。
-
 ### 高斯消元的最低要求
 
 教学实现至少需要：
@@ -861,13 +855,11 @@ $$
 - 更新步长 $\alpha$ 与阻尼不同；
 - 最终更新为 $\theta_{next}=\theta+\alpha\Delta\theta$。
 
-完整 Jacobian、转置、伪逆和 DLS 推导见《[Jacobian 矩阵与局部线性化](/knowledge/jacobian-matrix/)》；UE FullBody IK 的引擎应用见《[UE 全身 IK：FullBodyIK 与 PBIK](/knowledge/ue-fullbody-ik-math/)》。
-
 ---
 
 ## 物理中的线性代数接口
 
-本章只说明线性代数负责什么；积分器、碰撞和约束求解转到对应专题。
+本章把向量与矩阵连接到力、接触点速度和状态更新；每个算例保持明确的输入空间与量纲。
 
 ### 力、冲量和扭矩
 
@@ -893,11 +885,7 @@ $$
 v_{rel,n}=(v_A-v_B)\cdot n
 $$
 
-旋转刚体还需要接触臂、逆惯性张量和角速度项。完整推导见：
-
-- 《[2D 物理引擎：从状态更新到约束求解](/knowledge/2d-physics-engine/)》
-- 《[GJK / EPA / SAT 碰撞检测](/knowledge/collision-detection-gjk-epa-sat/)》
-- 《[Chaos 物理引擎：架构与求解流水线](/knowledge/ue-chaos-physics-engine/)》
+旋转刚体还要把接触点速度写成质心速度加角速度叉接触臂。法向冲量除了改变质心速度，也通过接触臂产生角冲量；因此有效逆质量同时包含质量倒数和逆惯性张量的力臂项。只比较两个质心速度会漏掉转动响应。
 
 ### 数值积分和弹簧
 
@@ -921,13 +909,6 @@ FMath::SpringDamper(
 ```
 
 函数签名和稳定性注释见 `Engine/Source/Runtime/Core/Public/Math/UnrealMathUtility.h:L1654-L1705`。
-
-深入阅读：
-
-- 《[常微分方程：状态、初值与动力系统](/knowledge/differential-equations/)》
-- 《[位置约束求解：PBD 与 XPBD](/knowledge/pbd-xpbd-math/)》
-- 《[弹性杆：材料标架与位置约束](/knowledge/position-based-elastic-rods/)》
-- 《[变分物理求解：VBD 与 AVBD](/knowledge/vbd-avbd-math/)》
 
 ---
 
@@ -1001,13 +982,6 @@ Root Motion 不是“取出一个位移后调用 `AddMovementInput`”。在当�
 - `Engine/Source/Runtime/Engine/Public/Animation/AnimRootMotionProvider.h:L26-L40`
 - `Engine/Source/Runtime/Engine/Classes/Animation/AnimInstance.h:L446、L1665`
 - `Engine/Source/Runtime/Engine/Classes/Animation/AnimSequence.h:L420`
-
-相关专题：
-
-- 《[UE 动画节点：数据流与算法参考](/knowledge/ue-animation-node-math/)》
-- 《[UE 全身 IK：FullBodyIK 与 PBIK](/knowledge/ue-fullbody-ik-math/)》
-- 《[IK Retargeter 数学与 Ops](/knowledge/ik-retargeter-ops-math/)》
-- 《[UE Motion Matching：姿态搜索与混合](/knowledge/motion-matching-pose-search-source-guide/)》
 
 ---
 
@@ -1153,32 +1127,7 @@ Body->AddTorqueInRadians(Torque);
 
 ---
 
-## 延伸阅读
-
-### 数学与数值方法
-
-- 《[微分基础：从导数到梯度与物理求解](/knowledge/calculus-foundations/)》
-- 《[常微分方程：状态、初值与动力系统](/knowledge/differential-equations/)》
-- 《[Jacobian 矩阵与局部线性化](/knowledge/jacobian-matrix/)》
-- 《[二阶近似与 Hessian 矩阵](/knowledge/hessian-matrix/)》
-- 《[线性系统的迭代求解](/knowledge/iterative-linear-solvers/)》
-
-### 物理
-
-- 《[2D 物理引擎：从状态更新到约束求解](/knowledge/2d-physics-engine/)》
-- 《[GJK / EPA / SAT 碰撞检测](/knowledge/collision-detection-gjk-epa-sat/)》
-- 《[位置约束求解：PBD 与 XPBD](/knowledge/pbd-xpbd-math/)》
-- 《[弹性杆：材料标架与位置约束](/knowledge/position-based-elastic-rods/)》
-- 《[变分物理求解：VBD 与 AVBD](/knowledge/vbd-avbd-math/)》
-
-### 动画
-
-- 《[UE 动画节点：数据流与算法参考](/knowledge/ue-animation-node-math/)》
-- 《[UE 全身 IK：FullBodyIK 与 PBIK](/knowledge/ue-fullbody-ik-math/)》
-- 《[IK Retargeter 数学与 Ops](/knowledge/ik-retargeter-ops-math/)》
-- 《[UE Motion Matching：姿态搜索与混合](/knowledge/motion-matching-pose-search-source-guide/)》
-
-### 书籍
+## 书籍与使用原则
 
 - *3D Math Primer for Graphics and Game Development* — Fletcher Dunn, Ian Parberry
 - *Essential Mathematics for Games and Interactive Applications* — James M. Van Verth, Lars M. Bishop
@@ -1196,3 +1145,21 @@ Body->AddTorqueInRadians(Torque);
 4. 把数学上存在的解误认为数值上稳定、工程上可用的解。
 
 每次实现前先写清楚：**数据是什么空间、采用什么单位、按什么顺序应用、容差相对什么尺度**。这四个问题明确后，大部分“玄学旋转”“骨骼飞走”“IK 爆炸”和“大世界抖动”都会变成可追踪的问题。
+
+## 延伸查阅
+
+- [线性系统的迭代求解](/knowledge/iterative-linear-solvers/)
+- [Jacobian 矩阵与局部线性化](/knowledge/jacobian-matrix/)
+- [UE 全身 IK：FullBodyIK 与 PBIK](/knowledge/ue-fullbody-ik-math/)
+- [2D 物理引擎：从状态更新到约束求解](/knowledge/2d-physics-engine/)
+- [凸体碰撞检测：SAT、GJK 与 EPA](/knowledge/collision-detection-gjk-epa-sat/)
+- [Chaos 物理引擎：架构与求解流水线](/knowledge/ue-chaos-physics-engine/)
+- [常微分方程：状态、初值与动力系统](/knowledge/differential-equations/)
+- [位置约束求解：PBD 与 XPBD](/knowledge/pbd-xpbd-math/)
+- [弹性杆：材料标架与位置约束](/knowledge/position-based-elastic-rods/)
+- [变分物理求解：VBD 与 AVBD](/knowledge/vbd-avbd-math/)
+- [UE 动画节点：数据流与算法参考](/knowledge/ue-animation-node-math/)
+- [UE 动画重定向：IK Retargeter 执行管线](/knowledge/ik-retargeter-ops-math/)
+- [UE Motion Matching：姿态搜索与混合](/knowledge/motion-matching-pose-search-source-guide/)
+- [微分基础：从导数到梯度与物理求解](/knowledge/calculus-foundations/)
+- [二阶近似与 Hessian 矩阵](/knowledge/hessian-matrix/)

@@ -23,13 +23,9 @@ nextArticles: []
 related: [continuum-mechanics, deformable-body-dynamics, fluid-dynamics, sph-fluid-simulation, pbf-fluid-simulation]
 sources: []
 ---
-当未知量同时分布在空间和时间中，单个位置的状态通常不足以决定演化，还必须描述邻域与边界。本文解释 PDE 如何经过空间离散成为有限维问题；时间推进见[数值积分](/knowledge/numerical-integration-methods/)，粒子流体的具体离散见[SPH](/knowledge/sph-fluid-simulation/)。稳定性条件必须对应具体方程与离散格式，不能只凭一个通用 CFL 数设定所有步长。
+温度、位移和速度场同时依赖空间与时间，一个位置的演化往往还取决于邻域与边界。偏微分方程通过偏导数表达这种局部相互作用。
 
-> 偏微分方程（PDE）描述涉及多个自变量的物理过程：热扩散、波传播、流体运动。从烟雾扩散到水面波纹，从气流模拟到稳态场，PDE 是连续物理模拟的数学语言。
->
-> 本文为教材式总览，微分基础见《[微分基础：从导数到梯度与物理求解](/knowledge/calculus-foundations/)》，ODE 与数值积分方法见《[常微分方程：状态、初值与动力系统](/knowledge/differential-equations/)》。Navier-Stokes 方程的粒子离散化（SPH/PBF）见《[SPH 流体：核插值、压力与边界](/knowledge/sph-fluid-simulation/)》与《[PBF 流体：密度约束与位置修正](/knowledge/pbf-fluid-simulation/)》。
-
----
+本文先定义场、空间算子、初值与边界，再以热传导、波动、Navier–Stokes 和 Laplace 方程说明物理含义及有限差分。空间离散怎样形成状态系统、时间格式怎样限制步长，都在对应算例中说明。
 
 ## 偏微分方程基础
 
@@ -288,7 +284,7 @@ Navier-Stokes 方程有两种主要离散化路径：
 | 网格法（Eulerian） | 固定网格上求解 | Stable Fluids、MAC Grid |
 | 粒子法（Lagrangian） | 粒子携带物理量 | SPH、PBF |
 
-> Navier-Stokes 方程的粒子离散化是 SPH 流体模拟的理论起点。详见《[SPH 流体：核插值、压力与边界](/knowledge/sph-fluid-simulation/)》（WCSPH/PCISPH/IISPH/DFSPH 均为 NS 方程的不同离散求解策略）与《[PBF 流体：密度约束与位置修正](/knowledge/pbf-fluid-simulation/)》（PBF 以位置基约束保证不可压缩性）。
+> 换成粒子离散时，空间梯度由邻域核算子近似；换成密度位置投影时，不可压缩条件进入位置修正。两者都需要保持质量、边界和时间语义，连续方程本身没有指定唯一的离散算法。
 
 ---
 
@@ -386,14 +382,22 @@ $
 
 某些隐式方法放宽特定线性问题的稳定步长限制，但空间误差、时间精度、非线性求解和接触采样仍然限制可用步长。对流速度为零也不意味着扩散、外力或其他约束不再限制时间步。
 
-实际选择应记录最小网格尺度、速度或波速、扩散参数、方法和安全系数，分别计算适用的限制。时间积分的误差与稳定域见[数值积分](/knowledge/numerical-integration-methods/)，粒子离散的邻域与声速还需查[SPH](/knowledge/sph-fluid-simulation/)。
+实际选择应记录最小网格尺度、速度或波速、扩散参数、方法和安全系数，分别计算适用的限制。网格格式还要检查离散算子的谱；粒子格式还要记录邻域、核支撑和数值声速。各类限制不能脱离当前离散模型直接互用。
 
 ## 参考文献
 
 1. Stam, J. (1999). *Stable Fluids*. ACM SIGGRAPH. ——网格法流体模拟的经典方法。
 2. Bridson, R. *Fluid Simulation for Computer Graphics*. ——流体模拟权威教材。
 3. LeVeque, R. *Finite Difference Methods for Ordinary and Partial Differential Equations*. ——有限差分方法教材。
-4. 《[微分基础：从导数到梯度与物理求解](/knowledge/calculus-foundations/)》 — 导数与梯度的推导；空间算子见[向量场附录](/knowledge/calculus-foundations/#附录向量场与空间微分)。
-5. 《[常微分方程：状态、初值与动力系统](/knowledge/differential-equations/)》 — ODE 数值积分方法。
-6. 《[SPH 流体：核插值、压力与边界](/knowledge/sph-fluid-simulation/)》 — Navier-Stokes 的粒子离散化。
-7. 《[PBF 流体：密度约束与位置修正](/knowledge/pbf-fluid-simulation/)》 — 位置基不可压缩流体。
+4. 《微分基础：从导数到梯度与物理求解》 — 导数与梯度的推导；空间算子见向量场附录。
+5. 《常微分方程：状态、初值与动力系统》 — ODE 数值积分方法。
+6. 《SPH 流体：核插值、压力与边界》 — Navier-Stokes 的粒子离散化。
+7. 《PBF 流体：密度约束与位置修正》 — 位置基不可压缩流体。
+
+## 延伸查阅
+
+- [数值积分：方法、误差与稳定性](/knowledge/numerical-integration-methods/)
+- [SPH 流体：核插值、压力与边界](/knowledge/sph-fluid-simulation/)
+- [微分基础：从导数到梯度与物理求解](/knowledge/calculus-foundations/)
+- [常微分方程：状态、初值与动力系统](/knowledge/differential-equations/)
+- [PBF 流体：密度约束与位置修正](/knowledge/pbf-fluid-simulation/)

@@ -28,7 +28,9 @@ sources:
   - title: Epic — Niagara Scalability and Best Practices
     url: 'https://dev.epicgames.com/documentation/unreal-engine/scalability-and-best-practices-for-niagara'
 ---
-查阅 Niagara 参数时，先确定它属于哪个对象、在哪个阶段执行、使用什么空间，以及由谁写入。本文是工程参考，按查阅任务组织系统、发射器、粒子、模块和数据接口。外部物理求解状态如何发布给 Niagara，另见[GPUPhysicsLab](/knowledge/gpu-physics-plugin/)。
+Niagara 参数的意义取决于它属于哪个对象、在哪个阶段执行、使用什么空间，以及由谁写入。模块顺序和数据接口决定这些参数怎样成为粒子状态与渲染输入。
+
+本文按系统、发射器、粒子、模块、Renderer 和数据接口组织查阅，给出参数作用、运行阶段及 C++ 设置方式。外部 GPU 状态的生产、依赖与消费在接口章节分别说明。
 
 ## 范围、版本与代码口径
 
@@ -139,7 +141,7 @@ Data Interface 提供脚本可调用函数，并将宿主对象或资源映射�
 
 外部物理系统发布位置、速度或拓扑时，应定义有效数量、索引身份、空间、单位、缓冲布局、代际和接受版本。Niagara 读取的是已发布状态，不能在同一逻辑中又让它无约定地反向成为物理状态所有者。
 
-RDG 依赖和资源转交必须保证生产完成、消费有效。创建 FGlobalShader 并提交一个 dispatch，只能证明存在独立计算流程，不能证明 Niagara 已能读取其结果。实际宿主、接受提交和发布边界见[GPUPhysicsLab](/knowledge/gpu-physics-plugin/)。
+RDG 依赖和资源转交必须保证生产完成、消费有效。创建 FGlobalShader 并提交一个 dispatch，只能证明存在独立计算流程，不能证明 Niagara 已能读取其结果。宿主需要规定哪份缓冲可供读取、何时接受该版本，以及对象删除或 Reset 后怎样使旧引用失效。
 
 ## 常见问题的定位顺序
 
@@ -164,3 +166,7 @@ RDG 依赖和资源转交必须保证生产完成、消费有效。创建 FGloba
 层级和参数概念可查 [Epic Niagara 概览](https://dev.epicgames.com/documentation/unreal-engine/overview-of-niagara-effects-for-unreal-engine)，系统设置查 [System Settings Reference](https://dev.epicgames.com/documentation/zh-cn/unreal-engine/system-settings-reference-for-niagara-effects-in-unreal-engine)，预算与剔除查 [Scalability and Best Practices](https://dev.epicgames.com/documentation/unreal-engine/scalability-and-best-practices-for-niagara)。
 
 本文完成接口与职责核对，没有构建自定义 Data Interface、连接 Niagara 资产或测试目标平台性能。本文作为参数与接入参考，不作为物理算法前置；实际外部求解与发布仍以对应工程文档为准。
+
+## 延伸查阅
+
+- [GPUPhysicsLab：从 Compute Shader 到 UE 物理求解](/knowledge/gpu-physics-plugin/)

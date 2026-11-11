@@ -32,9 +32,9 @@ sources:
   - title: Baraff：隐式积分
     url: 'https://www.cs.cmu.edu/~baraff/sigcourse/notese.pdf'
 ---
-[质点动力学](/knowledge/particle-dynamics/)给出自由落体和弹簧阻尼的连续模型及解析基准，刚体、软体与流体则保留不同自由度。它们共享一个计算问题：已知当前状态和变化率，怎样求有限时间后的近似状态？积分器决定连续模型怎样变成一次离散更新，但不负责定义材料、生成接触或保证全部约束收敛。
+已知当前状态与它的变化率，如何计算有限时间后的近似状态？这就是时间积分需要解决的问题。它决定状态更新方式，同时引入截断误差、稳定性限制和计算成本。
 
-这里从已知的 $\dot{\mathbf y}=\mathbf f(t,\mathbf y)$ 开始，比较更新方法、误差和稳定性。沿主线阅读时，先理解更新契约、Euler 家族、振子与子步；RK 阶段、稳定域和几何积分的深入分析则按问题继续。需要初值问题的一般语言时，可查[常微分方程](/knowledge/differential-equations/)。
+本文从状态方程与一次更新的契约开始，用相同初值比较 Euler、Verlet 与 Runge–Kutta，再分析稳定域、振子能量、自适应和子步。涉及约束、旋转和空间场时，单独说明更新公式需要增加哪些条件。
 
 <span id="1-引言" aria-hidden="true"></span>
 <span id="11-什么是数值积分" aria-hidden="true"></span>
@@ -538,11 +538,11 @@ $$
 
 ## 与约束、旋转和场模拟的接口
 
-接触求解会改变状态，通常需要协调预测、检测、约束、速度更新与输出。PBD/XPBD 属于约束处理框架，不是与 Euler、RK4 同一层级的无约束积分器替换选项，详见[位置约束](/knowledge/pbd-xpbd-math/)。
+接触或位置约束会修改积分得到的候选状态。完整步骤需要明确外力预测、碰撞、约束修正、速度重建与接受输出的顺序；约束投影不等于换用另一种无约束积分器。
 
-旋转状态不属于普通欧氏向量，四元数需要满足单位长度，角速度也要区分世界/本体空间。不能把这里的一维代码逐分量套用到旋转并宣称完成刚体积分；空间约定见[UE 空间数学](/knowledge/ue-linear-algebra-guide/)，工程链路见[刚体 AVBD 实现](/knowledge/avbd-demo3d-implementation/)。
+旋转状态不属于普通欧氏向量，四元数需要满足单位长度，角速度也要区分世界/本体空间。不能把这里的一维代码逐分量套用到旋转并宣称完成刚体积分；例如世界角速度与本体角速度对应不同的四元数乘法次序；选定约定后，还应核对单位长度和小步旋转方向。
 
-空间离散后的 PDE 也能得到 ODE 系统，但特征时间尺度取决于网格、材料与离散算子。CFL 等条件需单独推导，见[PDE](/knowledge/partial-differential-equations/)与[SPH](/knowledge/sph-fluid-simulation/)。
+空间离散后的 PDE 也能得到 ODE 系统，但特征时间尺度取决于网格、材料与离散算子。例如显式一阶迎风平流中，信息在一步内跨越的网格数会进入稳定性限制；换成扩散或声学算子后，需要重新分析相应尺度。
 
 <span id="学习位置" aria-hidden="true"></span>
 <span id="本文模块" aria-hidden="true"></span>
@@ -585,6 +585,22 @@ $$
 - 长时间保守运动：评估几何积分、相位和能量误差，不等同于要求逐步精确能量。
 - 接触密集、强约束：先分析完整流水线，再决定子步与约束预算；不靠积分阶数单独解决穿透和抖动。
 
-本文的公式与代码是独立数值模型；不据此判断 Chaos、PhysX 或插件当前使用哪种积分器。真实执行链分别查[Chaos](/knowledge/ue-chaos-physics-engine/)、[three-avbd](/knowledge/three-avbd-gpu-solver/)和[GPUPhysicsLab](/knowledge/gpu-physics-plugin/)，运行性能需在对应工程中测量。
+本文的公式与代码是独立数值模型；不据此判断 Chaos、PhysX 或插件当前使用哪种积分器。引擎可能混合预测、投影、速度约束与其他处理，运行性能需要在声明的场景和工程版本中测量。
 
-针对刚体，可以继续到[接触响应](/knowledge/contact-response-and-manifolds/)；针对软体，回到[形变与材料](/knowledge/deformable-body-dynamics/)；针对流体，回到[压力与边界](/knowledge/fluid-dynamics/)。时间积分是共享计算工具，不能单独决定材料响应和全部约束条件。
+同一个积分器可以用于刚体、软体与流体的离散状态；材料响应、边界条件和约束仍由模型与其他求解阶段给出。
+
+## 延伸查阅
+
+- [质点动力学：从运动描述到动量与能量](/knowledge/particle-dynamics/)
+- [常微分方程：状态、初值与动力系统](/knowledge/differential-equations/)
+- [位置约束求解：PBD 与 XPBD](/knowledge/pbd-xpbd-math/)
+- [UE 空间数学：向量、矩阵与变换](/knowledge/ue-linear-algebra-guide/)
+- [avbd-demo3d：刚体求解器实现](/knowledge/avbd-demo3d-implementation/)
+- [偏微分方程：场、边界与空间离散](/knowledge/partial-differential-equations/)
+- [SPH 流体：核插值、压力与边界](/knowledge/sph-fluid-simulation/)
+- [Chaos 物理引擎：架构与求解流水线](/knowledge/ue-chaos-physics-engine/)
+- [three-avbd：WebGPU 刚体求解流水线](/knowledge/three-avbd-gpu-solver/)
+- [GPUPhysicsLab：从 Compute Shader 到 UE 物理求解](/knowledge/gpu-physics-plugin/)
+- [接触响应：从几何碰撞到持续支撑](/knowledge/contact-response-and-manifolds/)
+- [可变形体动力学：从形变与材料到软体模拟](/knowledge/deformable-body-dynamics/)
+- [流体动力学：从守恒与压力到网格和粒子](/knowledge/fluid-dynamics/)

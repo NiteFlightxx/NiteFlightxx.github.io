@@ -28,15 +28,9 @@ topics:
     order: 10
 sources: []
 ---
-本专题只追踪运动学状态在游戏侧与物理侧之间的镜像，不重讲整个刚体求解器。重点是同一变换由哪条路径更新、逐对象标记如何参与决策，以及目标设置与结果回写的关系。总体数据流可先查[Chaos 架构](/knowledge/ue-chaos-physics-engine/)的同步部分。
+运动学刚体的目标变换由外部驱动提供，而游戏侧和物理侧可能保存不同时间点的状态。同步问题的核心是：本次由谁写入目标、哪份状态可被读取，以及何时把物理结果镜像回游戏对象。
 
-> Chaos 物理引擎运行在独立于游戏线程的**物理线程**（internal thread）上。刚体分**动态**（Dynamic）与**运动学**（Kinematic）两种：动态体的位置由求解器积分得出，自然需要从物理结果回写到游戏线程；运动学体的位置则由游戏线程代码（如 `SetKinematicTarget`）驱动，求解器只负责将其移动到目标位置并计算衍生速度。
->
-> 这就引出一个核心问题：**运动学体的游戏线程变换（X, R）应该在哪里更新？** 是在 `SetKinematicTarget` 调用时立即写入游戏线程侧的粒子，还是等物理步进完成后从模拟结果回写？`P.Chaos.SyncKinematicOnGameThread` 正是控制这个选择的全局开关，而它的设计远比表面复杂——涉及三条镜像判定路径、一个逐对象标志、以及一条"速度始终复制"的隐藏规则。
->
-> 本文基于 UE 5.8 源码（`SingleParticlePhysicsProxy.cpp`、`PBDRigidsSolver.cpp`、`ChaosEngineInterface.cpp`、`RigidParticleControlFlags.h`）逐行拆解这条同步链路。
-
----
+本文沿目标设置、物理结果拉取和逐对象同步标记三条路径，解释 P.Chaos.SyncKinematicOnGameThread 的取值、判定条件和线程边界。调用链与源码索引集中对应具体状态更新。
 
 ## 问题背景：Chaos 的双线程与运动学体的特殊性
 
@@ -521,3 +515,7 @@ Params.bUpdateKinematicFromSimulation = false;
 | `BodyInstanceCore.cpp` | 13-25 | 默认值 `false` |
 | `PhysicalAnimationComponent.cpp` | 487 | 强制设置 `false` |
 | `KinematicTargets.h` | 17-23, 33 | `FKinematicTarget` 模式枚举与构造 |
+
+## 延伸查阅
+
+- [Chaos 物理引擎：架构与求解流水线](/knowledge/ue-chaos-physics-engine/)

@@ -16,10 +16,9 @@ sources:
   - title: "Bridson and Müller-Fischer — Fluid Simulation and Solid–Fluid Coupling"
     url: "https://www.cs.ubc.ca/~rbridson/fluidsimulation/fluids_notes.pdf"
 ---
+流体推动刚体，刚体又改变流体边界；软体接触刚体时，接触力也必须作用于双方。机械耦合不仅要交换运动，还要在同一时间语义下交换反作用。
 
-刚体、软体和流体分别拥有自己的状态与材料模型。把它们放到同一个场景，还需要明确界面在哪里、双方如何传递作用、一次时间步怎样协调。否则即使两边独立运行都合理，组合后也可能凭空增加动量、重复施力或使用过期边界。
-
-本篇讨论机械耦合的共同结构，不宣称所有模型都能无差别接入同一个求解循环。先分别认识[刚体](/knowledge/rigid-body-dynamics/)、[可变形体](/knowledge/deformable-body-dynamics/)与[流体](/knowledge/fluid-dynamics/)的职责，再理解它们相遇时增加了什么。
+本文从单向驱动与双向作用开始，解释界面条件、力与冲量、分区排程和共同求解，再用一个封闭的动量交换算例检查接口。不同材料模型保留各自的状态与方程。
 
 ## 从运动边界走向相互作用
 
@@ -108,4 +107,11 @@ export function inelasticExchange(mA, vA, mB, vB) {
 
 共同基础给出状态、守恒与应力，刚体/软体/流体分支定义自由度与材料，耦合定义界面关系，数值方法再决定如何离散和计算。这些层次共同构成模拟系统。
 
-GPU 或 CPU 的执行和数据发布属于具体实现。在[GPUPhysicsLab](/knowledge/gpu-physics-plugin/)等源码文档中，应进一步核对哪些阶段真正交换反作用、哪些状态已经提交；本篇不据此宣称某个插件已经实现完整流固耦合。
+GPU 或 CPU 的执行和数据发布属于具体实现。在GPUPhysicsLab等源码文档中，应进一步核对哪些阶段真正交换反作用、哪些状态已经提交；本篇不据此宣称某个插件已经实现完整流固耦合。
+
+## 延伸查阅
+
+- [刚体动力学：从质心运动到三维转动](/knowledge/rigid-body-dynamics/)
+- [可变形体动力学：从形变与材料到软体模拟](/knowledge/deformable-body-dynamics/)
+- [流体动力学：从守恒与压力到网格和粒子](/knowledge/fluid-dynamics/)
+- [GPUPhysicsLab：从 Compute Shader 到 UE 物理求解](/knowledge/gpu-physics-plugin/)

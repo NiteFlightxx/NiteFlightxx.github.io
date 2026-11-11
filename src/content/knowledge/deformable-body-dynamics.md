@@ -18,10 +18,9 @@ sources:
   - title: "Stomakhin et al. — A Material Point Method for Snow Simulation"
     url: "https://disneyanimation.com/publications/a-material-point-method-for-snow-simulation/"
 ---
+橡胶块被压扁后回弹，布料容易弯折却难以沿纱线拉长，绳索还能绕自身轴扭转。这些现象都要求保留内部运动自由度，并为不同变形方式定义材料响应。
 
-橡胶块被压扁后回弹，布料容易弯折却难以沿纱线拉长，绳索可以弯曲和扭转。它们都需要内部自由度，但不能仅靠把刚体质量调小或把求解器叫作“软体”来解释。
-
-[连续介质](/knowledge/continuum-mechanics/)已经给出运动映射、守恒与应力。本篇进一步回答：什么算材料形变，怎样从形变得到恢复作用，怎样把体积、布料和杆离散为可计算系统。FEM、MPM、PBD 和 VBD 将在这个问题背景下出现。
+本文从材料点的运动与形变梯度开始，解释应变、能量和恢复力，再比较体积单元、布料与杆的离散方式，以及弹性、塑性和损伤的状态。最后区分材料模型、时间离散和求解方法各自控制什么。
 
 ## 软体增加的是内部运动自由度
 
@@ -129,13 +128,13 @@ $D_m$ 由参考顶点的三条边组成，$D_s$ 由当前对应边组成。退�
 
 布料是薄结构：面内拉伸、剪切与面外弯曲具有不同尺度。用一组边长约束可以建立简单模型，但边长约束本身不自动提供所需弯曲、纱线方向性或完整壳理论。
 
-布料与自身碰撞、厚度、缝合和外部物体接触也很关键。[Chaos Cloth](/knowledge/chaos-cloth/)是具体引擎实现分支，应在认识材料与几何职责之后阅读。
+布料还需要处理自身碰撞、厚度、缝合和外部接触。这些机制分别改变几何关系、材料连接或碰撞约束，不能只通过提高拉伸刚度替代。
 
 ### 绳索与弹性杆
 
 一串中心线位置可以表达弯曲形状，却通常不足以表达完整扭转；材料标架为截面方向提供额外状态。Kirchhoff、Cosserat 和纯距离链具有不同自由度与假设。
 
-[弹性杆](/knowledge/position-based-elastic-rods/)进一步推导弯曲与扭转。它不是体积软体完成后必须依次阅读的下一章，而是一条薄结构分支。
+杆的弯曲来自中心线方向的变化，扭转来自横截面绕切向的相对旋转。因此杆通常还需要材料方向；只保存节点位置不能完整表达截面扭转。
 
 ## 弹性塑性与损伤扩展材料状态
 
@@ -149,9 +148,7 @@ MPM 让材料点携带质量、形变和历史，在背景网格上计算动量�
 
 离散弹性系统可写为 $M\ddot q=f_{\mathrm{ext}}-\nabla U(q)$，加入阻尼或接触后再扩充。显式时间推进的稳定步长受材料波速与单元尺寸限制；隐式方法则需要处理非线性与求解残差。
 
-[PBD/XPBD](/knowledge/pbd-xpbd-math/)从约束与柔度组织修正，[VBD/AVBD](/knowledge/vbd-avbd-math/)从离散目标和局部块组织更新。两者都需要说明约束/能量代表什么材料，不能由求解器名称推出材料类型。
-
-要理解弹性求解器的并行迭代，可进入[JGS2](/knowledge/jgs2-gpu-elastodynamics/)；先在本篇识别出自由度、能量与时间离散，才知道它在改进哪个计算环节。
+PBD/XPBD从约束与柔度组织修正，VBD/AVBD从离散目标和局部块组织更新。两者都需要说明约束/能量代表什么材料，不能由求解器名称推出材料类型。
 
 ## 核对能量与刚体旋转
 
@@ -174,6 +171,20 @@ export function elasticEnergy(F, { mu = 1000, lambda = 1000, volume = 0.001 } = 
 
 ## 接回共同知识脉络
 
-可变形体与[流体](/knowledge/fluid-dynamics/)共享守恒与应力语言，却通过材料关系描述不同响应。它与[刚体](/knowledge/rigid-body-dynamics/)共享整体动量和接触原则，却保留内部自由度。
+可变形体与流体共享守恒与应力语言，却通过材料关系描述不同响应；与刚体相比，它保留了内部自由度。
 
-当软体落在刚体上、布料受水流推动时，再进入[耦合](/knowledge/multiphysics-coupling/)讨论反作用、边界条件与统一时间尺度。需要数学推导时按问题进入[PDE](/knowledge/partial-differential-equations/)和[数值积分](/knowledge/numerical-integration-methods/)，而非先把整个刚体引擎当作软体入门条件。
+软体与刚体或流体相遇时，需要把界面作用传回双方，并在一致的时间区间交换力或冲量。材料、离散和求解状态在这一步都必须保持各自的定义。
+
+## 延伸查阅
+
+- [连续介质力学：从质点到固体与流体](/knowledge/continuum-mechanics/)
+- [Chaos Cloth：布料求解与 Dataflow](/knowledge/chaos-cloth/)
+- [弹性杆：材料标架与位置约束](/knowledge/position-based-elastic-rods/)
+- [位置约束求解：PBD 与 XPBD](/knowledge/pbd-xpbd-math/)
+- [变分物理求解：VBD 与 AVBD](/knowledge/vbd-avbd-math/)
+- [JGS2：GPU 弹性体迭代求解](/knowledge/jgs2-gpu-elastodynamics/)
+- [流体动力学：从守恒与压力到网格和粒子](/knowledge/fluid-dynamics/)
+- [刚体动力学：从质心运动到三维转动](/knowledge/rigid-body-dynamics/)
+- [多物理耦合：刚体、软体与流体怎样交换作用](/knowledge/multiphysics-coupling/)
+- [偏微分方程：场、边界与空间离散](/knowledge/partial-differential-equations/)
+- [数值积分：方法、误差与稳定性](/knowledge/numerical-integration-methods/)

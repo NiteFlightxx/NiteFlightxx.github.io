@@ -27,9 +27,9 @@ topics:
     order: 10
 sources: []
 ---
-从[总览](/knowledge/physics-simulation-overview/)中的落球出发，我们已经分别建立了状态、受力、时间积分、接触与约束。现在把它们连接成一个小型 2D 引擎的时间步：同一份状态被哪些阶段读取和修改，接触何时建立，迭代完成后哪些结果需要提交。
+一个二维物理引擎需要把受力、积分、碰撞和约束连接成一次可提交的更新。本文从刚体状态开始，沿固定步追踪候选接触、法向与摩擦冲量、关节、缓存和最终状态，说明每个阶段为什么存在、读取什么，以及何时可以修改结果。
 
-二维保留了平移、转动、接触耦合和历史管理，便于看清整条链。本文是实现导读，代码只覆盖明确的小例子，不对应某个已经验收的完整引擎。向量与变换见[空间数学](/knowledge/ue-linear-algebra-guide/)，时间积分见[数值积分](/knowledge/numerical-integration-methods/)。
+二维刚体具有两个平移和一个转动自由度。下文采用质量、速度、角速度与接触点建立局部算例；这些算例用于解释执行链，不代表已经提供一个通过完整场景验证的引擎。
 
 ## 刚体状态与单位
 
@@ -101,7 +101,7 @@ export function candidatePairs(boxes, cellSize) {
 
 ## 窄相到接触流形
 
-圆、凸多边形和边等形状使用各自查询。SAT、GJK 和穿透求解的原理见[凸体碰撞](/knowledge/collision-detection-gjk-epa-sat/)。查询结果需要转换成稳定法线、接触点、间隙与特征身份。
+圆、凸多边形和边使用各自的几何查询：投影可提供分离证据，支撑映射可用于凸体最近点查询，相交后还需要有效的穿透或特化接触结果。查询结果需要转换成稳定法线、接触点、间隙与特征身份。
 
 约定法线 $n$ 从 A 指向 B，使法向相对速度
 
@@ -136,13 +136,13 @@ $$
 
 Baumgarte 偏置、独立位置投影和软约束有不同的能量与误差行为，应选定方案并记录容差与最大纠正速度。不能把“减小穿透”和“保持碰撞恢复能量”当成自动同时满足。
 
-原理和累计投影的完整推导见[物理约束](/knowledge/physics_constraints_deep_dive/)。增加接触迭代只能改善当前约束集的误差，不能修复漏掉的接触。
+每轮先更新累计冲量，再将其投影到允许区间，只把新旧累计值的差施加到物体。这样后续迭代可以撤销之前过大的修正。增加接触迭代只能改善当前约束集的误差，不能修复漏掉的接触。
 
 ## 关节与弹簧
 
 距离关节的两个锚点由局部坐标变换到世界，使用各自质心接触臂构造约束行。铰链、滑轨和角度限制由允许的相对自由度定义，不能仅按类名判断实际限制。
 
-弹簧力是 $F=-kC\,\nabla C$；双方承受相反作用，固定端的反力不会使动态端受力减半。显式弹簧还需匹配步长和阻尼，硬距离约束则可采用速度约束或[PBD/XPBD](/knowledge/pbd-xpbd-math/)位置修正。两条路线应分别描述。
+弹簧力是 $F=-kC\,\nabla C$；双方承受相反作用，固定端的反力不会使动态端受力减半。显式弹簧还需匹配步长和阻尼，硬距离约束则可采用速度约束或PBD/XPBD位置修正。两条路线应分别描述。
 
 ## 缓存、睡眠与重启
 
@@ -154,7 +154,7 @@ Baumgarte 偏置、独立位置投影和软约束有不同的能量与误差行�
 
 先分别验证自由落体、施加冲量、偏心力矩、单接触恢复、摩擦滑动、堆叠、关节和 Reset，再组成复杂场景。宽相示例的自动检查验证负坐标、跨格物体、候选去重和非法输入，不代表完整引擎已实现或通过这些场景。
 
-AVBD 使用位置/姿态块与原对偶状态，不能只作为“稳定性更好”的一栏加入速度冲量循环。其目标和算法见[VBD/AVBD](/knowledge/vbd-avbd-math/)，原生可对照实现见[avbd-demo3d](/knowledge/avbd-demo3d-implementation/)。本文不提供没有硬件与场景依据的性能排名。
+AVBD 使用位置/姿态块与原对偶状态，不能只作为“稳定性更好”的一栏加入速度冲量循环。其目标和算法见VBD/AVBD，原生可对照实现见avbd-demo3d。本文不提供没有硬件与场景依据的性能排名。
 
 约束与接触资料可从 [Erin Catto 的原始讲义](https://box2d.org/publications/)继续查阅。代码定位、运行示例和物理正确性应分别验证。
 
@@ -162,4 +162,15 @@ AVBD 使用位置/姿态块与原对偶状态，不能只作为“稳定性更�
 
 刚体分支到这里形成实现闭环：共同基础建立状态与动量关系，刚体模型加入转动，积分产生候选运动，几何建立接触，约束协调允许的运动，提交保存下一步的起点与历史。这是一类保持形状的模型实现，软体与流体有自己的内部自由度、材料和边界路线。
 
-接下来按问题选择分支：要实现凸体查询，进入[碰撞检测](/knowledge/collision-detection-gjk-epa-sat/)；要比较位置和变分更新，进入[PBD/XPBD](/knowledge/pbd-xpbd-math/)或[VBD/AVBD](/knowledge/vbd-avbd-math/)；要阅读工业引擎，进入[Chaos 架构](/knowledge/ue-chaos-physics-engine/)；要理解 GPU 的阶段和资源依赖，进入[three-avbd](/knowledge/three-avbd-gpu-solver/)。这些分支各自展开，不需要串成一条必修顺序。
+## 延伸查阅
+
+- [动力学总览：刚体、软体与流体的共同脉络](/knowledge/physics-simulation-overview/)
+- [UE 空间数学：向量、矩阵与变换](/knowledge/ue-linear-algebra-guide/)
+- [数值积分：方法、误差与稳定性](/knowledge/numerical-integration-methods/)
+- [凸体碰撞检测：SAT、GJK 与 EPA](/knowledge/collision-detection-gjk-epa-sat/)
+- [物理约束：建模、有效质量与迭代求解](/knowledge/physics_constraints_deep_dive/)
+- [位置约束求解：PBD 与 XPBD](/knowledge/pbd-xpbd-math/)
+- [变分物理求解：VBD 与 AVBD](/knowledge/vbd-avbd-math/)
+- [avbd-demo3d：刚体求解器实现](/knowledge/avbd-demo3d-implementation/)
+- [Chaos 物理引擎：架构与求解流水线](/knowledge/ue-chaos-physics-engine/)
+- [three-avbd：WebGPU 刚体求解流水线](/knowledge/three-avbd-gpu-solver/)

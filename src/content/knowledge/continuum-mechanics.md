@@ -18,10 +18,9 @@ sources:
   - title: "Bridson and Müller-Fischer — Fluid Simulation Course Notes"
     url: "https://www.cs.ubc.ca/~rbridson/fluidsimulation/fluids_notes.pdf"
 ---
+木块、橡胶和水都具有质量、动量并受到重力，但它们的内部响应不同：木块近似保持形状，橡胶会恢复形状，水会流动并重新组织表面。连续介质用材料点、场、应力和守恒描述这些共同点与差异。
 
-[质点动力学](/knowledge/particle-dynamics/)把一个物体的平移写成质量、速度与合力的关系。现在把木块、橡胶块和一团水放在同一环境中：它们都具有质量、动量并受到重力，但木块近似保持形状，橡胶会恢复形状，水会流动并重新组织表面。
-
-区别不在牛顿定律是否适用，而在内部自由度与内部作用如何建模。连续介质把物质近似成连续分布的场，用共同守恒规律组织运动，再通过材料关系区分固体与流体。本篇建立这层共同语言；弹性和流体的具体方程分别在后续分支完整展开。
+本文从运动映射出发，依次解释形变梯度、密度、应力、材料关系和离散自由度。局部长度与体积的算例把抽象定义连接到可核对的物理量。
 
 ## 连续近似描述的是一个尺度
 
@@ -168,7 +167,7 @@ $$
 
 空间离散后，一些固体系统可以写为 $M\ddot q=f_{\mathrm{int}}+f_{\mathrm{ext}}$；不可压缩流体还需要同时满足速度与压力的约束。这里的 $q$ 是离散自由度，并不必然是一组刚体姿态。
 
-随后才选择[时间积分](/knowledge/numerical-integration-methods/)、线性/非线性迭代与执行排程。FEM、SPH、MPM 与 Jacobi、CG、Newton、VBD 不是同一层的互斥选项。
+随后才选择时间积分、线性/非线性迭代与执行排程。FEM、SPH、MPM 与 Jacobi、CG、Newton、VBD 不是同一层的互斥选项。
 
 ## 用体积变化核对质量
 
@@ -188,6 +187,13 @@ export function materialVolume(rho0, referenceVolume, stretches) {
 
 ## 从共同基础进入三条模型路线
 
-要研究保持形状的整体运动，进入[刚体动力学](/knowledge/rigid-body-dynamics/)；要解释内部变形与恢复，进入[可变形体动力学](/knowledge/deformable-body-dynamics/)；要解释流动、压力和不可压缩，进入[流体动力学](/knowledge/fluid-dynamics/)。
+三类模型平行共享守恒与应力语言。模型相遇时，界面还要协调运动边界、反作用和共同的时间区间，避免把同一份冲量漏掉或施加两次。
 
-它们平行共享守恒与建模思想，而非需要按刚体、软体、流体顺序逐一读完。最后，[多物理耦合](/knowledge/multiphysics-coupling/)说明不同模型的边界作用、动量交换与时间推进怎样协调。
+## 延伸查阅
+
+- [质点动力学：从运动描述到动量与能量](/knowledge/particle-dynamics/)
+- [数值积分：方法、误差与稳定性](/knowledge/numerical-integration-methods/)
+- [刚体动力学：从质心运动到三维转动](/knowledge/rigid-body-dynamics/)
+- [可变形体动力学：从形变与材料到软体模拟](/knowledge/deformable-body-dynamics/)
+- [流体动力学：从守恒与压力到网格和粒子](/knowledge/fluid-dynamics/)
+- [多物理耦合：刚体、软体与流体怎样交换作用](/knowledge/multiphysics-coupling/)

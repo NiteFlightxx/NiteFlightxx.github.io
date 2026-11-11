@@ -25,12 +25,9 @@ sources:
   - title: "Macklin et al. 2019 — Small Steps in Physics Simulation"
     url: "https://mmacklin.com/smallsteps.pdf"
 ---
+PBD、XPBD、VBD 与 AVBD 都会更新位置，但它们使用不同的目标、更新块和乘子状态。比较它们，首先要固定同一个物理问题和计算预算。
 
-PBD、XPBD、VBD、AVBD 都能通过修改位置推进物理，但它们不是四个可互换的“位置积分公式”。真正决定结果的是：本步要满足什么方程、每次更新谁、使用什么导数、保留哪些历史，以及预算耗尽时留下哪一种误差。
-
-本文以同一套粒子模型推导差异，再扩展到刚体、材料与接触。它是一篇**跨方法比较主文**；约束几何和有效质量详见[物理约束](/knowledge/physics_constraints_deep_dive/)，具体约束导数见[PBD/XPBD](/knowledge/pbd-xpbd-math/)，能量及局部块装配见[VBD/AVBD](/knowledge/vbd-avbd-math/)，不再重复所有距离、体积和弯曲约束的完整实现。
-
-导数、偏导数与梯度的基础推导见[微分基础](/knowledge/calculus-foundations/)；其中的[双粒子弹簧](/knowledge/calculus-foundations/#物理中的约束梯度能量梯度与力)串起了约束误差、能量梯度与力的符号和单位。
+本文以同一套粒子与弹簧模型推导四种方法的差异，再比较材料误差、求解误差、状态生命周期、接触、并行成本和工程选型。比较所需的约束、能量、梯度及单位在当前算例中定义。
 
 ## 先给结论
 
@@ -694,7 +691,7 @@ $$
 
 静摩擦还依赖切向锚点、当前接触身份和法线旋转后的基变换。恢复系数、碰撞事件、速度级冲量与位置消穿透也有不同职责；不能把一次位置修正全部解释为真实弹性碰撞。
 
-接触几何与流形详见[接触响应](/knowledge/contact-response-and-manifolds/)，这里不重复完整窄相和流形生成。
+比较求解器前，应固定同一组接触法线、间隙、锚点和身份；否则结果差异可能来自几何输入，而非约束更新公式。
 
 ## 状态与执行顺序决定你实际实现了什么
 
@@ -730,7 +727,7 @@ $$
 
 PBD/XPBD 的低状态量不等于完全无缓存，VBD 也可能保存预测、加速和接触状态。AVBD 通常更依赖约束身份持续性；未建立身份映射时，不应盲目复用旧对偶。
 
-项目中的状态 Pending → Accepted/Committed、GPU 容量及失败恢复，见[GPUPhysicsLab](/knowledge/gpu-physics-plugin/)。本文没有重新核查插件当前分支，不能把通用伪代码冒充该插件执行事实。
+工程实现还需要区分候选状态与已接受状态，以及容量溢出后是回退、丢弃本步还是使用其他策略。本文没有重新核查插件当前分支，不能把通用伪代码冒充该插件执行事实。
 
 ## CPU 与 GPU：更新图不同，成本也不同
 
@@ -781,21 +778,17 @@ $$
 
 XPBD 可使用广义逆质量与惯性，VBD/AVBD 需构造相应局部角向模型。旋转更新、世界/本体角速度与速度重建都必须一致；不能仅把三维矩阵扩成六维对角阵。
 
-具体原生刚体 AVBD 见[avbd-demo3d](/knowledge/avbd-demo3d-implementation/)，它是实现资料，不与本文的一维例子混为同一验证范围。
-
 ### 布料与体弹性
 
 PBD 可以通过几何拉伸、弯曲等控制外观；XPBD 可以给这些约束指定柔度，也可以从材料能量构造约束。VBD 更直接对能量单元求导，但要维护参考面积/体积、材料稳定性和非凸状态的定义。
 
 比较之前，应核对是否真的在使用相同的膜、壳、体积与弯曲能量。若一个版本用距离弹簧，另一个用各向异性 FEM，再得到不同褶皱，不能全部归功于求解器名字。
 
-弹性模型见[可变形体动力学](/knowledge/deformable-body-dynamics/)，杆的取向自由度见[弹性杆](/knowledge/position-based-elastic-rods/)。
+弹性材料需要从形变构造能量或应力；杆和布料还可能增加材料标架、弯曲或扭转自由度。求解方法必须使用与这些变量匹配的导数。
 
 ### 流体不是换一个块就完成
 
 PBF 将粒子密度约束用于位置修正，但不可压缩流体还涉及邻域、边界、压力、黏性和速度处理。把 VBD/AVBD 用到流体也要先给出合适的目标与离散，不能单凭“都是粒子”继承固体结论。
-
-流体主线见[流体动力学](/knowledge/fluid-dynamics/)；PBF 的算法见[密度约束](/knowledge/pbf-fluid-simulation/)。
 
 ## 怎样公平比较收敛、稳定性与精度
 
@@ -904,4 +897,20 @@ CPU → GPU 还需要数据所有权、资源容量、同步和有效状态发�
 - [AVBD：Eq. (8)–(19)、Algorithm 1、Implementation Details](https://graphics.cs.utah.edu/research/projects/avbd/Augmented_VBD-SIGGRAPH25.pdf)。
 - [Small Steps：子步与迭代预算实验](https://mmacklin.com/smallsteps.pdf)。
 
-继续看通用推导时，分别进入[PBD/XPBD](/knowledge/pbd-xpbd-math/)与[VBD/AVBD](/knowledge/vbd-avbd-math/)；看 GS、Jacobi 与线性残差，进入[迭代求解](/knowledge/iterative-linear-solvers/)；看真实状态和执行顺序，进入[原生 AVBD](/knowledge/avbd-demo3d-implementation/)、[three-avbd](/knowledge/three-avbd-gpu-solver/)与[GPUPhysicsLab](/knowledge/gpu-physics-plugin/)。
+继续看通用推导时，分别进入PBD/XPBD与VBD/AVBD；看 GS、Jacobi 与线性残差，进入迭代求解；看真实状态和执行顺序，进入原生 AVBD、three-avbd与GPUPhysicsLab。
+
+## 延伸查阅
+
+- [物理约束：建模、有效质量与迭代求解](/knowledge/physics_constraints_deep_dive/)
+- [位置约束求解：PBD 与 XPBD](/knowledge/pbd-xpbd-math/)
+- [变分物理求解：VBD 与 AVBD](/knowledge/vbd-avbd-math/)
+- [微分基础：从导数到梯度与物理求解](/knowledge/calculus-foundations/)
+- [接触响应：从几何碰撞到持续支撑](/knowledge/contact-response-and-manifolds/)
+- [GPUPhysicsLab：从 Compute Shader 到 UE 物理求解](/knowledge/gpu-physics-plugin/)
+- [avbd-demo3d：刚体求解器实现](/knowledge/avbd-demo3d-implementation/)
+- [可变形体动力学：从形变与材料到软体模拟](/knowledge/deformable-body-dynamics/)
+- [弹性杆：材料标架与位置约束](/knowledge/position-based-elastic-rods/)
+- [流体动力学：从守恒与压力到网格和粒子](/knowledge/fluid-dynamics/)
+- [PBF 流体：密度约束与位置修正](/knowledge/pbf-fluid-simulation/)
+- [线性系统的迭代求解](/knowledge/iterative-linear-solvers/)
+- [three-avbd：WebGPU 刚体求解流水线](/knowledge/three-avbd-gpu-solver/)

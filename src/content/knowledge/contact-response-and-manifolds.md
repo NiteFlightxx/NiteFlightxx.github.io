@@ -18,8 +18,9 @@ sources:
   - title: "Box2D — Simulation and Contacts"
     url: "https://box2d.org/documentation/md_simulation.html"
 ---
+碰撞检测得到几何关系，接触响应决定运动怎样改变。一个球落到地面上，先需要一致的法线与间隙，再需要冲量处理撞击，随后用持续约束承担重力并限制滑动。
 
-刚体模型解释了自由运动，接近地面后则需要将环境反作用纳入方程。本篇从一个球和平面开始，用已经认识的动量变化和刚体点速度，连接接触查询、冲量、摩擦、流形与跨步历史；时间积分和共同约束方程分别链接共享方法文档，之后沿刚体路线进入完整实现。
+本文沿这一个接触过程，连接接触点速度、有效质量、恢复、摩擦、流形和跨步缓存。每一步都给出输入、输出及其物理含义，最后说明多个接触为什么需要耦合迭代。
 
 ## 几何查询和运动响应的接口
 
@@ -56,7 +57,7 @@ $$
 
 宽相从大量物体中寻找可能相关的对。AABB 重叠只说明需要进一步检查，不意味着真实碰撞。窄相根据具体形状求距离、接触或穿透，再决定哪些结果可进入响应。
 
-SAT、GJK、EPA 的完整几何推导由[凸体碰撞](/knowledge/collision-detection-gjk-epa-sat/)负责。这里先建立接口：无论选哪种几何算法，都需要把有效结果转换成一致的接触法线、锚点和间隙。
+几何查询可以使用投影、支撑映射或特化形状公式；当前响应链只消费它们约定的有效结果：无论选哪种几何算法，都需要把有效结果转换成一致的接触法线、锚点和间隙。
 
 离散查询只检查某些时刻的几何，快速物体可能从薄墙一侧跳到另一侧。连续查询估计步内相触时刻或安全运动范围。接触求解迭代不能补回一次从未生成的碰撞。
 
@@ -156,12 +157,21 @@ $$
 
 逐点算一次，通常还不能让所有条件同时满足。求解器需要重复读取状态并修正，或把某些接触共同组成块。有限预算留下的误差，会表现为堆叠抖动、穿透、关节漂移等不同现象。
 
-[物理约束](/knowledge/physics_constraints_deep_dive/)作为共享方法，将接触与关节放入同一语言中，解释 Jacobian、有效质量、累计投影、求解顺序和停止条件。沿刚体实现路线则继续到[2D 物理引擎](/knowledge/2d-physics-engine/)。
+物理约束作为共享方法，将接触与关节放入同一语言中，解释 Jacobian、有效质量、累计投影、求解顺序和停止条件。沿刚体实现路线则继续到2D 物理引擎。
 
 ## 验证与继续阅读
 
 可依次检查自由落下后的首次撞击、静止支撑、滑动、移动平台、偏心撞击、双箱堆叠及重置。它们分别暴露几何、恢复、摩擦、空间、耦合和历史状态的问题。
 
-接触查询接口的具体实现见[Chaos GJK](/knowledge/gjk-collision-detection/)，流形和缓存在不同引擎中的落地方式见[Chaos 架构](/knowledge/ue-chaos-physics-engine/)与[three-avbd](/knowledge/three-avbd-gpu-solver/)。这些属于主线后的源码分支。
+接入具体引擎时，还应验证法线方向、接触身份和跨步缓存是否采用同一约定；当前几何算例与冲量推导本身不证明某个引擎的具体实现。
 
 原始资料可查 [Catto 的 Contact Manifolds 讲义](https://box2d.org/files/ErinCatto_ContactManifolds_GDC2007.pdf)及 [Box2D Simulation 文档](https://box2d.org/documentation/md_simulation.html)。本文的单球推导用于建立共同模型，不将某个引擎的具体接触上限或缓存策略推广到所有实现。
+
+## 延伸查阅
+
+- [凸体碰撞检测：SAT、GJK 与 EPA](/knowledge/collision-detection-gjk-epa-sat/)
+- [物理约束：建模、有效质量与迭代求解](/knowledge/physics_constraints_deep_dive/)
+- [2D 物理引擎：从状态更新到约束求解](/knowledge/2d-physics-engine/)
+- [Chaos GJK：距离、容差与退化处理](/knowledge/gjk-collision-detection/)
+- [Chaos 物理引擎：架构与求解流水线](/knowledge/ue-chaos-physics-engine/)
+- [three-avbd：WebGPU 刚体求解流水线](/knowledge/three-avbd-gpu-solver/)

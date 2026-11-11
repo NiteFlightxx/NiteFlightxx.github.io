@@ -28,12 +28,9 @@ related: []
 sources: []
 featured: true
 ---
+四旋翼通过旋翼改变总推力和力矩；姿态改变之后，推力才会在世界空间产生水平分量。悬停、爬升、转向与平移都可以从这条因果链理解。
 
-四旋翼不能直接朝任意方向施力：旋翼先改变总推力和力矩，姿态改变后，推力才在世界空间中产生水平分量。本文用交互沙盒观察这条因果链，解释悬停、倾斜运动、PID 与混控；实际插件的控制所有权、执行时序和网络边界见[AircraftLab](/knowledge/quadcopter-flight-control-math/)。
-
-> 这是本站无人机系列的**科普入口**：不预设任何控制理论背景，公式只保留最必要的几个。全文只有一个交互沙盒，但它有五个页签，对应下面五章——每一章读到"该动手了"的时候，回到上面的沙盒切换页签操作即可。
->
-> 想看工程级实现（级联控制链、阻尼伪逆混控、轨迹规划），请继续前往深度文章 [AircraftLab：动力学、飞控与仿真架构](/knowledge/quadcopter-flight-control-math/)。
+本文用一个 3D 沙盒配合推力、姿态、动力学、PID 和混控五个主题。正文给出必要的力学关系与控制含义，交互页签用于观察同一组变量的变化，不要求先掌握控制理论。
 
 <div data-demo="drone-sandbox"></div>
 
@@ -128,8 +125,8 @@ $$
 \text{目标位置} \xrightarrow{\text{PID}} \text{期望推力+三轴力矩} \xrightarrow{\text{混控}} \text{四个电机转速}
 $$
 
-## 延伸阅读
+## 延伸查阅
 
-- [AircraftLab：动力学、飞控与仿真架构](/knowledge/quadcopter-flight-control-math/) —— 工程级实现：级联控制链、阻尼伪逆混控、轨迹规划与物理引擎执行；
-- [经典力学基础](/knowledge/classical-mechanics/) —— 牛顿/欧拉方程的完整形式；
-- [微分方程](/knowledge/differential-equations/) —— 控制对象的状态方程、初值和时间离散背景。
+- [AircraftLab：动力学、飞控与仿真架构](/knowledge/quadcopter-flight-control-math/)
+- [经典力学：牛顿、拉格朗日与哈密顿](/knowledge/classical-mechanics/)
+- [常微分方程：状态、初值与动力系统](/knowledge/differential-equations/)

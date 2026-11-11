@@ -26,7 +26,9 @@ sources:
   - title: Boyd and Vandenberghe — Convex Optimization
     url: 'https://web.stanford.edu/~boyd/cvxbook/'
 ---
-梯度描述一阶变化，Hessian 描述梯度如何随位置变化。它决定局部二次模型的曲率，却不能单独保证算法从任意初值收敛。本文负责 Hessian、正定性、Newton 与近似曲率的共同语言；[线性迭代](/knowledge/iterative-linear-solvers/)负责子问题求解，[VBD/AVBD](/knowledge/vbd-avbd-math/)负责材料和局部块装配。
+梯度描述函数的一阶变化，Hessian 描述梯度怎样随位置变化。把这些二阶导数组合成局部二次模型，才能进一步讨论曲率、驻点、步长和 Newton 更新。
+
+本文从矩阵定义与一个可复算二次函数出发，解释正定性、梯度下降、Newton、Gauss–Newton 和拟 Newton，再把势能曲率连接到刚度与振动模态。求解方程的目的、条件和近似误差均在使用处说明。
 
 ## 输入、导数与局部二次模型
 
@@ -60,7 +62,7 @@ g=\begin{bmatrix}4x+y-9\\x+3y-8\end{bmatrix},\qquad
 H=\begin{bmatrix}4&1\\1&3\end{bmatrix}.
 $$
 
-$H$ 的特征值为 $(7\pm\sqrt5)/2$，均为正，因此该二次函数有唯一极小点 $(19/11,23/11)$。这与[线性迭代的比较系统](/knowledge/iterative-linear-solvers/)一致。
+$H$ 的特征值为 $(7\pm\sqrt5)/2$，均为正，因此这个二次函数有唯一极小点。令两项梯度为零，联立 $4x+y=9$、$x+3y=8$，得到 $(x,y)=(19/11,23/11)$；结论可以直接在当前方程中核对。
 
 在这个**精确二次且 SPD** 的例子中，完整 Newton 解 $Hs=-g$ 后取单位步长，从任意初值一步到极小点。一般非线性函数不具有这个一步性质。
 
@@ -110,7 +112,7 @@ $$
 
 大型 Newton 常通过矩阵向量算子近似解线性子问题。内层求解精度影响外层收敛；把内部 CG 固定为一两轮，不能继续声称保持精确 Newton 的收敛性质。
 
-顶点块 Newton 只处理 $H_{ii}$，其他块的耦合由后续迭代传播。即使每个局部块都精确求解，整轮也不等于完整全局 Newton。具体装配见[VBD/AVBD](/knowledge/vbd-avbd-math/)。
+顶点块 Newton 只处理 $H_{ii}$，其他块的耦合由后续迭代传播。例如同时满足 $H_{11}s_1+H_{12}s_2=-g_1$ 与 $H_{21}s_1+H_{22}s_2=-g_2$，不同于分别只解对角块。即使每个局部块精确求解，整轮也不等于完整全局 Newton。
 
 ## Gauss–Newton 与拟 Newton
 
@@ -154,4 +156,10 @@ $$
 
 选多个步长区分截断和舍入误差，避开非光滑切换；还要核对 $d^THd$、对称性和代码使用的是力还是梯度。不同单位的变量需要缩放，否则数值条件和正则参数难以解释。
 
-本文不将二次算例的性质推广为任意物理或优化系统的运行保证。导数映射见[Jacobian](/knowledge/jacobian-matrix/)，线性子问题见[迭代求解](/knowledge/iterative-linear-solvers/)，材料与约束的局部导数见[VBD/AVBD](/knowledge/vbd-avbd-math/)。凸性判据可对照 [Boyd 与 Vandenberghe《Convex Optimization》](https://web.stanford.edu/~boyd/cvxbook/)中的二阶条件。
+本文不将二次算例的性质推广为任意物理或优化系统的运行保证。导数映射见Jacobian，线性子问题见迭代求解，材料与约束的局部导数见VBD/AVBD。凸性判据可对照 [Boyd 与 Vandenberghe《Convex Optimization》](https://web.stanford.edu/~boyd/cvxbook/)中的二阶条件。
+
+## 延伸查阅
+
+- [线性系统的迭代求解](/knowledge/iterative-linear-solvers/)
+- [变分物理求解：VBD 与 AVBD](/knowledge/vbd-avbd-math/)
+- [Jacobian 矩阵与局部线性化](/knowledge/jacobian-matrix/)

@@ -25,13 +25,9 @@ nextArticles:
 related: []
 sources: []
 ---
-FullBodyIK 和 PBIK 需要分别理解：相似的“全身 IK”用途不意味着相同的更新公式、参数或执行路径。本文对照各自源码解释误差、局部更新与限位；[Jacobian](/knowledge/jacobian-matrix/)和[位置约束](/knowledge/pbd-xpbd-math/)提供数学背景，落脚目标如何产生则见[预测式 Foot IK](/knowledge/predictive-foot-ik/)。
+FullBodyIK 与 PBIK 都可以调整全身姿态，但它们组织误差、自由度和局部更新的方式不同。比较两者，首先要确认目标怎样进入求解、在哪个空间计算，以及限位如何参与。
 
-> 源码路径：`Engine/Plugins/Experimental/FullBodyIK`
->
-> 本文档详细解析 Unreal Engine FullBodyIK 实验性插件中两种 IK 求解器的数学原理：基于**雅可比矩阵（Jacobian）**的 FullBodyIK 求解器，以及基于**位置动力学（Position-Based Dynamics / XPBD）**的 PBIK 求解器。两者均以 Control Rig RigUnit 的形式暴露给蓝图使用，而非传统的 AnimGraph 节点。
-
----
+本文分别沿各自源码解释 Jacobian 型更新和位置型更新，再说明 Control Rig 的调用、参数和输出姿态。关键误差与修正关系在本篇定义，求解器行为以对应版本实现为准。
 
 ## 插件架构总览
 
@@ -865,3 +861,9 @@ struct FPBIKEffector
 ---
 
 *本文档基于 Unreal Engine FullBodyIK 实验性插件源码分析整理，公式与代码块均对应插件 `Source/FullBodyIK` 与 `Source/PBIK` 目录下的实际实现。*
+
+## 延伸查阅
+
+- [Jacobian 矩阵与局部线性化](/knowledge/jacobian-matrix/)
+- [位置约束求解：PBD 与 XPBD](/knowledge/pbd-xpbd-math/)
+- [预测式 Foot IK：落脚规划与接触状态](/knowledge/predictive-foot-ik/)

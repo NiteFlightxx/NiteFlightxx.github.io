@@ -31,9 +31,9 @@ sources:
     url: >-
       https://ocw.mit.edu/courses/8-09-classical-mechanics-iii-fall-2014/d9bac33f6c60b304dc0398e99b327102_MIT8_09F14_full.pdf
 ---
-[质点动力学](/knowledge/particle-dynamics/)从受力、动量与能量建立了运动方程。如果一个物体被杆连接到固定点，直接使用所有笛卡尔坐标就需要同时求约束反力；如果改用摆角，约束可以部分融入坐标。这引出了动力学的另一条深入方向：怎样用坐标、能量和变分结构组织同一物理问题。
+一个单摆可以用质点位置加杆长约束描述，也可以只用摆角描述。同一个运动问题由此引出三种语言：牛顿方程组织力，拉格朗日方程组织坐标与能量，哈密顿方程组织坐标与动量。
 
-牛顿、拉格朗日和哈密顿是描述动力学的不同语言。本文用同一个单摆比较它们，再说明守恒量、约束和数值方法的关系。它们在相应假设下可以描述同一运动，但选用哪种表述，并不自动决定积分器或长期能量行为。此篇是主线之后的理论表述分支；要先完成刚体与接触模型，可回到[动力学主线](/knowledge/physics-simulation-overview/)。
+本文用同一个单摆逐步比较这三种表述，推导运动方程、守恒量与相空间结构，再区分连续物理模型和离散时间算法。质量、坐标、约束与能量的含义在使用处定义。
 
 <span id="学习位置" aria-hidden="true"></span>
 <span id="一为什么需要三种力学体系" aria-hidden="true"></span>
@@ -337,7 +337,7 @@ $$
 
 对 $f=H$，有 $dH/dt=\partial H/\partial t$；只有不显含时间时，才能据此得到 Hamilton 量守恒。
 
-连续 Hamilton 流保持辛形式与相空间体积，但保持体积不等于每条轨迹稳定，保辛离散也不等于逐步精确保留原能量。固定步长振子的具体反例见[数值积分的能量分析](/knowledge/numerical-integration-methods/#8-振子说明有界保辛与能量守恒的区别)。
+连续 Hamilton 流保持辛形式与相空间体积，但保持体积不等于每条轨迹稳定，保辛离散也不等于逐步精确保留原能量。例如无阻尼振子使用半隐式 Euler 时，在适当步长范围内能量可以有界振荡，却不逐步等于初始能量；保留几何结构与逐步守恒是不同要求。
 
 Hamilton–Jacobi 方法进一步寻找生成函数 $S(\mathbf q,t)$，满足：
 
@@ -364,9 +364,9 @@ $$
 - **代数求解**：线性迭代、Newton、位置投影、分块下降等。
 - **工程执行**：碰撞、接触缓存、并行、状态发布与网络。
 
-隐式 Euler 的某些位置步可以重写成一个能量最小化问题；这不意味着它自动成为由离散作用量推导、保持辛结构的变分积分器。“变分”一词的出现不能替代推导。对应目标、原对偶变量和块定义见[VBD 与 AVBD](/knowledge/vbd-avbd-math/)。
+隐式 Euler 的某些位置步可以重写成一个能量最小化问题；这不意味着它自动成为由离散作用量推导、保持辛结构的变分积分器。“变分”一词的出现不能替代推导。检查这种更新时，需要分别写出本步目标、原变量、对偶状态和更新块，才能判断它实际离散了什么。
 
-保留最大坐标与约束力，并不比使用广义坐标更“不物理”；选择通常取决于拓扑变化、接触、装配复杂度、数值条件和性能。约束反力、有效质量与迭代生命周期见[物理约束](/knowledge/physics_constraints_deep_dive/)。
+保留最大坐标与约束力，并不比使用广义坐标更“不物理”；选择通常取决于拓扑变化、接触、装配复杂度、数值条件和性能。使用约束反力时，还要给出允许方向、质量响应和求解状态的更新时机。
 
 <span id="八参考文献" aria-hidden="true"></span>
 <span id="经典教材" aria-hidden="true"></span>
@@ -376,4 +376,12 @@ $$
 
 本文解释通用力学，不提供“牛顿等于显式、拉格朗日等于 PBD、哈密顿等于不耗能”的一一对应表，也不据此推断 UE 的运行分支。
 
-运动模型如何形成初值问题，见[ODE](/knowledge/differential-equations/)；离散误差与稳定性见[数值积分](/knowledge/numerical-integration-methods/)；引擎数据和调度见[Chaos](/knowledge/ue-chaos-physics-engine/)。具体源码结论应在各实现专题中按版本与行号查证。
+## 延伸查阅
+
+- [质点动力学：从运动描述到动量与能量](/knowledge/particle-dynamics/)
+- [动力学总览：刚体、软体与流体的共同脉络](/knowledge/physics-simulation-overview/)
+- [数值积分：方法、误差与稳定性](/knowledge/numerical-integration-methods/)
+- [变分物理求解：VBD 与 AVBD](/knowledge/vbd-avbd-math/)
+- [物理约束：建模、有效质量与迭代求解](/knowledge/physics_constraints_deep_dive/)
+- [常微分方程：状态、初值与动力系统](/knowledge/differential-equations/)
+- [Chaos 物理引擎：架构与求解流水线](/knowledge/ue-chaos-physics-engine/)

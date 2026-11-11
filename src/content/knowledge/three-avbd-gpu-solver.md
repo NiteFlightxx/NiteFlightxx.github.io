@@ -45,7 +45,9 @@ sources:
     url: 'https://github.com/sbobyn/three-avbd/blob/2bb1a318e9aad03640b4bce5b5d222484f0925f7/docs/FINDINGS.md'
 featured: false
 ---
-本文解释 three-avbd 的真实 GPU 执行链，关注各阶段读写什么、依赖怎样建立，以及哪些优化改变排程或数值行为。理论见[VBD 与 AVBD](/knowledge/vbd-avbd-math/)，原生参考见[avbd-demo3d](/knowledge/avbd-demo3d-implementation/)。[GPUPhysicsLab](/knowledge/gpu-physics-plugin/)是独立移植实现，不能直接继承这里的验证结论。
+three-avbd 将刚体碰撞、接触历史、局部块求解和对偶更新组织成 GPU 流水线。CPU 仍提供输入和资源管理，GPU 则通过缓冲、扫描、邻接与间接调度维持阶段之间的数据依赖。
+
+本文沿一次固定物理步逐阶段追踪真实源码，解释每个阶段读写什么、为什么需要同步，以及图染色、局部六维系统和缓存怎样影响数值行为。源码事实、性能模型与尚需运行验证的结论分别标明。
 
 ## 范围与核心机制：它究竟在 GPU 上求什么
 
@@ -81,7 +83,7 @@ three-avbd 的公开 World 三维运行时，是一个以 WebGPU 为计算后端
 
 本文没有运行新的 WebGPU 物理测试，也不宣称跨设备确定性、生产级 CCD 或通用物理引擎完整性已经得到验证。
 
-基础理论请先读 [VBD 与 AVBD](/knowledge/vbd-avbd-math/)，CPU 参考工程见 [avbd-demo3d 实现](/knowledge/avbd-demo3d-implementation/)，矩阵算法见 [迭代线性求解器](/knowledge/iterative-linear-solvers/)。本文只展开 GPU 实现新增的机制与取舍。
+本节使用三个概念：惯性预测是本步的无约束目标；局部块更新固定其他刚体，求当前刚体的六维修正；对偶更新保存约束的作用状态。下面在真实执行顺序中逐项说明它们如何产生和消费数据。
 
 ## 先分清四个层次
 
@@ -339,7 +341,7 @@ faceBias 对面轴与边轴的竞争做偏置，避免数值噪声使本应稳�
 
 凸多面体路径测试面法向，并通过 Gauss-map 条件筛选有效边对，再做边轴 SAT。接触裁剪后优先保留最深点，并用最远点选择扩大覆盖，最终保留最多八点。Sphere–hull 另有表面最近点和内部最浅退出面处理。[wgsl-hull:127–186、211–290、318–404](https://github.com/sbobyn/three-avbd/blob/2bb1a318e9aad03640b4bce5b5d222484f0925f7/src/avbd3d/gpu/wgsl-hull.ts#L127-L404)
 
-需要通用 GJK/EPA 的背景可读 [碰撞检测算法](/knowledge/collision-detection-gjk-epa-sat/)。但不能因为算法常见，就把它写成当前源码已经实现的路径。
+GJK 在 Minkowski 差上用支撑点组成单纯形，判断原点与该凸集的关系；EPA 在适用状态下扩展包围原点的多面体，估计穿透方向与深度。下文仍按当前源码的实际形状路径解释，不能由算法常见性推断实现。
 
 ## 持久化接触：跨帧继承什么，比“能碰撞”更重要
 
@@ -525,7 +527,7 @@ $$
 
 这形成线性块 $k\mathbf l\mathbf l^\mathsf T$、角向块 $k\mathbf a\mathbf a^\mathsf T$ 与交叉块 $k\mathbf l\mathbf a^\mathsf T$。[wgsl-solve:40–59](https://github.com/sbobyn/three-avbd/blob/2bb1a318e9aad03640b4bce5b5d222484f0925f7/src/avbd3d/gpu/wgsl-solve.ts#L40-L59)
 
-需要 Jacobian 基础可读 [雅可比矩阵](/knowledge/jacobian-matrix/)。这里的关键不是再推一次线性代数，而是看 GPU 如何将短小、固定尺寸的块累加进寄存器。
+这里的 Jacobian 是约束误差对当前刚体局部平移、旋转增量的导数；它把六维小变化映射为约束误差变化。接下来的 GPU 装配将这些固定尺寸的局部导数累加到寄存器中的梯度与矩阵。
 
 ### 关节与弹簧不是同一套行数
 
@@ -1044,3 +1046,12 @@ bench-scenes 的 jointedDrop 是关节刚体 stand-in；ragdollCloth 使用薄�
 [s17]: https://github.com/sbobyn/three-avbd/blob/2bb1a318e9aad03640b4bce5b5d222484f0925f7/tests-gpu/pivot.gpu.test.ts
 [s18]: https://github.com/sbobyn/three-avbd/blob/2bb1a318e9aad03640b4bce5b5d222484f0925f7/src/lib/contacts.ts
 [s19]: https://github.com/sbobyn/three-avbd/blob/2bb1a318e9aad03640b4bce5b5d222484f0925f7/src/avbd3d/bench-scenes.ts
+
+## 延伸查阅
+
+- [变分物理求解：VBD 与 AVBD](/knowledge/vbd-avbd-math/)
+- [avbd-demo3d：刚体求解器实现](/knowledge/avbd-demo3d-implementation/)
+- [GPUPhysicsLab：从 Compute Shader 到 UE 物理求解](/knowledge/gpu-physics-plugin/)
+- [线性系统的迭代求解](/knowledge/iterative-linear-solvers/)
+- [凸体碰撞检测：SAT、GJK 与 EPA](/knowledge/collision-detection-gjk-epa-sat/)
+- [Jacobian 矩阵与局部线性化](/knowledge/jacobian-matrix/)

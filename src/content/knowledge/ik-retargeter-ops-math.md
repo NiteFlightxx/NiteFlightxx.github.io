@@ -22,13 +22,9 @@ nextArticles: []
 related: []
 sources: []
 ---
-重定向不是只让源骨骼与目标骨骼名字相同，而是把动作语义映射到不同的参考姿态、链长和空间约定。本文沿 IK Retargeter 的 Op 执行管线查阅各项输入、数学与参数；骨骼层级与组件空间见[动画系统主参考](/knowledge/ue-animation-node-math/)，具体 IK 求解见[全身 IK](/knowledge/ue-fullbody-ik-math/)。
+重定向需要把源动作映射到具有不同参考姿态、链长和空间约定的目标骨架。动作能否保持，取决于姿态映射、链旋转、目标生成和末端修正之间怎样传递数据。
 
-> 本文基于 Unreal Engine 5.9 的 `IKRig` 插件源码整理，源码位于 `Engine/Plugins/Animation/IKRig/Source/IKRig`。目录 `Public/Retargeter/RetargetOps` 下共有 22 个 Op 头文件，其中 `IKChainsOp` 已在整个 `USTRUCT` 上标注 `Deprecated`（被 `FKChainsOp` 取代），本文**不收录**该废弃 Op，仅覆盖其余 20 个活跃 Op 及曲线 Op 的抽象基类。
->
-> IK Retargeter（IK 重定向器）是 UE 用于在不同比例骨架间迁移动画的核心系统。它的精妙之处在于：把"重定向"这件事拆成了一条**可自由编排的 Op 堆栈**，每个 Op 只负责一件小事——或搬骨盆、或拉链条、或贴脚——串联起来就能处理从人到马、从写实到 Q 版的任意迁移。本文不讨论编辑器用法，而是聚焦于**每个 Op 背后的数学**：公式从何而来、代码如何落地、参数如何影响结果。
-
----
+本文沿 IK Retargeter 的 Op 堆栈，依次解释输入姿态、共享平滑、全局与局部变换、FK 链、IK Goal 和曲线。每个 Op 的数学、参数与执行位置对应具体源码。
 
 ## Op 堆栈架构总览
 
@@ -802,3 +798,8 @@ UE 的 IK Retargeter Op 堆栈是一个把"动画重定向"这件高度依赖美
 3. **前/后处理分层**：父 Op 的 `RunBeforeChildren`/`Run`/子 Op 的 `RunAfterParent` 三段式，让"改 Goal"与"改姿态"两类操作在正确时机发生，是 Op 能灵活编排的关键。
 
 理解了这些 Op 的数学，就能在重定向出现脚滑、脚穿地、手部错位、步幅不对等问题时，精确定位该调哪个 Op 的哪个参数，而不是凭感觉反复试错。
+
+## 延伸查阅
+
+- [UE 动画节点：数据流与算法参考](/knowledge/ue-animation-node-math/)
+- [UE 全身 IK：FullBodyIK 与 PBIK](/knowledge/ue-fullbody-ik-math/)

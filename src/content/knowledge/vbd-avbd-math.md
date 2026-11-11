@@ -36,9 +36,9 @@ sources:
   - title: Augmented Vertex Block Descent — Utah Graphics
     url: 'https://graphics.cs.utah.edu/research/projects/avbd/'
 ---
-VBD 将隐式时间步写成能量最小化，再按顶点分块更新；AVBD 引入增广拉格朗日机制，改善硬约束及大刚度比下的求解。本文解释目标、导数、局部块和乘子，具体刚体实现见[avbd-demo3d](/knowledge/avbd-demo3d-implementation/)，GPU 排程见[three-avbd](/knowledge/three-avbd-gpu-solver/)与[GPUPhysicsLab](/knowledge/gpu-physics-plugin/)。
+VBD 将一个隐式时间步写成能量目标，按顶点聚合局部导数并更新位置；AVBD 在此类分块更新中加入增广拉格朗日与对偶状态，处理硬约束和较大刚度差异。
 
-与 PBD、XPBD 的统一符号、同参数算例、乘子生命周期及选型区别，统一见[四种位置求解方法对比](/knowledge/pbd-xpbd-vbd-avbd-comparison/)。
+本文从惯性预测推导时间步目标，再用距离弹簧与单元约束展开梯度、Hessian、块更新和乘子。目标、局部求解、接受更新与速度重建组成一条完整链，刚体的旋转自由度另作明确说明。
 
 ## 时间步、模型与符号
 
@@ -108,6 +108,8 @@ $$
 
 取 $d=x_i-x_j,\ell=\|d\|,n=d/\ell,C=\ell-\ell_0$，则
 
+在 $\ell>0$ 时，$\nabla_iC=n$，而单位方向随位置的导数为 $\nabla_i^2C=(I-nn^T)/\ell$。将这两项代入上一节的能量链式法则，得到
+
 $$
 \nabla_iU_e=\kappa(\ell-\ell_0)n,
 $$
@@ -120,7 +122,26 @@ $$
 
 ### 体积、弯曲与有限元
 
-距离和体积约束的几何梯度见[PBD/XPBD](/knowledge/pbd-xpbd-math/)。在 VBD 中，需要进一步按能量链式法则组装导数，不能只把投影公式换成矩阵求逆。
+标量罚约束的局部装配始终需要约束值、几何梯度与几何曲率。距离约束的导数已在上一节算出；下面给出有向四面体体积梯度，说明换一种约束后怎样继续装配。
+
+对四面体顶点 $x_0,x_1,x_2,x_3$，令 $d_a=x_a-x_0$，有向体积和目标误差为
+
+$$
+V=\frac16d_1^T(d_2\times d_3),\qquad C=V-V_0.
+$$
+
+固定顶点编号与朝向后，几何梯度为
+
+$$
+\begin{aligned}
+\nabla_1C&=(d_2\times d_3)/6,\\
+\nabla_2C&=(d_3\times d_1)/6,\\
+\nabla_3C&=(d_1\times d_2)/6,\\
+\nabla_0C&=-(\nabla_1C+\nabla_2C+\nabla_3C).
+\end{aligned}
+$$
+
+这些梯度的和为零，对应整体平移不改变体积。它们还需代入能量的梯度与 Hessian，才能得到当前顶点块的贡献。若改成归一化体积误差，导数和参数量纲也要一起改变。
 
 有限元常以单元形变梯度 $F=D_sD_m^{-1}$ 和 $U_e=V_0\psi(F)$ 建模，再通过 $F$ 对顶点的导数计算局部块。静止体积、材料参数、单元定向、压缩或反转时的本构定义都参与数值行为；顶点局部求解不能替代这些模型约定。
 
@@ -198,7 +219,7 @@ $$
 
 论文中的 vertex block 与刚体示例中的 body block需要分别描述。刚体局部增量常为 $[\Delta x,\Delta\theta]\in\mathbb R^6$，同时涉及质量、惯性、旋转参数化和接触臂。
 
-局部线性系统因此由 $3\times3$ 变为 $6\times6$，但不是把四元数的四个存储分量作为四个独立转动自由度。角向更新、惯性目标和几何刚度必须与源码采用的旋转约定一致。详见[原生刚体实现](/knowledge/avbd-demo3d-implementation/)和[WebGPU 流水线](/knowledge/three-avbd-gpu-solver/)。
+局部线性系统因此由 $3\times3$ 变为 $6\times6$，但不是把四元数的四个存储分量作为四个独立转动自由度。角向更新、惯性目标和几何刚度必须与源码采用的旋转约定一致。实现应让角向导数、惯性目标和局部姿态更新使用同一旋转约定。
 
 ## 与 XPBD、Newton 和动量加速的关系
 
@@ -218,4 +239,13 @@ AVBD 的 A 是 **Augmented**，指增广拉格朗日，不是 Nesterov 或 heavy
 
 ## 原始资料与实现入口
 
-[VBD 项目与论文](https://ankachan.github.io/Projects/VertexBlockDescent/index.html)定义顶点块下降；[AVBD 项目与论文](https://graphics.cs.utah.edu/research/projects/avbd/)介绍增广机制及刚体、关节和接触扩展。材料导数背景见[Hessian](/knowledge/hessian-matrix/)，具体调度与状态生命周期分别见[avbd-demo3d](/knowledge/avbd-demo3d-implementation/)、[three-avbd](/knowledge/three-avbd-gpu-solver/)和[GPUPhysicsLab](/knowledge/gpu-physics-plugin/)。
+[VBD 项目与论文](https://ankachan.github.io/Projects/VertexBlockDescent/index.html)定义顶点块下降；[AVBD 项目与论文](https://graphics.cs.utah.edu/research/projects/avbd/)介绍增广机制及刚体、关节和接触扩展。前文的精确导数、近似曲率与接受更新需要在同一目标下核对，具体实现还应另外记录状态版本和执行顺序。
+
+## 延伸查阅
+
+- [avbd-demo3d：刚体求解器实现](/knowledge/avbd-demo3d-implementation/)
+- [three-avbd：WebGPU 刚体求解流水线](/knowledge/three-avbd-gpu-solver/)
+- [GPUPhysicsLab：从 Compute Shader 到 UE 物理求解](/knowledge/gpu-physics-plugin/)
+- [PBD、XPBD、VBD 与 AVBD：模型、迭代与工程取舍](/knowledge/pbd-xpbd-vbd-avbd-comparison/)
+- [位置约束求解：PBD 与 XPBD](/knowledge/pbd-xpbd-math/)
+- [二阶近似与 Hessian 矩阵](/knowledge/hessian-matrix/)

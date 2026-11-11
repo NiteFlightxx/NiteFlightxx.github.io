@@ -34,9 +34,9 @@ sources:
   - title: XPBD
     url: 'https://mmacklin.com/xpbd.pdf'
 ---
-PBD 在预测位置上逐约束修正，XPBD 在修正中加入柔度和步内累计乘子。两者的关键区别是离散约束方程，而不是是否存在一个迭代循环。本文负责粒子位置层的推导、执行顺序和退化处理；刚体接触、摩擦与速度冲量的共同语言见[物理约束](/knowledge/physics_constraints_deep_dive/)。
+PBD 在预测位置上修正约束误差，XPBD 在同一流程中加入柔度和步内累计乘子。两者的差别体现在修正方程及其状态，而不只是是否存在一个迭代循环。
 
-与 VBD、AVBD 的模型、更新块、有限预算结果及工程成本比较，统一见[四种位置求解方法对比](/knowledge/pbd-xpbd-vbd-avbd-comparison/)。
+本文从一次粒子子步开始，推导质量加权投影、柔度与乘子更新，再展开距离、体积等约束的几何梯度、退化处理和并行顺序。统一距离算例直接核对符号、质量分担和有限刚度结果。
 
 ## 状态与一次子步
 
@@ -179,7 +179,7 @@ $$
 
 ### 弯曲、应变与形状匹配
 
-二面角弯曲约束依赖相邻三角形的法线及面积，退化三角形和角度跨越 $\pi$ 的分支需要处理。等距弯曲、二面角和杆的扭转并非同一约束；材料坐标与扭转见[弹性杆](/knowledge/position-based-elastic-rods/)。
+二面角弯曲约束依赖相邻三角形的法线及面积，退化三角形和角度跨越 $\pi$ 的分支需要处理。等距弯曲、二面角和杆的扭转并非同一约束；材料坐标与扭转见弹性杆。
 
 应变约束从形变梯度构造能量，再推导对应 $C$ 和柔度。形状匹配通过最佳拟合变换产生目标位置，不能无说明地套成任意标量 XPBD 约束。
 
@@ -220,4 +220,12 @@ Jacobi 需要把重叠粒子的修正归并并明确松弛；GS 立即写回位�
 
 ## 来源与继续阅读
 
-原始定义见 [Position Based Dynamics](https://matthias-research.github.io/pages/publications/posBasedDyn.pdf) 与 [XPBD](https://mmacklin.com/xpbd.pdf)。整体约束关系见[物理约束](/knowledge/physics_constraints_deep_dive/)，能量和顶点块见[VBD/AVBD](/knowledge/vbd-avbd-math/)，密度约束见[PBF](/knowledge/pbf-fluid-simulation/)。
+原始定义见 [Position Based Dynamics](https://matthias-research.github.io/pages/publications/posBasedDyn.pdf) 与 [XPBD](https://mmacklin.com/xpbd.pdf)。整体约束关系见物理约束，能量和顶点块见VBD/AVBD，密度约束见PBF。
+
+## 延伸查阅
+
+- [物理约束：建模、有效质量与迭代求解](/knowledge/physics_constraints_deep_dive/)
+- [PBD、XPBD、VBD 与 AVBD：模型、迭代与工程取舍](/knowledge/pbd-xpbd-vbd-avbd-comparison/)
+- [弹性杆：材料标架与位置约束](/knowledge/position-based-elastic-rods/)
+- [变分物理求解：VBD 与 AVBD](/knowledge/vbd-avbd-math/)
+- [PBF 流体：密度约束与位置修正](/knowledge/pbf-fluid-simulation/)

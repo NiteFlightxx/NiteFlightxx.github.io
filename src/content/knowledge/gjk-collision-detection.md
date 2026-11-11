@@ -29,9 +29,9 @@ topics:
     order: 10
 sources: []
 ---
-通用 GJK 的几何解释与 Chaos 中可靠使用查询结果是两个层次。本文只保留必要的数学摘要，重点追踪接口选择、空间、margin、输出有效性与退化分支。SAT、support、Minkowski 差和 simplex 的完整推导统一放在[凸体碰撞检测](/knowledge/collision-detection-gjk-epa-sat/)。
+在 Chaos 中使用凸体查询，首先要确定正在请求相交、距离还是穿透，并确认输入空间、margin 和输出有效性。一个布尔值通常不足以承担这些语义。
 
-源码范围为 `E:\UnrealEngine\UnrealEngine_Source`，快照 `e28561eab454`，核对日期 2026-10-21。下文以 `Engine/Source/Runtime/Experimental/Chaos/Public/Chaos/` 为公共头文件路径前缀；“源码事实”仅限所列函数，不代表所有形状对都经过同一实现。
+本文先解释支撑映射、Minkowski 差与最近点查询的必要几何，再沿具体接口追踪 GJKDistance、缓存和 EPA 的状态分支。源码范围、退化条件与排查步骤都对应具体函数。
 
 <span id="一block-0碰撞检测问题本质" aria-hidden="true"></span>
 <span id="11-为什么需要-gjk" aria-hidden="true"></span>
@@ -73,6 +73,8 @@ sources: []
 <span id="视角二割平面法cutting-plane--优化" aria-hidden="true"></span>
 <span id="视角三support-mapping--iterative-optimization" aria-hidden="true"></span>
 <span id="72-三个视角的适用场景" aria-hidden="true"></span>
+
+源码范围为 `E:\UnrealEngine\UnrealEngine_Source`，快照 `e28561eab454`，核对日期 2026-10-21。下文以 `Engine/Source/Runtime/Experimental/Chaos/Public/Chaos/` 为公共头文件路径前缀；“源码事实”仅限所列函数，不代表所有形状对都经过同一实现。
 
 ## 几何摘要：查询对象必须一致
 
@@ -222,4 +224,10 @@ SIMD 入口、模板数值类型和其他精度分支确实存在，但“存在
 5. 缓存是否绑定正确形状对，退化和预算出口是否可见。
 6. 几何结果正确后，再检查流形持久化与接触约束。
 
-这里 1–6 是排查建议，不是源码已经替调用方保证的事实。接触求解见[物理约束](/knowledge/physics_constraints_deep_dive/)，整体时间步与线程见[Chaos 架构](/knowledge/ue-chaos-physics-engine/)，通用算法公式回到[凸体碰撞检测](/knowledge/collision-detection-gjk-epa-sat/)。
+这里 1–6 是排查建议，不是源码已经替调用方保证的事实。先确认本次查询输出可用，再把结果交给接触生成与约束阶段，避免把几何失败解释为求解器参数问题。
+
+## 延伸查阅
+
+- [凸体碰撞检测：SAT、GJK 与 EPA](/knowledge/collision-detection-gjk-epa-sat/)
+- [物理约束：建模、有效质量与迭代求解](/knowledge/physics_constraints_deep_dive/)
+- [Chaos 物理引擎：架构与求解流水线](/knowledge/ue-chaos-physics-engine/)

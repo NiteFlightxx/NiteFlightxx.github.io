@@ -58,11 +58,9 @@ sources:
       https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Doc/Porting/P32_RESULTS.json
 featured: false
 ---
-GPUPhysicsLab 把刚体状态放在 GPU 缓冲中，通过多个 Compute Shader 完成碰撞检测和约束求解；UE C++ 负责准备输入、组织执行与发布结果。理解它的起点是：**一个线程处理什么数据，多个线程如何协作，一个阶段的结果何时能被下一阶段读取。**
+Compute Shader 将大量线程映射到缓冲记录，RDG 则组织资源依赖与执行顺序。把它用于物理，还必须说明线程更新什么状态、不同阶段怎样交换结果，以及哪些结果可以交还游戏侧。
 
-本文先用一个质点说明 Compute Shader，再把同样的读写关系放回 GPUPhysicsLab，最后展开 AVBD 和宿主工程。通用数学只保留当前步骤需要的定义，完整推导链接到[数值积分](/knowledge/numerical-integration-methods/)和[VBD / AVBD](/knowledge/vbd-avbd-math/)。
-
-源码分析固定在 `779b2e09cc531d39d8d2ad7d5813823cc5c26bd6`，并非插件最新开发状态。2026-11-02 本次重写通过本地 Git 读取该提交，新增核对 shader 映射、注册、参数、积分、扫描与 Primal；保留的扩展和历史验收也属于该快照。后续分支及未提交修改不混入本文。**文中的最小示例、真实源码和工程建议分别标注；本轮没有运行 UE 或测量 GPU 性能。**
+本文先用一个质点推导一次 GPU 更新，再逐步扩展到缓冲布局、UE shader 注册、RDG、同步与完整求解流水线，最后沿 GPUPhysicsLab 的源码追踪 AVBD、接触、提交和资源生命周期。
 
 ## Compute Shader 如何执行一次物理更新
 
@@ -498,7 +496,7 @@ $$
 
 设三体沿链条连接：A—B—C。一种合法颜色是 A、C 同色，B 另一色。先更新 A、C，再更新 B，B 就能使用这一轮已经更新的邻居位置；若全部同时读取旧值，则是另一种更新顺序。
 
-因此染色不仅是把任务平均分配给 GPU。它保护分块 Gauss–Seidel 所需的依赖结构；颜色间的资源可见性也是数值算法的一部分。把若干颜色随意塞进多个并发线程组，会改变读到的状态，甚至产生竞争。方法区别见[迭代求解](/knowledge/iterative-linear-solvers/)。
+因此染色不仅是把任务平均分配给 GPU。它保护分块 Gauss–Seidel 的依赖：色内更新互不耦合，下一颜色读取先前颜色已经提交的状态。若所有颜色都读取同一旧状态，便改变了迭代；若未建立可见性就并发读写，还可能产生竞争。
 
 ### GPU 间接派发如何避免回读数量
 
@@ -581,7 +579,7 @@ three-avbd 0.3.0
 - 共享 topology/scan → BuildCSR.usf、BuildColors.usf、SequencePasses。
 - World / queries / contacts → Simulation、WorldSubsystem 与查询/事件 shader。
 
-对应入口见 [求解调度:44–242](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Source/GPUPhysicsLab/Private/CSDispatch/GPUPhysicsLabSolverPasses.cpp#L44-L242)、[帧提交:386–493](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Source/GPUPhysicsLab/Private/Simulation/GPUPhysicsLabSimulation.cpp#L386-L493)。详细理论不再重复，参考 [three-avbd 全流水线](/knowledge/three-avbd-gpu-solver/)。
+对应入口见 [求解调度:44–242](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Source/GPUPhysicsLab/Private/CSDispatch/GPUPhysicsLabSolverPasses.cpp#L44-L242)、[帧提交:386–493](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Source/GPUPhysicsLab/Private/Simulation/GPUPhysicsLabSimulation.cpp#L386-L493)。当前两层网格、邻接和局部块的作用，将在后续执行阶段逐项对应到实际读写。
 
 ### 哪些属于 UE 自己增加的设计
 
@@ -788,7 +786,7 @@ GPU 随后执行：
 
 一个工作组扫描 512 项，线程数 256；组和递归到更高层，再向下添加偏移。SequencePasses 为每层创建独立 scratch 和 pass，避免层间错误别名。[扫描调度:9–29](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Source/GPUPhysicsLab/Private/CSDispatch/GPUPhysicsLabSequencePasses.cpp#L9-L29) [扫描 shader:1–24](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Shaders/Private/Broadphase/Sort/ScanBlocks.usf#L1-L24)
 
-基础推导见 [three-avbd 前缀和章节](/knowledge/three-avbd-gpu-solver/)。这里新增的是 RDG 生命周期与显式绑定。
+前缀和把每条记录的计数转换成连续写入区间的起点。例如计数为 $[2,0,3]$ 时，exclusive scan 得到 $[0,2,2]$，总容量为 $5$。scatter 阶段据此写入互不重叠的区间；UE 宿主还需保证计数、扫描和写入使用一致的 RDG 资源版本。
 
 ## 原生窄相与接触缓存
 
@@ -801,7 +799,7 @@ GPU 随后执行：
 - box / sail：OBB SAT，Sail 碰撞仍按盒。
 - 含负标签曲面：交给扩展 permutation，不在原生路径重复生成。
 
-入口：[接触历史:44–65](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Shaders/Private/Common/Contact/GPUPhysicsLabContactHistory.ush#L44-L65)。Box 的十五轴、faceBias 和最多八点裁剪分别落在 [SAT:35–53](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Shaders/Private/Common/Geometry/GPUPhysicsLabConvexSAT.ush#L35-L53) 与 [裁剪:6–36](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Shaders/Private/Common/Contact/GPUPhysicsLabPolyhedronClipping.ush#L6-L36)。这些机制的意义已在 [参考专题](/knowledge/three-avbd-gpu-solver/) 详细解释。
+入口：[接触历史:44–65](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Shaders/Private/Common/Contact/GPUPhysicsLabContactHistory.ush#L44-L65)。Box 的十五轴、faceBias 和最多八点裁剪分别落在 [SAT:35–53](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Shaders/Private/Common/Geometry/GPUPhysicsLabConvexSAT.ush#L35-L53) 与 [裁剪:6–36](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Shaders/Private/Common/Contact/GPUPhysicsLabPolyhedronClipping.ush#L6-L36)。接触历史保存几何身份与求解状态，多点裁剪保留有效支撑区域，二者分别处理跨步连贯性和当前接触分布。
 
 ### Pair 哈希与原子语义
 
@@ -1226,7 +1224,7 @@ SolverPasses 使用 RDG Blackboard 为一个图复用一份默认 BodyDynamics S
 
 开启后，主循环先做前 16 色，再一次 SparseCS 处理尾部；shader 用共享内存屏障与 DeviceMemoryBarrierWithGroupSync 保证同工作组内后色看到前色 UAV 写入。[求解调度:191–230](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Source/GPUPhysicsLab/Private/CSDispatch/GPUPhysicsLabSolverPasses.cpp#L191-L230) [Primal:113–139](https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Shaders/Private/Solver/Primal/PrimalSolve.usf#L113-L139)
 
-原版已有真实破坏场景长回放分歧，默认关闭。UE 修正过重复求解尾部与遗漏 UAV 可见性的移植错误，专项通过不能消除参考自身已知风险。[忠实性复核末节][p44] [参考风险说明](/knowledge/three-avbd-gpu-solver/)。
+原版这条优化已有真实破坏场景的长回放分歧，因此默认关闭。UE 移植中修正过重复求解尾部与遗漏 UAV 可见性，专项通过仍不能消除参考自身的已知风险。[忠实性复核末节][p44]
 
 不要为了减少 dispatch 默认打开它，更不能将 groupshared barrier 当作所有 storage/UAV 可见性的替代。
 
@@ -1552,3 +1550,10 @@ GPU 正在模拟不代表显示已消费最新接受版本；CPU 数组延迟也
 [p50]: https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Shaders/Private/Broadphase/Pairs/GenerateCandidatePairs.usf
 [p51]: https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Shaders/Private/Common/Geometry/GPUPhysicsLabConvexSAT.ush
 [p52]: https://github.com/NiteFlightxx/GPUPhysicsLab/blob/779b2e09cc531d39d8d2ad7d5813823cc5c26bd6/Shaders/Private/Common/Contact/GPUPhysicsLabPolyhedronClipping.ush
+
+## 延伸查阅
+
+- [数值积分：方法、误差与稳定性](/knowledge/numerical-integration-methods/)
+- [变分物理求解：VBD 与 AVBD](/knowledge/vbd-avbd-math/)
+- [线性系统的迭代求解](/knowledge/iterative-linear-solvers/)
+- [three-avbd：WebGPU 刚体求解流水线](/knowledge/three-avbd-gpu-solver/)

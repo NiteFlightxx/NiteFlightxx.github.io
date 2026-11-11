@@ -30,11 +30,9 @@ sources:
   - title: Erin Catto — Constraint and impulse solver publications
     url: 'https://box2d.org/publications/'
 ---
-接触、关节、软体材料限制和不可压缩条件都会把多个自由度联系起来。本篇建立约束函数、局部变化与耦合求解的共同语言，并用刚体接触和两质点连接推导可核对的例子；具体材料约束与流体密度离散仍由各模型负责。
+接触、关节和材料限制都会把多个自由度联系起来。用约束函数描述误差，再求它对位置或姿态的局部导数，就能连接允许的运动方向、约束作用与耦合求解。
 
-本篇从约束函数推进到 Jacobian、有效质量和累计投影。先将每个公式对应回接触点与力臂；需要矩阵工具或残差分析时，再查[Jacobian](/knowledge/jacobian-matrix/)和[线性迭代](/knowledge/iterative-linear-solvers/)。[PBD/XPBD](/knowledge/pbd-xpbd-math/)与[VBD/AVBD](/knowledge/vbd-avbd-math/)分别展开位置与变分分支。
-
-约束为什么限制允许的运动方向，先看[单位圆与拉格朗日乘子](/knowledge/calculus-foundations/#约束极值与拉格朗日乘子)；约束反力为什么使用 Jacobian 转置，见[虚功推导](/knowledge/jacobian-matrix/#用虚功直接核对转置)。这里继续讨论这些几何关系怎样进入动力学求解。
+本文从等式和单边条件出发，逐步推导 Jacobian、虚功、刚体接触行、有效质量和累计投影。两质点连接与接触冲量的算例在正文内计算，随后将它们组织成一次迭代的状态与执行顺序。
 
 ## 状态、单位与符号
 
@@ -85,6 +83,16 @@ $$
 法线、接触臂和惯性张量必须在相同坐标空间中表达。物体转动后保持旧世界接触臂不变，会使角向修正失真。
 
 $J^Tp$ 把约束空间冲量映射回刚体线冲量和角冲量；$M^{-1}J^Tp$ 才是速度变化。固定体或运动学体在动态求解中的有效逆质量为零，但其已知接触点速度仍会进入 $Jv$。
+
+转置可以直接从虚功核对。设 $\delta q$ 是固定时刻的试探位移，约束空间变化为 $\delta C=J\delta q$。若约束空间作用为 $\lambda_f$，同一份功应满足
+
+$$
+\delta W=\lambda_f^T\delta C
+=\lambda_f^TJ\delta q
+=(J^T\lambda_f)^T\delta q.
+$$
+
+所以配置自由度上的广义力为 $Q_c=J^T\lambda_f$。对于时间不变的理想等式约束，允许位移满足 $J\delta q=0$，反力对这些位移不做虚功。这个关系说明作用方向；实际乘子还要与质量、外力及约束条件共同求出。
 
 ## 有效逆质量与有效质量
 
@@ -229,10 +237,21 @@ Jacobi 风格从同一状态计算修正，集中归并后更新，便于并行�
 
 ## 算法分工、验证与继续阅读
 
-[PBD/XPBD](/knowledge/pbd-xpbd-math/)详细推导逐约束位置修正、柔度和乘子；[VBD/AVBD](/knowledge/vbd-avbd-math/)详细推导变分目标、顶点块与增广拉格朗日；[线性迭代](/knowledge/iterative-linear-solvers/)解释冻结算子的谱与残差。这里保留连接这些方法所需的共同模型。
+PBD/XPBD详细推导逐约束位置修正、柔度和乘子；VBD/AVBD详细推导变分目标、顶点块与增广拉格朗日；线性迭代解释冻结算子的谱与残差。这里保留连接这些方法所需的共同模型。
 
 检查一个求解器时，至少用自由落体、单距离约束、静止接触、摩擦滑动、质量比和闭环关节分别区分时间推进、方向、量纲与耦合问题。正文公式和伪代码不代表 Chaos 或其他引擎已通过这些运行场景。
 
 原始算法资料：[Erin Catto 的约束求解资料](https://box2d.org/publications/)、[XPBD 论文](https://mmacklin.com/xpbd.pdf)。特定实现的行为以对应文章固定的源码范围为准。
 
-应用到刚体时，[2D 物理引擎](/knowledge/2d-physics-engine/)将这些条件放回完整时间步；应用到软体时，[可变形体](/knowledge/deformable-body-dynamics/)说明约束或能量对应的材料；应用到流体时，[流体动力学](/knowledge/fluid-dynamics/)说明压力与不可压缩条件。共同工具应回到各自的模型和边界中验证。
+应用到刚体时，2D 物理引擎将这些条件放回完整时间步；应用到软体时，可变形体说明约束或能量对应的材料；应用到流体时，流体动力学说明压力与不可压缩条件。共同工具应回到各自的模型和边界中验证。
+
+## 延伸查阅
+
+- [Jacobian 矩阵与局部线性化](/knowledge/jacobian-matrix/)
+- [线性系统的迭代求解](/knowledge/iterative-linear-solvers/)
+- [位置约束求解：PBD 与 XPBD](/knowledge/pbd-xpbd-math/)
+- [变分物理求解：VBD 与 AVBD](/knowledge/vbd-avbd-math/)
+- [微分基础：从导数到梯度与物理求解](/knowledge/calculus-foundations/)
+- [2D 物理引擎：从状态更新到约束求解](/knowledge/2d-physics-engine/)
+- [可变形体动力学：从形变与材料到软体模拟](/knowledge/deformable-body-dynamics/)
+- [流体动力学：从守恒与压力到网格和粒子](/knowledge/fluid-dynamics/)

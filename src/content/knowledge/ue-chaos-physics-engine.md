@@ -37,7 +37,9 @@ topics:
 sources: []
 featured: true
 ---
-理解 Chaos 应先沿一次物理步追踪状态、碰撞、约束和结果提交，再进入局部算法。本文是刚体源码导航，通用数学分别由[数值积分](/knowledge/numerical-integration-methods/)与[物理约束](/knowledge/physics_constraints_deep_dive/)负责。不能用“Chaos 是 PBD”概括所有接触、关节、速度和投影路径。
+Chaos 的一次刚体演化步，需要在状态管理、碰撞生成、岛划分、约束求解和结果回写之间建立一致的所有权与时序。
+
+本文沿这条执行链追踪主要类型和源码入口，解释预测状态、接触数据、局部更新以及线程镜像之间的关系。公式只用于说明当前阶段的输入与输出，具体实现与验证边界分别列明。
 
 ## 源码范围与证据口径
 
@@ -61,7 +63,7 @@ featured: true
 
 X/R 与 P/Q 一类字段需要按具体类型核对：步起始状态、预测状态和修正量不应混读。约束迭代修改候选状态，并不表示游戏线程立即看到了它。
 
-运动学目标是已知驱动输入，动态体状态由求解演化。游戏线程镜像与结果回写的详细条件见[运动学同步](/knowledge/chaos-kinematic-sync/)，不在本篇复制第二套判定。
+运动学目标是已知驱动输入，动态体状态由求解演化。镜像写入和物理结果回写需要共享对象身份与版本，避免用旧物理结果覆盖较新的目标。
 
 ## 一次刚体演化步
 
@@ -98,7 +100,7 @@ X/R 与 P/Q 一类字段需要按具体类型核对：步起始状态、预测�
 
 本快照的 CollisionResolution.cpp:377–390 中，BoxBoxContactPoint 与 UpdateBoxBoxConstraint 就存在不同分支：启用 one-shot manifold 时调用 ConstructBoxBoxOneShotManifold，否则更新单点查询结果。形状分派还包含 Sphere、Capsule、Convex、TriangleMesh 与 HeightField 的专门构造。
 
-因此不能由一个 GJK 查询函数推断整个窄相统一采用 GJK，也不能仅因某个旧 SAT 入口没有调用就宣称所有 SAT 思路或特化流形代码已废弃。具体距离、margin、退化状态与 EPA 的接口见[Chaos GJK](/knowledge/gjk-collision-detection/)。
+因此不能由一个 GJK 查询函数推断整个窄相统一采用 GJK，也不能仅因某个旧 SAT 入口没有调用就宣称所有 SAT 思路或特化流形代码已废弃。查询距离、有效见证点和 margin 含义必须与调用入口相匹配；预算耗尽或退化状态不能统一当作有效穿透深度。
 
 ### 持久化接触与缓存
 
@@ -169,4 +171,12 @@ CalculatePositionCorrectionNormal（:451 起）根据累计推离量限制本次
 - Public/Chaos/Evolution/SolverBody.h：求解临时体；SolverBodyContainer.h：体缓存组织。
 - Public/Chaos/Joint/JointSolverConstraints.h 与 .inl：关节行及局部更新。
 
-通用几何见[凸体碰撞](/knowledge/collision-detection-gjk-epa-sat/)，约束推导见[物理约束](/knowledge/physics_constraints_deep_dive/)，接触查询细节见[Chaos GJK](/knowledge/gjk-collision-detection/)，游戏侧镜像见[运动学同步](/knowledge/chaos-kinematic-sync/)。本篇的版本范围和源码定位不等于 UE 编译、运行或性能验收。
+通用几何见凸体碰撞，约束推导见物理约束，接触查询细节见Chaos GJK，游戏侧镜像见运动学同步。本篇的版本范围和源码定位不等于 UE 编译、运行或性能验收。
+
+## 延伸查阅
+
+- [数值积分：方法、误差与稳定性](/knowledge/numerical-integration-methods/)
+- [物理约束：建模、有效质量与迭代求解](/knowledge/physics_constraints_deep_dive/)
+- [Chaos 运动学同步：线程与状态镜像](/knowledge/chaos-kinematic-sync/)
+- [Chaos GJK：距离、容差与退化处理](/knowledge/gjk-collision-detection/)
+- [凸体碰撞检测：SAT、GJK 与 EPA](/knowledge/collision-detection-gjk-epa-sat/)

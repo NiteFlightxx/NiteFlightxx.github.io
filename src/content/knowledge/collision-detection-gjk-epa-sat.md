@@ -31,9 +31,9 @@ sources:
   - title: Eberly：分离轴方法
     url: 'https://www.geometrictools.com/Documentation/MethodOfSeparatingAxes.pdf'
 ---
-SAT、GJK 和 EPA 不是按“旧算法到新算法”排列的替代品。SAT 用投影判断分离，GJK 用支撑映射求距离或相交，EPA 在满足初始化条件时近似求穿透。它们都不直接完成摩擦、碰撞响应或持久接触流形。
+两个凸体是否分离、相距多远、穿透后沿哪个方向推出，是不同的几何查询。SAT 从投影寻找分离证据，GJK 从支撑点和单纯形寻找最近点，EPA 在适用条件下扩展包围原点的多面体。
 
-本文拥有通用凸体几何的推导；Chaos 查询的 margin、容差与实现分支继续见[Chaos GJK](/knowledge/gjk-collision-detection/)。只需要向量、点积、叉积与坐标变换，不要求先读完整力学和积分。
+本文从查询输入与输出约定开始，推导三种方法，再说明法线、见证点、间隙和接触流形的接口。末节单独标明当前 Chaos 源码证据，通用几何推导与引擎实现各自使用自己的假设。
 
 <span id="学习位置" aria-hidden="true"></span>
 <span id="零我们要解决什么问题" aria-hidden="true"></span>
@@ -307,7 +307,7 @@ EPA 的精度受容差、迭代预算、支撑误差和初始几何影响。它�
 
 热启动利用时间相干性，但缓存的 simplex、特征与局部坐标必须跟随几何/变换版本更新；并非永久有效。迭代次数与形状复杂度、退化程度、margin、容差和运动都有关，不能承诺“每帧一到两次”。
 
-连续碰撞还需要时间信息、扫掠或保守推进等流程；两个离散时刻都没有重叠，不代表中间没有穿过。响应与摩擦见[物理约束](/knowledge/physics_constraints_deep_dive/)。
+连续碰撞还需要时间信息、扫掠或保守推进等流程；两个离散时刻都没有重叠，不代表中间没有穿过。响应与摩擦见物理约束。
 
 <span id="积木第五层sat-在-chaos-里的真实位置重要最佳实践" aria-hidden="true"></span>
 <span id="51-一个反直觉的事实chaos-的盒子-盒子不走-sat" aria-hidden="true"></span>
@@ -340,7 +340,7 @@ EPA 的精度受容差、迭代预算、支撑误差和初始几何影响。它�
 
 **源码事实**：`Public/Chaos/SAT.h:237` 存在通用 SATPenetration；`SAT.h:268–275` 按 PlaneBias、ObjectBias 比较结果。这证明代码结构与选择偏置存在，不能单凭定义确认其全部运行时调用范围。
 
-本次没有重建所有形状对的完整分派，也没有证明 SAT 在其他路径中不存在。因此移除旧文的“所有凸对统一 GJK+EPA”“SAT 唯一运行时用途”“99% 覆盖”“固定一两次迭代”等绝对结论。具体调用链继续在[Chaos GJK 专题](/knowledge/gjk-collision-detection/)中按函数核对，不以通用原理替代版本证据。
+本次没有重建所有形状对的完整分派，也没有证明 SAT 在其他路径中不存在。因此移除旧文的“所有凸对统一 GJK+EPA”“SAT 唯一运行时用途”“99% 覆盖”“固定一两次迭代”等绝对结论。具体调用链继续在Chaos GJK 专题中按函数核对，不以通用原理替代版本证据。
 
 <span id="附录-a三算法对照表" aria-hidden="true"></span>
 <span id="附录-d参考资料" aria-hidden="true"></span>
@@ -351,4 +351,9 @@ SAT 适合候选轴清楚、需要显式特征的多面体查询；GJK 提供统
 
 若出现法线翻转、穿透深度异常或接触漂移，先核查形状空间、缩放、物体顺序、margin、单位与输出状态，再测容差和迭代。不要先把求解器阻尼调大。
 
-下一层分别是[Chaos 的数值与接口](/knowledge/gjk-collision-detection/)、[接触约束](/knowledge/physics_constraints_deep_dive/)、[2D 引擎串联实现](/knowledge/2d-physics-engine/)。GPU 碰撞的排程与容量约束见[three-avbd](/knowledge/three-avbd-gpu-solver/)，不能从本文推断其用了哪种窄相。
+## 延伸查阅
+
+- [Chaos GJK：距离、容差与退化处理](/knowledge/gjk-collision-detection/)
+- [物理约束：建模、有效质量与迭代求解](/knowledge/physics_constraints_deep_dive/)
+- [2D 物理引擎：从状态更新到约束求解](/knowledge/2d-physics-engine/)
+- [three-avbd：WebGPU 刚体求解流水线](/knowledge/three-avbd-gpu-solver/)

@@ -24,13 +24,9 @@ nextArticles:
 related: []
 sources: []
 ---
-预测式 Foot IK 不只是把脚吸附到地面：它需要估计接触时间、比较未来落脚候选，并在移动表面上维护接触状态。本文讨论目标规划与状态机，最终姿态求解可接不同 IK 方法；[UE 全身 IK](/knowledge/ue-fullbody-ik-math/)是可选求解器，不是规划链路的替代品。
+预测式 Foot IK 需要估计接触时间、比较未来落脚候选，并在移动表面上维护接触状态。目标规划、支撑状态和最终骨骼姿态求解分别承担不同任务。
 
-> 本文整理自指定的《预测 IK 原理》文档，讨论通用模型与公开的 Unreal Engine 接口。示例中的组件关系、执行顺序和参数是设计约定，不代表 NitePredIK 插件当前已有对应实现。
-
-本文把预测式 Foot IK 拆成状态估计、短时运动预测、接触候选规划、当前帧目标生成和最终姿势求解五个积木。它是一个可实现的设计模型，不预设某个插件已经完整实现，也不依赖特定移动框架或 IK Solver。
-
----
+本文从角色运动、地面查询和脚部状态开始，沿预测、候选筛选、落脚、支撑与离地追踪完整链路。每个阶段的输入空间、时序、失败回退及调试信号都与工程实现对应。
 
 ## 从普通 IK 到预测 IK
 
@@ -92,7 +88,6 @@ $$
 $$
 
 最终骨骼怎样变化，仍可以交给 Two Bone IK、FBIK、PBIK 或项目自定义 Solver。
-
 
 ---
 
@@ -2923,3 +2918,7 @@ LOD 切换必须平滑并清理不再合法的状态。
 - [Motion Trajectory API](https://dev.epicgames.com/documentation/unreal-engine/API/PluginIndex/MotionTrajectory)
 - [Mover：Get Predicted Trajectory](https://dev.epicgames.com/documentation/unreal-engine/BlueprintAPI/Mover/GetPredictedTrajectory)
 - [Control Rig：From World](https://dev.epicgames.com/documentation/en-us/unreal-engine/node-reference/ControlRig/FromWorld)
+
+## 延伸查阅
+
+- [UE 全身 IK：FullBodyIK 与 PBIK](/knowledge/ue-fullbody-ik-math/)

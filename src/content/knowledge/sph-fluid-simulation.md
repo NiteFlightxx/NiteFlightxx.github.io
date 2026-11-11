@@ -23,13 +23,9 @@ nextArticles:
 related: [partial-differential-equations, continuum-mechanics]
 sources: []
 ---
-[流体动力学](/knowledge/fluid-dynamics/)先建立平流、压力、黏性与边界。本文进入其中的粒子离散路线，用邻域核函数近似连续场；网格与混合方法仍是平行选择。完整 PDE 数学工具见[PDE](/knowledge/partial-differential-equations/)，用密度约束直接修正位置的深入路线见[PBF](/knowledge/pbf-fluid-simulation/)。
+SPH 用随流动移动的粒子和有限支撑核函数近似连续场。粒子既携带质量和速度，也通过邻域共同估计密度、压力梯度与黏性作用。
 
-> **光滑粒子流体动力学（Smoothed Particle Hydrodynamics, SPH）** 是一种无网格拉格朗日粒子方法，由 Lucy (1977) 与 Gingold & Monaghan (1977) 为天体物理模拟独立提出，后经 Müller 等人 (2003) 引入计算机图形学。它将连续流体场离散为携带物理属性的粒子，通过核函数插值近似连续场，再把 Navier-Stokes 方程中的微分算子转化为粒子求和。
->
-> 本文系统推导 SPH 的理论内核——核函数插值、微分算子离散、对称压力力的动量守恒推导、表面张力 color-field 方法，并补全原工程文档中缺失的 `LaplacianWpoly6` 与 Cubic Spline 核的代码实现。不可压缩变体（PCISPH/IISPH/DFSPH）部分补充了压力 Poisson 方程的关键要点。文末与《[PBF 流体：密度约束与位置修正](/knowledge/pbf-fluid-simulation/)》（位置基约束视角）、《[数值积分：方法、误差与稳定性](/knowledge/numerical-integration-methods/)》（时间积分与 XPBD）形成交叉引用。
-
----
+本文从核插值与 Navier–Stokes 方程出发，推导密度、对称压力力、黏性和表面作用，再给出时间推进、边界、不可压缩变体及并行实现。归一常数、维度、支撑半径和数值条件在对应公式中说明。
 
 ## 引言：无网格拉格朗日方法
 
@@ -644,7 +640,7 @@ void Integrate()
 }
 ```
 
-> 对积分器精度与稳定性的系统分析——显式/隐式/半隐式欧拉、Verlet、RK4 的稳定性域与精度阶——见《[数值积分：方法、误差与稳定性](/knowledge/numerical-integration-methods/)》。SPH 因 CFL 条件限制（见[CFL 条件](#cfl-条件)）通常采用半隐式欧拉或 leapfrog；对于碰撞/约束耦合场景，可结合 XPBD 的 predict-correct 流水线。
+> 本节更新先改变速度，再用新速度推进位置；这与先更新位置的显式 Euler 不同。SPH 步长还受局部速度、声速、黏性及核支撑尺度限制。碰撞或密度修正之后，速度重建必须与本次位置更新保持同一时间步。
 
 ### 完整模拟步骤
 
@@ -1054,7 +1050,7 @@ void ComputeDensity(uint3 id : SV_DispatchThreadID)
 }
 ```
 
-> Niagara GPU 粒子系统常承载此类 GPU 流体模拟。Niagara 的参数体系与 Compute Shader 管线见《[Niagara：参数、模块与 GPU 数据接口](/knowledge/ue-niagara-parameters/)》。
+> 在 Niagara 等 GPU 宿主中，密度、力和位置更新必须通过明确的缓冲与资源依赖串联。一个线程组内的屏障不能使所有线程组同时完成；跨 dispatch 的可见性和结果发布需要由宿主调度保证。
 
 ### 子步长（Sub-stepping）
 
@@ -1136,7 +1132,7 @@ float CalculateTemperatureChange(int32 i)
 
 SPH 首先是一种粒子场离散。WCSPH 通过状态方程把密度偏差转换为压力，IISPH、DFSPH 等方法则采用不同的迭代压力或散度求解；不能把整个 SPH 家族都等同于小步长显式压力力。
 
-PBF 同样使用核函数估计密度，但将密度偏差写成位置约束，迭代修正预测位置，再重建速度。密度约束和梯度的完整推导见[PBF](/knowledge/pbf-fluid-simulation/)，一般投影与柔度见[PBD/XPBD](/knowledge/pbd-xpbd-math/)。
+PBF 也用核函数估计密度，但在预测位置上求密度约束的线性化修正，再由接受位置重建速度。这里的比较重点是更新变量和误差处理：压力作用积分与位置投影具有不同的状态及时间尺度。
 
 比较时使用同一粒子尺度、边界、密度误差和总模拟时间，分别报告子步、压力或投影迭代、邻域更新和耗时。PBF 的位置投影能改善某些显式压力刚性问题，但不保证任意步长、邻域或有限迭代下都稳定，也不消除高速碰撞漏检。
 
@@ -1231,3 +1227,12 @@ void PrintStatistics()
 6. Bender, J., & Koschier, D. (2015). *Divergence-Free Smoothed Particle Hydrodynamics*. SCA. ——DFSPH。
 7. Koschier, D., Bender, J., Solenthaler, B., & Teschner, M. (2019). *Smoothed Particle Hydrodynamics Techniques for the Physics Based Simulation of Fluids and Solids*. Eurographics Tutorial. ——SPH 综述教程。
 8. Price, D. J. (2012). *Smoothed Particle Hydrodynamics and Magnetohydrodynamics*. Journal of Computational Physics, 231(3), 759–794. ——SPH 理论深入分析。
+
+## 延伸查阅
+
+- [流体动力学：从守恒与压力到网格和粒子](/knowledge/fluid-dynamics/)
+- [偏微分方程：场、边界与空间离散](/knowledge/partial-differential-equations/)
+- [PBF 流体：密度约束与位置修正](/knowledge/pbf-fluid-simulation/)
+- [数值积分：方法、误差与稳定性](/knowledge/numerical-integration-methods/)
+- [Niagara：参数、模块与 GPU 数据接口](/knowledge/ue-niagara-parameters/)
+- [位置约束求解：PBD 与 XPBD](/knowledge/pbd-xpbd-math/)

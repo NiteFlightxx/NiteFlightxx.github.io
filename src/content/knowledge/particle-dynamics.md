@@ -22,10 +22,9 @@ sources:
   - title: "OpenStax — Damped Oscillations"
     url: "https://openstax.org/books/university-physics-volume-1/pages/15-5-damped-oscillations"
 ---
+质点模型把物体的整体平移集中到位置、速度与质量上。给定参考系、受力规律和初始状态，就可以描述动量如何改变，以及物体沿什么轨迹运动。
 
-一个箱子可以下落、被推进、连接弹簧，也可以受到空气阻力。如果暂时只关心它整体的位置，不关心朝向和内部变形，就可以先用质点描述它。质点模型把问题压缩到平移，便于看清“状态决定受力，受力改变运动”的关系。
-
-本篇采用质量恒定、经典非相对论的模型，从惯性系中的位置和速度开始。先得到连续运动方程和可以核对的解析结果，再在[数值积分](/knowledge/numerical-integration-methods/)中讨论计算方法。随后[连续介质](/knowledge/continuum-mechanics/)将守恒推广到材料场；姿态与惯性则在[刚体分支](/knowledge/rigid-body-dynamics/)中展开。
+本文采用质量恒定、经典非相对论模型，从位置与速度推导牛顿方程，再用自由落体、冲量、功和弹簧阻尼连接运动与能量。解析算例和可执行代码提供独立核对依据。
 
 ## 质点模型保留什么
 
@@ -260,6 +259,14 @@ export function oscillator(t, { mass = 2, stiffness = 8, x0 = 0.5, v0 = 0, criti
 
 若系统包含多个质点，总线动量满足 $\dot P_{\mathrm{total}}=F_{\mathrm{ext,total}}$，前提是内力成对抵消。总动量守恒不代表每个质点的动量不变，内部相互作用仍可重新分配运动。
 
-一个刚体的质心也遵循这样的平移方程，但物体还可以整体转动；软体与流体则保留不同程度的内部运动。下一篇[连续介质](/knowledge/continuum-mechanics/)从材料场、应力与守恒建立三类模型的共同语言。若当前只关心整体转动，也可以直接进入[刚体分支](/knowledge/rigid-body-dynamics/)。
+一个刚体的质心也遵循这样的平移方程，但物体还可以整体转动；软体与流体则保留不同程度的内部运动。下一篇连续介质从材料场、应力与守恒建立三类模型的共同语言。若当前只关心整体转动，也可以直接进入刚体分支。
 
-约束进一步规定哪些相对运动允许发生；分析力学则研究怎样用其他坐标和能量组织同一组方程。它们分别在[物理约束](/knowledge/physics_constraints_deep_dive/)和[经典力学表述](/knowledge/classical-mechanics/)中深入。此时先保留已经建立的因果链：状态决定受力，合力改变动量，运动方程与初值共同决定轨迹。
+约束进一步规定哪些相对运动允许发生；分析力学则研究怎样用其他坐标和能量组织同一组方程。它们分别在物理约束和经典力学表述中深入。此时先保留已经建立的因果链：状态决定受力，合力改变动量，运动方程与初值共同决定轨迹。
+
+## 延伸查阅
+
+- [数值积分：方法、误差与稳定性](/knowledge/numerical-integration-methods/)
+- [连续介质力学：从质点到固体与流体](/knowledge/continuum-mechanics/)
+- [刚体动力学：从质心运动到三维转动](/knowledge/rigid-body-dynamics/)
+- [物理约束：建模、有效质量与迭代求解](/knowledge/physics_constraints_deep_dive/)
+- [经典力学：牛顿、拉格朗日与哈密顿](/knowledge/classical-mechanics/)

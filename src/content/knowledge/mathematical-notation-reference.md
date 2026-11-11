@@ -28,11 +28,9 @@ topics:
     order: 5
 sources: []
 ---
-这是一份按需查阅的符号表，不是阅读其他文章之前必须完成的章节。同一符号在不同领域可能有不同含义，正文中的局部定义优先；公式推导分别见[微积分](/knowledge/calculus-foundations/)与[空间数学](/knowledge/ue-linear-algebra-guide/)。
+同一个数学符号可能在不同领域表示不同的量。例如 lambda 可以表示特征值、约束乘子或其他参数，实际含义由当前公式的定义决定。
 
-> 数学符号是技术写作的"字母表"。本文按领域归类高等数学中最常用的符号及其 LaTeX 代码，统一使用 `$...$` 与 `$$...$$` 语法（本站 KaTeX 渲染管线同样依赖这两种分隔符）。阅读本站《[微分基础：从导数到梯度与物理求解](/knowledge/calculus-foundations/)》、《[UE 空间数学：向量、矩阵与变换](/knowledge/ue-linear-algebra-guide/)》、《[常微分方程：状态、初值与动力系统](/knowledge/differential-equations/)》 等文章时遇到不熟悉的记号，可随时回到本篇对照。
-
----
+这份参考按运算、集合、逻辑、微积分、线性代数和概率等类别列出符号、含义与 LaTeX 写法，供阅读时查阅。行内公式使用 $...$，独立公式使用 $$...$$，排版规范在文末统一说明。
 
 ## 基本运算符号
 
@@ -532,3 +530,9 @@ $$
 - LaTeX 符号速查：[Detexify](http://detexify.kirelabs.org/classify.html)
 - LaTeX 数学符号：[Comprehensive LaTeX Symbol List](https://www.ctan.org/pkg/comprehensive)
 - ISO 80000-2:2019 数学符号标准
+
+## 延伸查阅
+
+- [微分基础：从导数到梯度与物理求解](/knowledge/calculus-foundations/)
+- [UE 空间数学：向量、矩阵与变换](/knowledge/ue-linear-algebra-guide/)
+- [常微分方程：状态、初值与动力系统](/knowledge/differential-equations/)

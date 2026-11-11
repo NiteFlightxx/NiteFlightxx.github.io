@@ -24,12 +24,9 @@ nextArticles:
 related: []
 sources: []
 ---
-这是一份动画系统主参考，按“姿态数据 → 空间传播 → 求解节点 → 输出姿态”的链路组织节点、公式与源码。先确认输入姿态、更新阶段、求解空间和输出方式，再进入相应节点；完整的姿态搜索链路见[Motion Matching](/knowledge/motion-matching-pose-search-source-guide/)。
+动画图把资产采样得到的姿态，经过空间传播、混合、IK 和骨骼控制转换成最终姿态。节点的算法需要与输入姿态、更新阶段、求解空间和输出方式一起理解。
 
-> 本文档基于 `Engine\Source\Editor\AnimGraph\Public` 下的编辑器节点定义，并深入到运行时实现（`AnimGraphRuntime`、`Engine\Private\Animation`、`AnimationCore` 纯算法模块）梳理常用动画节点的数学原理、公式与核心代码。
-> 源码版本：UE 5.9。
-
----
+本文按这些职责组织 UE 动画节点，给出对应公式、参数与源码入口。先定义局部、组件和世界空间，再解释各类节点如何读写姿态、曲线与 Root Motion；具体实现结论使用文中的源码版本范围。
 
 ## 架构与坐标空间基础
 
@@ -2416,3 +2413,7 @@ $$
 | RigidBody | ImmediatePhysics / Chaos | 运动学目标 + Sequential Impulse 约束 | Sequential Impulse |
 
 ---
+
+## 延伸查阅
+
+- [UE Motion Matching：姿态搜索与混合](/knowledge/motion-matching-pose-search-source-guide/)

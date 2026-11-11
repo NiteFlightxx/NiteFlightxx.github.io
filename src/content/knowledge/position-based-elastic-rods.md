@@ -28,13 +28,9 @@ topics:
     order: 50
 sources: []
 ---
-细长物体不仅有中心线弯曲，还会绕自身轴扭转，因此仅保存一串位置不足以表达完整材料状态。本文从材料标架进入离散 Darboux 向量和位置约束，并区分不同杆模型的自由度与求解方式。投影基础见[PBD 与 XPBD](/knowledge/pbd-xpbd-math/)，不把绳索、Kirchhoff 杆与 Cosserat 杆视为同一个模型。
+细长物体既会沿中心线弯曲，也会绕自身轴扭转。完整材料状态因此需要位置之外的方向信息：材料标架记录横截面，Darboux 向量描述相邻标架的相对变化。
 
-> **Position-Based Elastic Rods (PBER)** 由 Umetani、Schmidt 与 Stam (2014) 提出，是 Position-Based Dynamics 框架在细长弹性物体（头发、绳索、电缆、植物茎干）模拟中的应用。它通过幽灵点隐式定义材料坐标系，用离散 Darboux 向量捕捉弯曲与扭转，以 PBD 约束投影求解。实时可用性仍取决于离散、子步、退化处理与求解预算。
->
-> 本文系统推导 PBER 的数学内核，并修正原工程文档中的若干错误：Darboux 向量分母的矩阵加法（应为迹形式）、能量梯度扭转项的刚度系数（应为 $GJ$ 而非 $EI$）、符号选择公式的归属（幽灵点符号歧义而非四元数双重覆盖）。与《[位置约束求解：PBD 与 XPBD](/knowledge/pbd-xpbd-math/)》、《[变分物理求解：VBD 与 AVBD](/knowledge/vbd-avbd-math/)》、《[数值积分：方法、误差与稳定性](/knowledge/numerical-integration-methods/)》形成交叉引用。
-
----
+本文从材料标架推导离散弯曲与扭转，再构造位置约束和梯度，说明幽灵点、退化与符号选择。绳索、Kirchhoff 杆与 Cosserat 杆使用不同自由度，相关公式按各自模型解释。
 
 ## 引言：弹性杆与 PBD
 
@@ -515,7 +511,7 @@ class UElasticRodComponent : public UActorComponent
 
 ### 与 XPBD 的衔接
 
-PBER 使用标准 PBD 约束（刚度系数 $k$ 直接控制，但与时间步长/迭代次数耦合）。若需更可控的刚度行为，可升级为 XPBD——引入柔度参数 $\alpha = 1/(k\,\Delta t^2)$，使刚度与迭代次数解耦。XPBD 的约束求解框架见《[位置约束求解：PBD 与 XPBD](/knowledge/pbd-xpbd-math/)》。
+PBER 的标准 PBD 刚度系数会与步长、离散尺度及迭代预算耦合。若在明确的约束能量约定下改用 XPBD，应区分物理柔度 $\alpha$ 和离散柔度 $\widetilde\alpha=\alpha/h^2$；对 $kC^2/2$ 有 $\alpha=1/k$。修改方程和乘子状态后，仍需检查有限迭代误差，不能只改一个刚度数值就声称完成升级。
 
 ---
 
@@ -553,3 +549,9 @@ PBER 使用标准 PBD 约束（刚度系数 $k$ 直接控制，但与时间步�
 4. Müller, M., Heidelberger, B., Hennix, M., & Ratcliff, J. (2007). *Position Based Dynamics*. J. Visual Communication and Image Representation. ——PBD 框架。
 5. Bergou, M., Wardetzky, M., Robinson, S., Audoly, B., & Grinspun, E. (2008). *Discrete Elastic Rods*. ACM TOG (SIGGRAPH). ——离散弹性杆理论基础。
 6. Bergou, M., Audoly, B., Vouga, E., Wardetzky, M., & Grinspun, E. (2010). *Discrete Viscous Threads*. ACM TOG (SIGGRAPH). ——粘性杆扩展。
+
+## 延伸查阅
+
+- [位置约束求解：PBD 与 XPBD](/knowledge/pbd-xpbd-math/)
+- [变分物理求解：VBD 与 AVBD](/knowledge/vbd-avbd-math/)
+- [数值积分：方法、误差与稳定性](/knowledge/numerical-integration-methods/)

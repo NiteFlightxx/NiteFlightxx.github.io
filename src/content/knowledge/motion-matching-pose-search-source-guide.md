@@ -27,9 +27,9 @@ related: []
 sources: []
 featured: true
 ---
-Motion Matching 的问题不只是“哪条动画最像”，还包括何时继续、何时搜索、如何切换，以及混合后的姿态怎样输出。本文以 Pose Search 运行链路为主线，将数据构建、查询、评分与播放控制分开。骨骼空间、姿态传播与传统节点可按需查[动画系统主参考](/knowledge/ue-animation-node-math/)。
+Motion Matching 将当前运动需求与动画数据库中的特征进行比较，再决定继续播放、重新搜索、切换和混合。动画是否连贯，取决于特征采样、查询、评分和播放控制共同保持一致。
 
-> 本文以 `E:\UnrealEngine\UnrealEngine_Source` 的当前 `ue5-main` 快照为事实边界。Graphify/GitNexus 只用于定位关系，最终结论以源码路径和行号为准。文中标签含义为：**源码事实**＝当前文件直接可见；**工程经验**＝可落地但需结合项目验证；**推测/需要验证**＝源码没有提供足够证据。
+本文以 Pose Search 的运行链路为主线，从数据构建走到最终姿态，分别解释 Schema、Database、Trajectory、Pose History、Cost 与 Blend Stack。线程、时机、参数和源码证据在各阶段对应列明。
 
 ## 范围与核心机制
 
@@ -429,3 +429,7 @@ C(p)=D(q,p)+c_{notify}(p)+c_{continue}+c_{interaction}+c_{context}
 - 某些项目自定义 Channel、Retarget、IK 或 Gameplay Ability 对 Query 的额外修改；必须在项目运行时 Trace/Insights 中核对。
 
 **落地顺序只有一句话：先让 Query、Trajectory、History、Schema 和 Database 在 BruteForce 下稳定，再逐层加入过滤、Blend、IK、Warping、性能和网络。**
+
+## 延伸查阅
+
+- [UE 动画节点：数据流与算法参考](/knowledge/ue-animation-node-math/)

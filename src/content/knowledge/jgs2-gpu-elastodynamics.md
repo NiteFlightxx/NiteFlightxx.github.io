@@ -26,7 +26,9 @@ sources:
   - title: JGS2 — arXiv v1 full text
     url: 'https://arxiv.org/html/2506.06494v1'
 ---
-JGS2 研究如何让并行局部更新考虑全局弹性耦合，从而减少过冲并改善收敛。本文是论文解析，依据 [arXiv:2506.06494v1](https://arxiv.org/html/2506.06494v1)，不表示 UE 或 GPUPhysicsLab 已实现该方法。线性迭代背景见[迭代求解](/knowledge/iterative-linear-solvers/)，顶点块背景见[VBD/AVBD](/knowledge/vbd-avbd-math/)。
+JGS2 研究如何让并行局部更新考虑全局弹性耦合，从而减少过冲并改善收敛。关键在于为局部更新选择能够表达全局响应的扰动子空间，而不只是增加并行线程数。
+
+本文依据 [arXiv:2506.06494v1](https://arxiv.org/html/2506.06494v1)，从时间步目标、局部过冲和 Newton 分块，推到共旋近似、Cubature、预计算与接触处理。论文方法和实验结果使用原文范围，不据此断言 UE 或 GPUPhysicsLab 已实现该算法。
 
 ## 原问题与时间步约定
 
@@ -154,4 +156,11 @@ $R_c$ 是互补自由度上的旋转块，$R_i$ 是局部自由度上的旋转�
 
 ## 来源与继续阅读
 
-[论文 v1 全文](https://arxiv.org/html/2506.06494v1)的 §4 对应理想子空间及共旋近似，§5–6 对应 Cubature 和预计算，§7–8 对应接触与实验。Newton 的条件见[Hessian](/knowledge/hessian-matrix/)，局部块方法见[VBD/AVBD](/knowledge/vbd-avbd-math/)。[GPUPhysicsLab](/knowledge/gpu-physics-plugin/)是另一份工程实现分析，不能由本文推断它已经采用 JGS2。
+[论文 v1 全文](https://arxiv.org/html/2506.06494v1)的 §4 对应理想子空间及共旋近似，§5–6 对应 Cubature 和预计算，§7–8 对应接触与实验。Newton 的条件见Hessian，局部块方法见VBD/AVBD。GPUPhysicsLab是另一份工程实现分析，不能由本文推断它已经采用 JGS2。
+
+## 延伸查阅
+
+- [线性系统的迭代求解](/knowledge/iterative-linear-solvers/)
+- [变分物理求解：VBD 与 AVBD](/knowledge/vbd-avbd-math/)
+- [二阶近似与 Hessian 矩阵](/knowledge/hessian-matrix/)
+- [GPUPhysicsLab：从 Compute Shader 到 UE 物理求解](/knowledge/gpu-physics-plugin/)

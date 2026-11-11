@@ -32,7 +32,9 @@ related: []
 sources: []
 featured: true
 ---
-AircraftLab 的控制链需要区分任务意图、低频路径规划、周期性预测跟踪和短周期局部避障。本文沿插件实际数据流解释它们如何进入串级飞控、旋翼分配与物理后端，并保留源码证据和工程取舍。推力与姿态的直观关系见[四旋翼原理](/knowledge/quadcopter-basics-interactive/)，不会用参考框架替代插件事实。
+AircraftLab 将任务意图、路径规划、预测跟踪和局部避障转换成姿态与推力目标，再通过串级飞控、旋翼分配和物理后端作用到无人机。
+
+本文先说明坐标、单位与刚体动力学，再沿插件实际数据流解释 PID、MPCC 风格跟踪、ORCA、控制分配、Simulation LOD 与网络状态。各模块的数学意义、调用时机、工程取舍和源码证据在使用处对应。
 
 ## 范围与核心机制
 
@@ -79,10 +81,6 @@ Chaos 物理子步施加力和力矩
 本文只写当前插件源码能证明的内容。标记为“工程经验”的段落是调参建议；标记为“待验证”的段落需要在真实场景、指定物理步长和网络配置下测试。
 
 ## 范围与前置知识
-
-- 前置：[四旋翼飞行原理：动力学与交互演示](/knowledge/quadcopter-basics-interactive/)
-- 数学基础：[经典力学三大体系](/knowledge/classical-mechanics/)、[常微分方程与数值方法](/knowledge/differential-equations/)、[迭代线性求解器](/knowledge/iterative-linear-solvers/)
-- 相关：[Jacobian 矩阵](/knowledge/jacobian-matrix/)、[PBD / XPBD](/knowledge/pbd-xpbd-math/)、[VBD / AVBD](/knowledge/vbd-avbd-math/)
 
 本文关注 `E:\UnrealProjects\GASP57\Plugins\AircraftLab` 当前源码，不把真实飞控、适航控制律或完整机器人 MPC 论文直接当成插件已实现能力。无人机的升力、刚体和基础 PID 只引用前置专题，本文把重点放在插件如何组织这些模块、在哪个线程执行、哪些参数互相制约，以及为什么选择当前方案。
 
@@ -769,3 +767,13 @@ DetourCrowd 的核心抽象是地面导航和二维代理；AircraftLab 需要 3
 10. LOD / 网络更新频率。
 
 最容易误调的参数是 `MaxDeceleration`、`MaxJerk`、`BrakingReserveFraction`、`SpinUp/DownTimeSeconds`、`DerivativeCutoffHz`、`AllocationDamping`、`TimeHorizonSeconds` 和 `SmoothingWeight`。它们分别影响规划、执行器、过滤、分配和避让，不能只凭单个画面判断。
+
+## 延伸查阅
+
+- [四旋翼飞行原理：动力学与交互演示](/knowledge/quadcopter-basics-interactive/)
+- [经典力学：牛顿、拉格朗日与哈密顿](/knowledge/classical-mechanics/)
+- [常微分方程：状态、初值与动力系统](/knowledge/differential-equations/)
+- [线性系统的迭代求解](/knowledge/iterative-linear-solvers/)
+- [Jacobian 矩阵与局部线性化](/knowledge/jacobian-matrix/)
+- [位置约束求解：PBD 与 XPBD](/knowledge/pbd-xpbd-math/)
+- [变分物理求解：VBD 与 AVBD](/knowledge/vbd-avbd-math/)

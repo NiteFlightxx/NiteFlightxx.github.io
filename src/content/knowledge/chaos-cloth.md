@@ -30,13 +30,9 @@ topics:
     order: 20
 sources: []
 ---
-布料资产的构建、材料参数和运行时求解属于不同阶段。本文沿 Dataflow 与 Cloth 数据流说明它们如何连接，再按约束类型查阅公式、参数和创建条件。通用柔度与位置修正见[PBD 与 XPBD](/knowledge/pbd-xpbd-math/)，不把某份资产的参数经验当作所有布料的默认值。
+布料资产的构建、材料参数和运行时求解属于不同阶段。Dataflow 将作者设置转换成可消费的数据，Cloth 求解器再用这些数据建立预测状态、材料约束、碰撞与速度更新。
 
-> Chaos Cloth 是虚幻引擎 5 的现代布料模拟系统，基于 Chaos 物理引擎的 PBD/XPBD 约束求解框架。它以 **ClothCollection** 数据模型为核心，通过 **Dataflow Graph** 组织从网格导入、拓扑编辑、选择绘制、蒙皮绑定到模拟配置的完整流水线，最终由终端节点生成可挂载到 SkeletalMeshComponent 的布料资产。运行时，布料模拟通过一组位置约束（拉伸、弯曲、面积、长程附着、最大距离、后挡板、动画驱动、自碰撞）在 PBD 或力基求解器中迭代求解。
->
-> 本文基于 `ChaosClothAssetDataflowNodes` 插件源码与 `ChaosCloth` 约束系统源码，完整梳理布料物理属性与推荐值、全部非废弃 Dataflow 节点的功能与参数、以及 Cloth Constraint 的数学原理与创建逻辑。阅读前建议回顾本站《[位置约束求解：PBD 与 XPBD](/knowledge/pbd-xpbd-math/)》的约束求解框架，以及《[数值积分：方法、误差与稳定性](/knowledge/numerical-integration-methods/)》的半隐式欧拉积分流水线——Chaos Cloth 的求解器循环正是这些方法在布料领域的工程落地。
-
----
+本文沿资产到运行时的数据流解释这些连接，再按约束类型列出数学关系、参数和创建条件。源码结论以文中的具体插件和文件为范围；推荐值是调试起点，需要结合网格尺度、时间步和场景验证。
 
 ## Chaos Cloth 架构概述
 
@@ -805,7 +801,7 @@ Chaos Cloth 支持两种约束求解模式，由 `SimulationStretchConfigNode` �
 | 性能 | 更快 | 略慢（额外乘子状态） |
 | 推荐场景 | 简单布料、性能优先 | 需要物理精确性、帧率一致性 |
 
-关于 PBD/XPBD 的完整数学推导，参见本站《[位置约束求解：PBD 与 XPBD](/knowledge/pbd-xpbd-math/)》。
+位置约束在预测状态上估计当前误差，用其梯度确定修正方向，再用逆质量分担位移。柔度和累计乘子会改变修正方程；下文各 Cloth 约束需要核对自己使用的参数和状态，不能只依据约束类名判断其刚度行为。
 
 ### Isotropic 与 Anisotropic 分布
 
@@ -1301,3 +1297,8 @@ $$
 | 蒙皮/代理 | ProxyDeformerNode, ApplyProxyDeformerNode, TransferSkinWeightsNode, SkinningBlendNode, BindToRootBoneNode, SetPhysicsAssetNode, GenerateSimMorphTargetNode, SimAccessoryMeshNode |
 | 体型适配 | ApplyResizingNode, CustomRegionResizingNode, EnableUVResizingNode |
 | 模拟配置 | SimulationDefaultConfigNode, SimulationSolverConfigNode, SimulationGravityConfigNode, SimulationAerodynamicsConfigNode, SimulationMassConfigNode, SimulationDampingConfigNode, SimulationCollisionConfigNode, SimulationMaxDistanceConfigNode, SimulationBackstopConfigNode, SimulationAnimDriveConfigNode, SimulationStretchConfigNode, SimulationBendingConfigNode, SimulationStretchOverrideConfigNode, SimulationBendingOverrideConfigNode, SimulationPressureConfigNode, SimulationSelfCollisionConfigNode, SimulationSelfCollisionSpheresConfigNode, SimulationVelocityScaleConfigNode, SimulationMorphTargetConfigNode, SimulationResolveExtremeDeformationConfigNode, SimulationClothVertexFaceSpringConfigNode, SimulationClothVertexSpringConfigNode |
+
+## 延伸查阅
+
+- [位置约束求解：PBD 与 XPBD](/knowledge/pbd-xpbd-math/)
+- [数值积分：方法、误差与稳定性](/knowledge/numerical-integration-methods/)

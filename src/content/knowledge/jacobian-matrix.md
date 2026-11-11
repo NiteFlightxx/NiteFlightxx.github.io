@@ -34,136 +34,45 @@ sources:
   - title: Modern Robotics — Numerical Inverse Kinematics
     url: https://modernrobotics.northwestern.edu/nu-gm-book-resource/6-2-numerical-inverse-kinematics-part-1-of-2/
 ---
-Jacobian 回答一个具体问题：当几个输入一起改变时，多个输出分别会改变多少？先把两个输出的偏导数逐项算清，再把它们排成矩阵，最后就能理解约束速度和约束作用中为什么会同时出现 $J$ 与 $J^{\mathsf T}$。
+Jacobian 把输入变化映射为输出变化。给定这张局部映射之后，可以继续问三个问题：什么运动不改变约束，作用力怎样映回自由度，以及怎样从输出误差反求输入修正。
 
-本文沿用列向量约定。导数、偏导数、梯度与拉格朗日乘子的入门推导见[微分基础](/knowledge/calculus-foundations/)；这里先从一个二维算例展开，后面再讨论 IK、几何奇异性和控制中的应用。以下是一般数学模型，不据此推断某个 UE 系统的具体实现。
+本文先用一个二维算例核对矩阵的方向和线性化误差，再完整展开距离约束、虚功、奇异性、伪逆与阻尼最小二乘。约束行所需的距离导数在本篇算出，后续运动学和控制应用使用同一套列向量约定。
 
 ## 输入、输出与导数约定
 
-### 一个输出为什么可以用梯度表示
+全文采用列向量。Jacobian 的每一行对应一个输出，每一列对应一个输入；第 $i$ 行是标量输出 $F_i$ 的梯度转置。因此输入 $n$ 个分量、输出 $m$ 个分量时，矩阵尺寸为 $m\times n$。
 
-先回顾标量函数 $s(x,y)=x^2+2y^2$。两个输入分别改变时，输出的一阶变化为
-
-$$
-ds=2x\,dx+4y\,dy.
-$$
-
-它只有一个输出，所以只需要一组系数 $(2x,4y)$。把这组系数竖着写，就是梯度；横着写，则可以直接乘输入变化的列向量。
-
-现在设计算过程会同时输出两个数。每个输出都要有自己的一组系数，一条梯度向量就无法同时记录全部关系。这正是引入 Jacobian 的原因。
-
-### 一个具体例子
-
-沿用原文的两个输出函数：
+用一个小例子固定后续约定：
 
 $$
-u=x^2+y,\qquad v=y^2-x.
+\mathbf q=\begin{bmatrix}x\\y\end{bmatrix},\qquad
+\mathbf F(\mathbf q)=\begin{bmatrix}x^2+y\\y^2-x\end{bmatrix},\qquad
+J(\mathbf q)=\begin{bmatrix}2x&1\\-1&2y\end{bmatrix}.
 $$
 
-例如在 $(x,y)=(2,3)$，两个输出分别为 $u=7,v=7$。要描述输入改变后的输出变化，我们需要回答四个问题：
-
-- 只改变 $x$，$u$ 怎样变化？
-- 只改变 $y$，$u$ 怎样变化？
-- 只改变 $x$，$v$ 怎样变化？
-- 只改变 $y$，$v$ 怎样变化？
-
-逐项计算，而不直接跳到矩阵：
-
-$$
-\begin{aligned}
-\frac{\partial u}{\partial x}
-&=\frac{\partial}{\partial x}(x^2+y)=2x+0=2x,\\
-\frac{\partial u}{\partial y}
-&=\frac{\partial}{\partial y}(x^2+y)=0+1=1,\\
-\frac{\partial v}{\partial x}
-&=\frac{\partial}{\partial x}(y^2-x)=0-1=-1,\\
-\frac{\partial v}{\partial y}
-&=\frac{\partial}{\partial y}(y^2-x)=2y-0=2y.
-\end{aligned}
-$$
-
-### 为什么每个输出占一行
-
-分别写出两个输出的全微分：
-
-$$
-du=2x\,dx+1\,dy,\qquad
-dv=-1\,dx+2y\,dy.
-$$
-
-它们使用同一组输入变化量，可以合并为
-
-$$
-\begin{bmatrix}du\\dv\end{bmatrix}
-=
-\underbrace{\begin{bmatrix}2x&1\\-1&2y\end{bmatrix}}_{J}
-\begin{bmatrix}dx\\dy\end{bmatrix}.
-$$
-
-第一行乘输入向量得到 $du$，第二行得到 $dv$；第一列对应 $x$，第二列对应 $y$。**行对应输出，列对应输入**，由这个乘法关系决定。
-
-单独看第一列 $(2x,-1)^{\mathsf T}$，它还表示只改变 $x$ 时两个输出各自的变化率；第二列同理。这使 Jacobian 同时拥有“按输出看行”和“按输入看列”两种读法。
+第一行计算第一个输出的变化，第二行计算第二个输出的变化。后面始终使用“输出在行、输入在列”的约定，约束数与自由度不必相等。
 
 ## 核心意义：局部线性化
 
-### 把矩阵乘法实际算一次
-
-仍取当前位置 $(2,3)$。先在当前位置计算导数：
-
-$$
-J(2,3)=\begin{bmatrix}4&1\\-1&6\end{bmatrix}.
-$$
-
-现在输入增加 $\Delta x=0.1,\Delta y=0.2$。一阶模型预测
-
-$$
-\begin{bmatrix}\Delta u\\\Delta v\end{bmatrix}
-\approx
-\begin{bmatrix}4&1\\-1&6\end{bmatrix}
-\begin{bmatrix}0.1\\0.2\end{bmatrix}.
-$$
-
-先算第一行，再算第二行：
-
-$$
-\begin{aligned}
-\Delta u&\approx4\times0.1+1\times0.2=0.6,\\
-\Delta v&\approx-1\times0.1+6\times0.2=1.1.
-\end{aligned}
-$$
-
-因此预测的新输出是 $(7.6,8.1)^{\mathsf T}$。这个矩阵把两个输入方向上的贡献，分别汇总成了两个输出的变化量。
-
-### 与真实变化比较
-
-把新位置 $(2.1,3.2)$ 直接代入原函数：
-
-$$
-\begin{aligned}
-u_{\mathrm{new}}&=2.1^2+3.2=7.61,\\
-v_{\mathrm{new}}&=3.2^2-2.1=8.14.
-\end{aligned}
-$$
-
-所以真实增量是 $(0.61,1.14)^{\mathsf T}$，与线性预测相差 $(0.01,0.04)^{\mathsf T}$。差额恰好来自展开时省略的平方项：
-
-$$
-\begin{aligned}
-\Delta u&=2x\Delta x+\Delta y+(\Delta x)^2,\\
-\Delta v&=-\Delta x+2y\Delta y+(\Delta y)^2.
-\end{aligned}
-$$
-
-把两项输入扰动同时减半，线性部分也减半，而这个例子的误差缩小为四分之一。局部线性化保留一阶响应；有限输入变化仍有余项。
-
-用向量记号，令 $\mathbf q=(x,y)^{\mathsf T}$，$\mathbf F=(u,v)^{\mathsf T}$，上述过程简写为
+在当前点冻结 $J$，用它预测小输入变化：
 
 $$
 \mathbf F(\mathbf q+\Delta\mathbf q)
 \approx\mathbf F(\mathbf q)+J(\mathbf q)\Delta\mathbf q.
 $$
 
-$J$ 在当前点取值。对非线性函数，走到新位置后通常需要重新计算，不能把第一次的矩阵一直用于整条轨迹。矩阵也可能非方阵或奇异；线性化并不自动带来可逆性。
+例如 $\mathbf q=(2,3)^{\mathsf T}$、$\Delta\mathbf q=(0.1,0.2)^{\mathsf T}$，有
+
+$$
+\begin{aligned}
+\mathbf F(\mathbf q)&=(7,7)^{\mathsf T},\\
+J\Delta\mathbf q&=(0.6,1.1)^{\mathsf T},\\
+\mathbf F(\mathbf q+\Delta\mathbf q)-\mathbf F(\mathbf q)
+&=(0.61,1.14)^{\mathsf T}.
+\end{aligned}
+$$
+
+误差 $(0.01,0.04)^{\mathsf T}$ 分别来自 $(\Delta x)^2$ 与 $(\Delta y)^2$。这里已经能看出逆问题的两个限制：有限修正存在非线性余项；当前矩阵也不一定可逆。因此实际反求修正时，需要检查秩、步长与误差，并在新状态重新计算映射。
 
 ### 可复算的局部预测
 
@@ -279,7 +188,18 @@ $$
 
 ### 从四个偏导数得到约束行
 
-距离对相对位置的梯度为 $\mathbf n$，平方根的完整求导见[距离约束梯度](/knowledge/calculus-foundations/#一步步求距离约束梯度)。由于相对位置是末端位置减起点位置，各分量分别给出
+先对距离本身求导，再把相对位置对四个输入的符号代入。起点坐标的导数带负号，末端坐标的导数带正号：
+
+$$
+\begin{aligned}
+r&=\sqrt{(b_x-a_x)^2+(b_y-a_y)^2},\\
+\frac{\partial r}{\partial b_x}
+&=\frac{2(b_x-a_x)}{2r}=n_x,\qquad
+\frac{\partial r}{\partial a_x}=-n_x.
+\end{aligned}
+$$
+
+纵向分量采用同样计算，常量静止长度的导数为零，因此
 
 $$
 \frac{\partial C}{\partial a_x}=-n_x,\quad
@@ -354,7 +274,7 @@ $$
 \mathbf Q_c=J^{\mathsf T}\boldsymbol\lambda_f.
 $$
 
-$\boldsymbol\lambda_f$ 是力层的乘子。这只确定了约束作用所在的方向空间；乘子大小还需要动力学方程、质量与外力共同求出。[拉格朗日乘子的几何推导](/knowledge/calculus-foundations/#约束极值与拉格朗日乘子)使用同样的切向与法向关系，但目标梯度与物理反力具有不同含义。
+$\boldsymbol\lambda_f$ 是力层的乘子。这只确定了约束作用所在的方向空间；乘子大小还需要动力学方程、质量与外力共同求出。约束极值中的目标梯度也可能落在约束法线张成的空间，但目标梯度和动力学反力代表不同物理量。
 
 ### 用虚功直接核对转置
 
@@ -421,8 +341,6 @@ J^{\mathsf T}\boldsymbol\lambda_f\in\mathbb R^{300}.
 $$
 
 每行只在相连两粒子的六个位置分量上可能非零。实现可以直接保存局部块与粒子索引，不必生成完整稠密矩阵。多个约束作用到一个粒子时，广义力贡献相加。
-
-具体接触行、角向力臂、单边投影和缓存见[物理约束](/knowledge/physics_constraints_deep_dive/)，不同位置求解器见[PBD、XPBD、VBD 与 AVBD 对比](/knowledge/pbd-xpbd-vbd-avbd-comparison/)。
 
 ### 可复算的约束行
 
@@ -606,7 +524,7 @@ $$
 
 某一列表示只让对应关节以单位参数速度运动时，末端产生的一阶速度响应。关节为转动关节或移动关节时，该列的单位也不同。
 
-这套导数语言可用于一般 IK，但 IK 还存在几何、解析、CCD、FABRIK 等不同路线，不能把所有末端定位都归结为显式 Jacobian 求逆。本站的具体数学与源码分析见[全身 IK](/knowledge/ue-fullbody-ik-math/)，具体实现应以对应版本源码为准。
+这套导数语言可用于一般 IK，但 IK 还存在几何、解析、CCD、FABRIK 等路线，不能把所有末端定位都归结为显式 Jacobian 求逆。接入动画图时，还需要规定目标空间、关节限位、姿态输入和输出混合；本节的局部运动学式子没有替这些阶段作出选择。
 
 ## 控制与飞控中的 Jacobian
 
@@ -639,7 +557,7 @@ $$
 
 它正向描述各执行器变化会产生什么合力与力矩。固定布局、固定推力方向且输入直接采用推力时，这个映射可以是常系数线性的；若输入是转速或还包含倾转角，就要按实际映射求导。
 
-给定期望合力再反求执行器输入，是另一个带饱和、可达性和优先级的控制分配问题。四个标量推力输入通常无法独立指定任意六维合力旋量；矩阵存在不代表所有期望输出都可实现。具体飞控模型见[无人机动力学与飞行控制](/knowledge/quadcopter-flight-control-math/)。
+给定期望合力再反求执行器输入，还需要处理饱和、可达性和优先级。四个标量推力输入通常无法独立指定任意六维合力旋量；矩阵存在不代表所有期望输出都可实现。这里先检查输入数、输出数与秩，再讨论具体控制目标。
 
 ## 反向传播中的 Jacobian
 
@@ -697,7 +615,12 @@ $$
 
 对与输出变化共轭的作用或梯度，转置给出输入端对应量；要反求输入修正，则需要另选线性求解、最小二乘或优化方法。先说明正在做哪一种操作，再解释矩阵的作用。
 
-- [微分基础](/knowledge/calculus-foundations/)负责导数、梯度和约束极值的来由。
-- [Hessian](/knowledge/hessian-matrix/)继续解释曲率与 Newton 方法。
-- [物理约束](/knowledge/physics_constraints_deep_dive/)负责约束行如何参与动力学求解。
-- [线性迭代](/knowledge/iterative-linear-solvers/)负责冻结线性子问题的残差与迭代条件。
+## 延伸查阅
+
+- [微分基础：从导数到梯度与物理求解](/knowledge/calculus-foundations/)
+- [物理约束：建模、有效质量与迭代求解](/knowledge/physics_constraints_deep_dive/)
+- [PBD、XPBD、VBD 与 AVBD：模型、迭代与工程取舍](/knowledge/pbd-xpbd-vbd-avbd-comparison/)
+- [UE 全身 IK：FullBodyIK 与 PBIK](/knowledge/ue-fullbody-ik-math/)
+- [AircraftLab：动力学、飞控与仿真架构](/knowledge/quadcopter-flight-control-math/)
+- [二阶近似与 Hessian 矩阵](/knowledge/hessian-matrix/)
+- [线性系统的迭代求解](/knowledge/iterative-linear-solvers/)
