@@ -131,10 +131,10 @@ const {
             <div class="border-t border-border-subtle p-3"><DocumentNavigation groups={readingGroups} current={currentSlug} /></div>
           </details>
           <details class="document-reader-tools rounded-lg border border-border-subtle">
-            <summary class="cursor-pointer px-4 py-3 text-xs text-text-muted">目录与阅读设置</summary>
+            <summary class="cursor-pointer px-4 py-3 text-xs text-text-muted">目录与设置</summary>
             <div class="space-y-3 border-t border-border-subtle p-3">
               <ArticleToc client:load headings={headings} lang={lang} />
-              <ReaderActions client:media="(max-width: 1099px)" slug={currentSlug} title={title} category={category} url={canonicalPath} />
+              <ReaderActions client:media="(max-width: 1559px)" slug={currentSlug} title={title} category={category} url={canonicalPath} />
             </div>
           </details>
         </div>
@@ -147,22 +147,12 @@ const {
               {breadcrumbs.map((crumb, index) => <span>{index > 0 && '/ '}{crumb.href ? <a href={crumb.href} class="hover:text-accent-primary">{crumb.label}</a> : crumb.label}</span>)}
             </nav>
           )}
-          <div class="flex items-center gap-2 text-[12px] font-sans text-accent-primary mb-3">
+          <div class="sr-only">
             <span data-pagefind-filter={`category:${category}`}>{category}</span>
             {subtopic && <span data-pagefind-filter={`subtopic:${subtopic}`} class="sr-only">{subtopic}</span>}
             {difficulty && <span data-pagefind-filter={`difficulty:${difficulty}`} class="sr-only">{difficulty}</span>}
             {pageType && <span data-pagefind-filter={`pageType:${pageType}`} class="sr-only">{pageType}</span>}
           </div>
-          {topicContext && (
-            <div class="mb-5 flex flex-wrap items-center gap-2 text-[12px] font-sans">
-              <span class="text-text-faint">专题路径</span>
-              <a href={`${import.meta.env.BASE_URL}projects/${topicContext.slug}/`} class="text-accent-primary hover:text-text-primary transition-colors">
-                {topicContext.title}
-              </a>
-              <span class="text-text-faint">/</span>
-              <span class="text-text-faint">{topicContext.stageTitle} · {topicContext.roleLabel}</span>
-            </div>
-          )}
           <h1 class="font-display font-semibold text-2xl md:text-3xl text-text-primary tracking-tight leading-normal mb-5">
             {title}
           </h1>
@@ -182,12 +172,6 @@ const {
             )}
           </div>
         </header>
-
-        {readingContext && <aside class="document-reading-context" aria-label="文档位置" data-pagefind-ignore>
-          <div><strong>{readingContext.group.title}</strong><span>{readingContext.position ? `${readingContext.position} / ${readingContext.total}` : '按需查阅'}</span></div>
-          {(readingContext.note || readingContext.group.description) && <p>{readingContext.note || readingContext.group.description}</p>}
-          {currentSlug !== 'physics-simulation-overview' && <a href={`${import.meta.env.BASE_URL}knowledge/`}>回到动力学总览 ↗</a>}
-        </aside>}
 
         {/* Rendered Markdown + KaTeX from <Content /> */}
         <slot />
@@ -238,6 +222,10 @@ const {
           </details>
         )}
 
+        {topicContext && <div class="article-topic-context mt-10 text-sm text-text-muted" data-pagefind-ignore>
+          <span>所属专题 · </span><a href={`${import.meta.env.BASE_URL}projects/${topicContext.slug}/`}>{topicContext.title}</a>
+        </div>}
+
         {/* Tag cloud */}
         <div class="mt-12 pt-8 border-t border-border-subtle flex flex-wrap gap-2">
           {tags.map((tag) => (
@@ -278,10 +266,10 @@ const {
       </main>
 
       <aside class="document-toc-sidebar">
-        <div class="sticky top-24 space-y-4">
-          <ReaderActions client:media="(min-width: 1100px)" slug={currentSlug} title={title} category={category} url={canonicalPath} />
+        <div class="reader-sidebar-stack sticky top-24">
+          <ReaderActions client:media="(min-width: 1560px)" slug={currentSlug} title={title} category={category} url={canonicalPath} />
           <ArticleToc client:load headings={headings} lang={lang} />
-          <a href={`${import.meta.env.BASE_URL}knowledge/graph/?center=${currentSlug}`} class="block rounded-xl border border-border-subtle bg-surface-card/40 px-4 py-3 text-center font-sans text-[12px] text-text-muted hover:border-accent-primary/30 hover:text-accent-primary">在知识图谱中查看</a>
+          <a href={`${import.meta.env.BASE_URL}knowledge/graph/?center=${currentSlug}`} class="reader-graph-link text-xs text-text-muted hover:text-accent-primary">在知识图谱中查看 ↗</a>
         </div>
       </aside>
     </div>

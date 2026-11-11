@@ -99,25 +99,30 @@ export default function ReaderActions({ slug, title, category, url }: Props) {
   };
 
   return (
-    <section className="glass-panel rounded-xl border border-border-subtle p-4" aria-label="阅读状态">
+    <section className="reader-actions" aria-label="阅读状态">
       <div className="flex items-center justify-between gap-3">
         <span className="font-sans text-[12px] text-text-faint">阅读进度</span>
         <strong className="font-sans text-xs text-accent-primary">{progress}%</strong>
       </div>
       <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-surface-raised"><div className="h-full bg-accent-primary transition-[width] duration-200" style={{ width: `${progress}%` }} /></div>
-      <div className="mt-4 grid grid-cols-2 gap-2">
+      <div className="reader-action-buttons mt-4 flex flex-wrap items-center gap-3">
         <button onClick={toggleFavorite} className={`flex items-center justify-center gap-1.5 rounded-lg border px-2 py-2 text-[12px] ${favorite ? 'border-accent-primary/50 bg-accent-primary/10 text-accent-primary' : 'border-border-subtle text-text-muted hover:text-text-primary'}`}>
           {favorite ? <BookmarkCheck className="h-3.5 w-3.5" /> : <Bookmark className="h-3.5 w-3.5" />}{favorite ? '已收藏' : '收藏'}
         </button>
-        <button onClick={resetProgress} className="flex items-center justify-center gap-1.5 rounded-lg border border-border-subtle px-2 py-2 text-[12px] text-text-muted hover:text-text-primary"><RotateCcw className="h-3.5 w-3.5" />重读</button>
+        <details className="reader-preferences">
+          <summary className="cursor-pointer rounded-lg px-2 py-2 text-[12px] text-text-muted hover:text-text-primary">阅读设置</summary>
+          <div className="reader-preferences-panel">
+            <div className="mt-2 grid grid-cols-[1fr_auto_auto] gap-2">
+              <span className="flex items-center text-[12px] text-text-faint">正文字号 {Math.round(fontScale * 100)}%</span>
+              <button onClick={() => changeFontScale(-0.05)} className="rounded-lg border border-border-subtle p-2 text-text-muted hover:text-text-primary" aria-label="减小正文字号"><Minus className="h-3.5 w-3.5" /></button>
+              <button onClick={() => changeFontScale(0.05)} className="rounded-lg border border-border-subtle p-2 text-text-muted hover:text-text-primary" aria-label="增大正文字号"><Plus className="h-3.5 w-3.5" /></button>
+            </div>
+            <button onClick={resetProgress} className="mt-3 flex items-center gap-2 py-2 text-xs text-text-muted hover:text-text-primary"><RotateCcw className="h-3.5 w-3.5" />回到文章开头</button>
+            <button onClick={clearLocalState} className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-lg px-2 py-1.5 text-[12px] text-text-faint hover:bg-surface-raised/50 hover:text-text-muted"><Trash2 className="h-3 w-3" />清除收藏、历史与阅读偏好</button>
+            <p className="mt-3 text-[12px] leading-relaxed text-text-faint">状态仅保存在当前浏览器，不会上传。</p>
+          </div>
+        </details>
       </div>
-      <div className="mt-2 grid grid-cols-[1fr_auto_auto] gap-2">
-        <span className="flex items-center text-[12px] text-text-faint">正文字号 {Math.round(fontScale * 100)}%</span>
-        <button onClick={() => changeFontScale(-0.05)} className="rounded-lg border border-border-subtle p-2 text-text-muted hover:text-text-primary" aria-label="减小正文字号"><Minus className="h-3.5 w-3.5" /></button>
-        <button onClick={() => changeFontScale(0.05)} className="rounded-lg border border-border-subtle p-2 text-text-muted hover:text-text-primary" aria-label="增大正文字号"><Plus className="h-3.5 w-3.5" /></button>
-      </div>
-      <button onClick={clearLocalState} className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-lg px-2 py-1.5 text-[12px] text-text-faint hover:bg-surface-raised/50 hover:text-text-muted"><Trash2 className="h-3 w-3" />清除收藏、历史与阅读偏好</button>
-      <p className="mt-3 text-[12px] leading-relaxed text-text-faint">状态仅保存在当前浏览器，不会上传。</p>
     </section>
   );
 }

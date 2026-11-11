@@ -49,8 +49,8 @@ export default function ArticleToc({ headings, lang }: ArticleTocProps) {
     return map;
   }, [groups]);
 
-  // Which H2 sections are collapsed (default: all expanded).
-  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+  // Keep the active section open; other sections remain available by heading.
+  const [collapsed, setCollapsed] = useState<Set<string>>(() => new Set(groups.slice(1).map(group => group.h2.slug)));
   const [activeSlug, setActiveSlug] = useState<string>(items[0]?.slug ?? "");
   const observerRef = useRef<IntersectionObserver | null>(null);
 
@@ -68,7 +68,7 @@ export default function ArticleToc({ headings, lang }: ArticleTocProps) {
           setActiveSlug(id);
           // Auto-expand the parent H2 if the active H3 is currently hidden,
           // so scroll-spy never points at an invisible entry.
-          const parent = parentOf[id];
+          const parent = parentOf[id] ?? id;
           if (parent) {
             setCollapsed((prev) => {
               if (!prev.has(parent)) return prev;
@@ -114,7 +114,7 @@ export default function ArticleToc({ headings, lang }: ArticleTocProps) {
 
   return (
     <nav
-      className="glass-panel border border-border-subtle rounded-xl select-none overflow-hidden"
+      className="article-toc glass-panel border border-border-subtle rounded-xl select-none overflow-hidden"
       aria-label="table of contents"
     >
       {/* Header label (static — folding happens per H2 below, not here) */}
@@ -125,7 +125,7 @@ export default function ArticleToc({ headings, lang }: ArticleTocProps) {
         </span>
       </div>
 
-      <ul className="px-3 py-3 max-h-[calc(100vh-220px)] overflow-y-auto">
+      <ul className="toc-items px-3 py-3 max-h-[calc(100vh-220px)] overflow-y-auto">
         {groups.map((group) => {
           const isH2Active = activeSlug === group.h2.slug;
           const isCollapsed = collapsed.has(group.h2.slug);
@@ -166,6 +166,7 @@ export default function ArticleToc({ headings, lang }: ArticleTocProps) {
 
               {/* H3 children — animated collapse per H2 section */}
               <div
+                inert={isCollapsed ? true : undefined}
                 className={`grid transition-all duration-300 ease-out ${
                   isCollapsed
                     ? "grid-rows-[0fr] opacity-0"
