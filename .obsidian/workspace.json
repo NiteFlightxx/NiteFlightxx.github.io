@@ -11,17 +11,14 @@
             "id": "673de8c37e95b321",
             "type": "leaf",
             "state": {
-              "type": "canvas",
+              "type": "markdown",
               "state": {
-                "file": "未命名.canvas",
-                "viewState": {
-                  "x": 0,
-                  "y": 0,
-                  "zoom": 0
-                }
+                "file": "src/content/knowledge/pbd-xpbd-vbd-avbd-comparison.md",
+                "mode": "source",
+                "source": false
               },
-              "icon": "lucide-layout-dashboard",
-              "title": "未命名"
+              "icon": "lucide-file",
+              "title": "pbd-xpbd-vbd-avbd-comparison"
             }
           }
         ]
@@ -58,7 +55,7 @@
             "state": {
               "type": "search",
               "state": {
-                "query": "",
+                "query": "PBD",
                 "matchingCase": false,
                 "explainSearch": false,
                 "collapseAll": false,
@@ -190,13 +187,34 @@
   },
   "active": "673de8c37e95b321",
   "lastOpenFiles": [
-    "knowledge/iterative-linear-solvers.md",
+    "src/content/knowledge/pbd-xpbd-math.md",
+    "src/content/knowledge/pbd-xpbd-vbd-avbd-comparison.md",
+    "src/content/knowledge/particle-dynamics.md",
+    "src/content/knowledge/collision-detection-gjk-epa-sat.md",
+    "docs/knowledge-standardization-2026-10-23.md",
+    "src/content/knowledge/calculus-foundations.md",
+    "src/content/knowledge/2d-physics-engine.md",
+    "README.md",
+    "design-qa.md",
     "未命名.canvas",
+    "node_modules/commander/Readme.md",
+    "knowledge/mathematical-notation-reference.md",
+    "knowledge/iterative-linear-solvers.md",
+    "native/avbd/README.md",
+    "docs/qa/drone-project/digital-twin-direction.png",
+    "docs/qa/drone-project/qa-drone-project-desktop.png",
+    "docs/qa/drone-project/qa-drone-project-mobile.png",
+    "docs/qa/drone-project/qa-drone-project-palette-desktop.png",
+    "docs/qa/drone-project/qa-comparison.png",
+    "docs/qa/drone-project/qa-drone-project-palette-mobile.png",
+    "docs/superpowers/plans/2026-09-23-motion-matching-source-guide.md",
+    "docs/ADDING_ARTICLES.md",
+    "docs/knowledge-dynamics-2026-10-24.md",
+    "docs/knowledge-content-reorganization-2026-10-21.md",
+    "docs/curriculum-syllabus-2026-10-21.md",
     "src/content/knowledge/ue-linear-algebra-guide.md",
     "node_modules/svgo/node_modules/commander/Readme.md",
-    "knowledge/mathematical-notation-reference.md",
     "knowledge",
-    "未命名.base",
-    "node_modules/commander/Readme.md"
+    "未命名.base"
   ]
 }
