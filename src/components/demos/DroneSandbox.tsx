@@ -1,548 +1,430 @@
-/**
- * Unified 3D drone sandbox — one WebGL scene, five interaction modes mapped
- * to the article chapters: 悬停 / 姿态 / 受力 / PID / 混控.
- *
- * The 3D scene runs a single rAF loop; each mode owns its physics slice in
- * a persistent sim ref (switching tabs preserves gains/attitude etc.), pushes
- * drone state + arrows into the QuadScene, then renders. The PID mode also
- * draws a small 2D response-curve strip; the mixer mode keeps the compact
- * 4×4 sign-matrix DOM.
- */
-import React, { useEffect, useRef, useState } from "react";
-import { QuadScene, type ViewPreset } from "./gl/quadScene";
-import { useRaf } from "./useRaf";
-import { INK, label as canvasLabel } from "./droneDraw";
-import { DemoSlider, DemoButton } from "./DemoShell";
+
+import { useEffect, useRef, useState, type PointerEvent, type ReactNode } from "react";
+import { Circle, Compass, Crosshair, Gauge, MoveUpRight, Orbit, Pause, Play, RotateCcw, ScanLine, SlidersHorizontal } from "lucide-react";
+import type { QuadScene, ViewPreset } from "./gl/quadScene";
 import {
-  MODE_LESSONS,
-  getModeProgress,
-  getNextMode,
-  getProjectViewportHeight,
-  getAttitudeThrustDirection,
-  type SandboxMode,
+  GRAVITY, MAX_THRUST, ROTORS, STEP, hoverRpm, makeExperiment, makeFlightState, mixMotors, stepFlight,
+  type Experiment, type FlightState, type SandboxMode, type Vec3,
 } from "./droneSandboxLogic";
+import "./droneSandbox.css";
 
-type Mode = SandboxMode;
+const LESSONS = [
+  { key: "hover", label: "悬停", icon: Circle, title: "推力如何平衡重力", hint: "从悬停转速开始，稍微提高四桨转速，观察垂直加速度。", formula: "T = kω² / aᵧ = (ΣT − mg) / m" },
+  { key: "attitude", label: "姿态", icon: Orbit, title: "倾斜如何产生水平力", hint: "调整俯仰和滚转，再关闭高度补偿，比较竖直推力和重力。", formula: "Tᵧ = T cos θ / Tₕ = T sin θ" },
+  { key: "force", label: "受力", icon: MoveUpRight, title: "力改变的是速度", hint: "在场景中点选方向施力。松开后，在无阻力时观察速度与轨迹。", formula: "a = F / m / Δv = ∫ a dt" },
+  { key: "pid", label: "PID", icon: Gauge, title: "反馈如何把高度拉回", hint: "保留持续下扰并调整 Kᵢ，观察目标线与实测曲线的差距。", formula: "T = mg + Kₚe + Kᵢ∫e dt − Kᴅvᵧ" },
+  { key: "mixer", label: "混控", icon: SlidersHorizontal, title: "四个电机如何共同施力", hint: "先只调偏航，比较两组对角旋翼。继续增大指令，观察单桨限幅。", formula: "τ = Σ(r × F + τ反) / ω ∝ √T" },
+] as const;
+const VIEW_BUTTONS = [
+  { view: "orbit", icon: Compass, label: "透视" },
+  { view: "top", icon: Crosshair, label: "俯视" },
+  { view: "side", icon: ScanLine, label: "侧视" },
+] as const;
+const percent = (n: number) => Math.round(n * 100) + "%";
+const number = (value: number, digits = 1) => (Math.abs(value) < 0.5 * 10 ** -digits ? 0 : value).toFixed(digits);
+const speedFormat = (n: number) => number(n) + " m/s";
+const forceFormat = (n: number) => number(n) + " N";
+const angleFormat = (n: number) => n + "°";
+const heightFormat = (n: number) => number(n, 2) + " m";
 
-const MODES: Array<{ key: Mode; label: string; view: ViewPreset; formula: string }> = [
-  { key: "hover",    label: "悬停",   view: "follow", formula: "T = k·ω²  ·  ΣT = mg" },
-  { key: "attitude", label: "姿态",   view: "tilt",   formula: "a = g·tanθ  ·  偏航 = 对角桨组反扭矩差" },
-  { key: "force",    label: "受力",   view: "top",    formula: "m·dv/dt = ΣF + mg" },
-  { key: "pid",      label: "PID",    view: "side",   formula: "u = Kp·e + Ki·∫e·dt + Kd·de/dt" },
-  { key: "mixer",    label: "混控",   view: "follow", formula: "motor = A · [Throttle, Roll, Pitch, Yaw]ᵀ" },
-];
-
-const MIX: number[][] = [
-  [ 1,  1,  1,  1],
-  [ 1, -1, -1,  1],
-  [-1, -1,  1,  1],
-  [ 1, -1,  1, -1],
-];
-const MOTOR_NAMES = ["FL", "FR", "RR", "RL"];
-
-/** Altitude [0..1] → world Y in scene units. */
-const yOf = (z: number) => 0.3 + z * 2.05;
-
-interface DroneSandboxProps {
-  variant?: "article" | "project";
+function snapshot(state: FlightState) {
+  return {
+    height: state.position[1],
+    verticalSpeed: state.velocity[1],
+    speed: Math.hypot(state.velocity[0], state.velocity[2]),
+    acceleration: [...state.acceleration] as Vec3,
+    thrust: state.thrust,
+    vertical: state.verticalThrust,
+    rpm: state.rpm,
+    applied: Math.hypot(...state.applied),
+  };
 }
 
-export default function DroneSandbox({ variant = "article" }: DroneSandboxProps) {
-  const cvRef = useRef<HTMLCanvasElement>(null);
+function drawChart(canvas: HTMLCanvasElement, state: FlightState) {
+  const width = canvas.clientWidth;
+  const height = canvas.clientHeight;
+  if (!width || !height) return;
+  const dpr = Math.min(window.devicePixelRatio, 2);
+  if (canvas.width !== Math.round(width * dpr) || canvas.height !== Math.round(height * dpr)) {
+    canvas.width = Math.round(width * dpr);
+    canvas.height = Math.round(height * dpr);
+  }
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return;
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, width, height);
+  const x = 21;
+  const pad = 9;
+  const t0 = Math.max(state.time - 12, 0);
+  const toY = (value: number) => height - pad - 12 - value / 4.5 * (height - 2 * pad - 12);
+  const toX = (time: number) => x + (time - t0) / 12 * (width - x - pad);
+  ctx.font = "10px monospace";
+  ctx.fillStyle = "#75695c";
+  ctx.strokeStyle = "#e1dbcf";
+  ctx.lineWidth = 1;
+  for (const level of [0, 2, 4]) {
+    const y = toY(level);
+    ctx.fillText(level + "m", 0, y + 3);
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    ctx.lineTo(width - pad, y);
+    ctx.stroke();
+  }
+  ctx.fillText(number(t0, 0), x, height - 2);
+  const endLabel = number(t0 + 12, 0) + " s";
+  ctx.fillText(endLabel, width - pad - ctx.measureText(endLabel).width, height - 2);
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(x, 0, width - x - pad, height - 12);
+  ctx.clip();
+  for (const [key, color] of [["target", "#bc633e"], ["height", "#087b64"]] as const) {
+    ctx.beginPath();
+    ctx.strokeStyle = color;
+    ctx.lineWidth = key === "height" ? 2 : 1.25;
+    ctx.setLineDash(key === "target" ? [3, 3] : []);
+    for (const [i, sample] of state.history.entries()) {
+      const px = toX(sample.t);
+      const py = toY(sample[key]);
+      if (i === 0) ctx.moveTo(px, py);
+      else ctx.lineTo(px, py);
+    }
+    const last = state.history.at(-1)!;
+    if (key === "target") ctx.lineTo(width - pad, toY(last.target));
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+interface SliderProps {
+  label: string;
+  value: number;
+  min: number;
+  max: number;
+  step: number;
+  format: (value: number) => string;
+  onChange: (value: number) => void;
+}
+
+function Slider({ label, value, min, max, step, format, onChange }: SliderProps) {
+  return (
+    <label className="drone-lab__slider">
+      <span><strong>{label}</strong><output>{format(value)}</output></span>
+      <input type="range" min={min} max={max} step={step} value={value}
+        aria-valuetext={format(value)} onChange={(event) => onChange(event.target.valueAsNumber)} />
+    </label>
+  );
+}
+
+function Toggle({ children, checked, onChange }: { children: ReactNode; checked: boolean; onChange: (checked: boolean) => void }) {
+  return (
+    <label className="drone-lab__toggle">
+      <input type="checkbox" checked={checked} onChange={(event) => onChange(event.target.checked)} />
+      <span>{children}</span>
+    </label>
+  );
+}
+
+type Session = { experiment: Experiment; flight: FlightState };
+
+export default function DroneSandbox({ variant = "article" }: { variant?: "article" | "project" }) {
+  const [experiment, setExperiment] = useState(() => makeExperiment("hover"));
+  const [telemetry, setTelemetry] = useState(() => snapshot(makeFlightState(experiment)));
+  const [running, setRunning] = useState(true);
+  const [vectors, setVectors] = useState(true);
+  const [aiming, setAiming] = useState(false);
+  const [view, setView] = useState<ViewPreset>("orbit");
+  const [webgl, setWebgl] = useState(true);
+  const experimentRef = useRef<Session | null>(null);
+  if (!experimentRef.current) experimentRef.current = { experiment, flight: makeFlightState(experiment) };
+  const sessions = useRef<Partial<Record<SandboxMode, Session>>>({});
+  const canvasRef = useRef<HTMLCanvasElement>(null);
   const plotRef = useRef<HTMLCanvasElement>(null);
+  const markers = useRef<Array<HTMLSpanElement | null>>([]);
   const sceneRef = useRef<QuadScene | null>(null);
-
-  const [mode, setMode] = useState<Mode>("hover");
-  const modeRef = useRef(mode);
-  modeRef.current = mode;
-
-  // ---- Per-mode UI state (persist across tab switches) ----
-  const [throttle, setThrottle] = useState(1.0);
-  const [pitch, setPitch] = useState(18);
-  const [roll, setRoll] = useState(0);
-  const [yaw, setYaw] = useState(0);
-  const [kp, setKp] = useState(2.2);
-  const [ki, setKi] = useState(0);
-  const [kd, setKd] = useState(0);
-  const [wishes, setWishes] = useState<number[]>([1.0, 0, 0, 0]);
-  const [readout, setReadout] = useState("拖动油门，或拖拽旋转视角 🎮");
-  const [hasInteracted, setHasInteracted] = useState(false);
-  const [projectViewportHeight, setProjectViewportHeight] = useState(620);
-
-  const ui = useRef({ throttle, pitch, roll, yaw, kp, ki, kd, wishes });
-  ui.current = { throttle, pitch, roll, yaw, kp, ki, kd, wishes };
+  const ui = useRef({ running, vectors, aiming, view });
 
   useEffect(() => {
-    if (variant !== "project") return;
-    const updateHeight = () => setProjectViewportHeight(getProjectViewportHeight(window.innerHeight, window.innerWidth));
-    updateHeight();
-    window.addEventListener("resize", updateHeight);
-    return () => window.removeEventListener("resize", updateHeight);
-  }, [variant]);
+    ui.current = { running, vectors, aiming, view };
+  }, [running, vectors, aiming, view]);
 
-  // ---- Persistent simulation slices ----
-  const sim = useRef({
-    hover: { z: 0.3, v: 0 },
-    force: { x: 0, z: 0, vx: 0, vz: 0, trailT: 0 },
-    pid: { z: 0.12, v: 0, ie: 0, t: 0, gust: 0, gustT: -9, hist: [] as Array<{ t: number; z: number }> },
-  });
-  const pointer = useRef<{ active: boolean; gx: number; gz: number }>({ active: false, gx: 0, gz: 0 });
-
-  // ---- Scene lifecycle + mode wiring ----
   useEffect(() => {
-    if (!cvRef.current) return;
-    const scene = new QuadScene(cvRef.current, { showcase: variant === "project" });
-    sceneRef.current = scene;
-    const m = MODES.find((x) => x.key === modeRef.current)!;
-    scene.setView(m.view);
-    scene.setRotateEnabled(m.key !== "force");
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    let scene: QuadScene | null = null;
+    let disposed = false;
+    void import("./gl/quadScene").then(({ QuadScene }) => {
+      if (disposed) return;
+      scene = new QuadScene(canvas);
+      scene.setView(ui.current.view);
+      scene.setOrbitEnabled(!ui.current.aiming);
+      sceneRef.current = scene;
+    }).catch(() => {
+      if (!disposed) setWebgl(false);
+    });
+
+    const contextLost = (event: Event) => {
+      event.preventDefault();
+      setWebgl(false);
+    };
+    const contextRestored = () => setWebgl(true);
+    canvas.addEventListener("webglcontextlost", contextLost);
+    canvas.addEventListener("webglcontextrestored", contextRestored);
+    let visible = true;
+    const observer = new IntersectionObserver(([entry]) => { visible = entry.isIntersecting; });
+    observer.observe(canvas.closest(".drone-lab") ?? canvas);
+    let frame = 0;
+    let last = 0;
+    let report = -Infinity;
+    let accumulated = 0;
+
+    const render = (now: number) => {
+      const dt = last ? Math.min(0.075, (now - last) / 1000) : 0;
+      last = now;
+      const { flight, experiment } = experimentRef.current!;
+      const active = visible && document.visibilityState === "visible";
+
+      if (active) {
+        if (ui.current.running) {
+          accumulated += dt;
+          while (accumulated >= STEP) {
+            stepFlight(flight, experiment, STEP);
+            accumulated -= STEP;
+          }
+        } else {
+          accumulated = 0;
+          if (experiment.mode === "mixer") stepFlight(flight, experiment, 0);
+        }
+        if (scene) {
+          const points = scene.draw(flight, experiment, ui.current.running ? dt : 0, ui.current.vectors);
+          if (experiment.mode === "mixer") {
+            points.forEach(({ x, y }, i) => {
+              const label = markers.current[i];
+              if (label) label.style.transform = "translate(" + x + "px," + y + "px) translate(-50%,-50%)";
+            });
+          }
+        }
+      }
+      if (active && now - report > 85) {
+        setTelemetry(snapshot(flight));
+        if (plotRef.current) drawChart(plotRef.current, flight);
+        report = now;
+      }
+      frame = requestAnimationFrame(render);
+    };
+
+    frame = requestAnimationFrame(render);
     return () => {
-      scene.dispose();
+      disposed = true;
+      cancelAnimationFrame(frame);
+      observer.disconnect();
+      canvas.removeEventListener("webglcontextlost", contextLost);
+      canvas.removeEventListener("webglcontextrestored", contextRestored);
+      scene?.dispose();
       sceneRef.current = null;
     };
   }, []);
 
   useEffect(() => {
-    const scene = sceneRef.current;
-    if (!scene) return;
-    scene.setView(MODES.find((m) => m.key === mode)!.view);
-    scene.setRotateEnabled(mode !== "force");
-    scene.clearTrail();
-  }, [mode]);
+    sceneRef.current?.setOrbitEnabled(!aiming);
+  }, [aiming]);
 
-  const setPointerForce = (e: React.PointerEvent<HTMLCanvasElement>, active: boolean) => {
-    const scene = sceneRef.current;
-    if (!scene) return;
-    const hit = scene.pointerToGround(e.clientX, e.clientY);
-    if (hit) pointer.current = { active, gx: hit.x, gz: hit.z };
-    else if (!active) pointer.current.active = false;
-  };
+  useEffect(() => {
+    sceneRef.current?.setView(view);
+  }, [view]);
 
-  const markInteracted = () => setHasInteracted(true);
+  const mode = experiment.mode;
+  const lesson = LESSONS.find((item) => item.key === mode)!;
 
-  // ---- Single rAF loop: physics per mode → scene → render ----
-  useRaf((dt) => {
-    const scene = sceneRef.current;
-    const cv = cvRef.current;
-    if (!scene || !cv || document.visibilityState === "hidden") return;
-    scene.resize();
-    const m = modeRef.current;
-    const u = ui.current;
-
-    if (m === "hover") {
-      const s = sim.current.hover;
-      const a = 1.15 * (u.throttle - 1);
-      s.v += a * dt;
-      s.z = Math.min(0.92, Math.max(0.06, s.z + s.v * dt));
-      if (s.z <= 0.06) s.v = Math.max(0, s.v);
-      if (s.z >= 0.92) s.v = Math.min(0, s.v);
-      const y = yOf(s.z);
-      scene.setDrone({ position: { x: 0, y, z: 0 }, pitch: 0, roll: 0, yaw: 0,
-        motors: [u.throttle, u.throttle, u.throttle, u.throttle] });
-      scene.setTargetRing(yOf(0.72));
-      const up = { x: 0, y: 1, z: 0 };
-      scene.setArrow("thrust", { origin: { x: 0, y: y - 0.05, z: 0 }, dir: up, len: 0.35 + u.throttle * 0.85 });
-      scene.setArrow("gravity", { origin: { x: 0, y: y - 0.05, z: 0 }, dir: { x: 0, y: -1, z: 0 }, len: 1.2 });
-      scene.setArrow("velocity", { dir: null, len: 0 });
-      scene.setArrow("force", { dir: null, len: 0 });
-      const msg = u.throttle > 1.03 ? "ΣT > mg → 上升" : u.throttle < 0.97 ? "ΣT < mg → 下降" : "ΣT ≈ mg → 悬停";
-      setReadoutThrottled(`${msg} · 高度 ${(s.z * 100) | 0}% · 油门 ${(u.throttle * 100) | 0}%`);
-    } else if (m === "attitude") {
-      // Kinematic pose demo: drone bobs gently at mid altitude
-      const t = performance.now() / 1000;
-      const z = 0.55 + Math.sin(t * 0.7) * 0.02;
-      const y = yOf(z);
-      const mix: [number, number, number, number] = [
-        1 + u.roll * 0.02 + u.yaw * 0.03,
-        1 - u.roll * 0.02 - u.yaw * 0.03,
-        1 + u.roll * 0.02 - u.yaw * 0.03,
-        1 - u.roll * 0.02 + u.yaw * 0.03,
-      ];
-      scene.setDrone({ position: { x: 0, y, z: 0 }, pitch: u.pitch, roll: u.roll, yaw: u.yaw, motors: mix });
-      scene.setTargetRing(null);
-      // Thrust along body-up; its world direction includes the tilt
-      const upWorld = getAttitudeThrustDirection(u.pitch, u.roll, u.yaw);
-      const hX = upWorld.x;
-      const hZ = upWorld.z;
-      scene.setArrow("thrust", { origin: { x: 0, y: y - 0.05, z: 0 }, dir: upWorld, len: 1.45 });
-      scene.setArrow("velocity", { origin: { x: 0, y: y, z: 0 }, dir: { x: hX, y: 0, z: hZ }, len: Math.hypot(hX, hZ) * 1.1, color: "#96c8ff" });
-      scene.setArrow("gravity", { origin: { x: 0, y: y - 0.05, z: 0 }, dir: { x: 0, y: -1, z: 0 }, len: 1.2, alpha: 0.55 });
-      scene.setArrow("force", { dir: null, len: 0 });
-      const dirPitch = u.pitch > 2 ? "向前移动" : u.pitch < -2 ? "向后移动" : "";
-      const dirRoll = u.roll > 2 ? "向右侧移动" : u.roll < -2 ? "向左侧移动" : "";
-      const msg = [dirPitch, dirRoll].filter(Boolean).join(" + ") || "机身放平 = 无水平力";
-      setReadoutThrottled(`俯仰 ${u.pitch | 0}° · 滚转 ${u.roll | 0}° · 偏航 ${u.yaw > 0 ? "+" : ""}${u.yaw.toFixed(1)} → ${msg}`);
-    } else if (m === "force") {
-      const s = sim.current.force;
-      let fx = 0, fz = 0;
-      if (pointer.current.active) {
-        const dx = pointer.current.gx - s.x, dz = pointer.current.gz - s.z;
-        const d = Math.hypot(dx, dz);
-        if (d > 0.12) {
-          const mag = Math.min(d * 1.5, 7.5);
-          fx = (dx / d) * mag;
-          fz = (dz / d) * mag;
-        }
-      }
-      s.vx += (fx * dt) * 1.6;
-      s.vz += (fz * dt) * 1.6;
-      // drag-free Newton: no damping; bounce at arena walls
-      const R = 2.3;
-      s.x = Math.max(-R, Math.min(R, s.x + s.vx * dt));
-      s.z = Math.max(-R, Math.min(R, s.z + s.vz * dt));
-      if (Math.abs(s.x) === R) s.vx *= -0.65;
-      if (Math.abs(s.z) === R) s.vz *= -0.65;
-      s.trailT += dt;
-      if (s.trailT > 0.07 && (Math.abs(s.vx) + Math.abs(s.vz)) > 0.25) {
-        s.trailT = 0;
-        scene.pushTrail({ x: s.x, y: 0, z: s.z });
-      }
-      const y = yOf(0.55);
-      scene.setDrone({ position: { x: s.x, y, z: s.z }, pitch: 0, roll: 0, yaw: 0,
-        motors: [1, 1, 1, 1] });
-      scene.setTargetRing(null);
-      if (pointer.current.active && (Math.abs(fx) + Math.abs(fz)) > 0.05) {
-        scene.setArrow("force", { origin: { x: s.x, y: y - 0.05, z: s.z }, dir: { x: fx, y: 0, z: fz }, len: 0.4 + Math.min(1, Math.hypot(fx, fz) / 7.5) * 0.9, color: "#fbbf24" });
-      } else scene.setArrow("force", { dir: null, len: 0 });
-      const vmag = Math.hypot(s.vx, s.vz);
-      if (vmag > 0.3) {
-        scene.setArrow("velocity", { origin: { x: s.x, y, z: s.z }, dir: { x: s.vx, y: 0, z: s.vz }, len: 0.35 + Math.min(1.1, vmag * 0.14), color: "#96c8ff" });
-      } else scene.setArrow("velocity", { dir: null, len: 0 });
-      scene.setArrow("thrust", { origin: { x: s.x, y: y - 0.05, z: s.z }, dir: { x: 0, y: 1, z: 0 }, len: 1.2, alpha: 0.55 });
-      scene.setArrow("gravity", { dir: null, len: 0 });
-      const msg = pointer.current.active
-        ? "施加外力中：a = F/m，速度正在改变"
-        : vmag > 0.3 ? "松手了——没有力就没有加速度，保持匀速直线（牛顿第一定律）" : "按住地面任意处施力 · 当前静止";
-      setReadoutThrottled(msg);
-    } else if (m === "pid") {
-      const target = 0.72;
-      const s = sim.current.pid;
-      const g = 2.0;
-      const e = target - s.z;
-      s.ie = Math.max(-1.5, Math.min(1.5, s.ie + e * dt));
-      const uo = u.kp * e + u.ki * s.ie + u.kd * -s.v;
-      const thrust = Math.max(0.25, Math.min(1.9, 1 + uo));
-      let a = (thrust - 1) * g;
-      const sinceGust = s.t - s.gustT;
-      if (sinceGust < 0.7) a += s.gust * (1 - sinceGust / 0.7);
-      s.v += a * dt;
-      s.z = Math.min(0.95, Math.max(0.02, s.z + s.v * dt));
-      if (s.z <= 0.02) s.v = Math.max(0, s.v);
-      if (s.z >= 0.95) s.v = Math.min(0, s.v);
-      s.t += dt;
-      s.hist.push({ t: s.t, z: s.z });
-      const cutoff = s.t - 9;
-      while (s.hist.length > 2 && s.hist[1].t < cutoff) s.hist.shift();
-
-      const y = yOf(s.z);
-      scene.setDrone({ position: { x: 0, y, z: 0 }, pitch: Math.max(-14, Math.min(14, s.v * 6)), roll: 0, yaw: 0,
-        motors: [thrust, thrust, thrust, thrust] });
-      scene.setTargetRing(yOf(target));
-      scene.setArrow("thrust", { origin: { x: 0, y: y - 0.05, z: 0 }, dir: { x: 0, y: 1, z: 0 }, len: 0.35 + thrust * 0.85 });
-      scene.setArrow("gravity", { origin: { x: 0, y: y - 0.05, z: 0 }, dir: { x: 0, y: -1, z: 0 }, len: 1.2, alpha: 0.55 });
-      scene.setArrow("velocity", { dir: null, len: 0 });
-      scene.setArrow("force", { dir: null, len: 0 });
-      const settled = Math.abs(target - s.z) < 0.01 && Math.abs(s.v) < 0.03;
-      setReadoutThrottled(settled ? "已到位并稳住 ✅" : `误差 e = ${((target - s.z) * 100).toFixed(0)}% · 追赶中${Math.abs(s.v) > 0.35 ? "（超调震荡）" : ""}`);
-
-      // ---- 2D response strip ----
-      const pc = plotRef.current;
-      const pctx = pc?.getContext("2d");
-      if (pc && pctx) {
-        const w = pc.clientWidth, h = pc.clientHeight;
-        if (w && pc.width !== Math.round(w * 2)) {
-          pc.width = Math.round(w * 2);
-          pc.height = Math.round(h * 2);
-          pctx.setTransform(2, 0, 0, 2, 0, 0);
-        }
-        pctx.clearRect(0, 0, w, h);
-        pctx.strokeStyle = INK.grid;
-        pctx.lineWidth = 1;
-        for (let i = 1; i < 5; i++) {
-          const yy = (h * i) / 5;
-          pctx.beginPath(); pctx.moveTo(0, yy); pctx.lineTo(w, yy); pctx.stroke();
-        }
-        const yP = (z: number) => h - 4 - z * (h - 8);
-        pctx.fillStyle = "rgba(251,191,36,0.10)";
-        pctx.fillRect(0, yP(target + 0.03), w, yP(target - 0.03) - yP(target + 0.03));
-        pctx.setLineDash([6, 4]);
-        pctx.strokeStyle = "rgba(251,191,36,0.75)";
-        pctx.beginPath(); pctx.moveTo(0, yP(target)); pctx.lineTo(w, yP(target)); pctx.stroke();
-        pctx.setLineDash([]);
-        if (s.gustT >= 0) {
-          const gx = ((s.gustT - (s.t - 9)) / 9) * w;
-          if (gx >= 0) {
-            pctx.strokeStyle = "rgba(248,113,113,0.6)";
-            pctx.beginPath(); pctx.moveTo(gx, 0); pctx.lineTo(gx, h); pctx.stroke();
-            canvasLabel(pctx, "风", gx + 6, 10, INK.danger, 9, "left");
-          }
-        }
-        pctx.strokeStyle = INK.thrust;
-        pctx.lineWidth = 2;
-        pctx.beginPath();
-        const t0 = s.t - 9;
-        s.hist.forEach((pt, i) => {
-          const x = ((pt.t - t0) / 9) * w;
-          if (i === 0) pctx.moveTo(x, yP(pt.z));
-          else pctx.lineTo(x, yP(pt.z));
-        });
-        pctx.stroke();
-      }
-    } else {
-      // mixer: kinematic hover showing mixed motors
-      const t = performance.now() / 1000;
-      const y = yOf(0.55 + Math.sin(t * 0.7) * 0.02);
-      const raw = [0, 0, 0, 0];
-      for (let i = 0; i < 4; i++)
-        for (let j = 0; j < 4; j++) raw[j] += MIX[i][j] * u.wishes[i];
-      const motors = raw.map((v) => Math.max(0, Math.min(1.6, u.wishes[0] + 0.45 * v))) as [number, number, number, number];
-      scene.setDrone({ position: { x: 0, y, z: 0 }, pitch: 0, roll: 0, yaw: 0, motors });
-      scene.setTargetRing(null);
-      scene.setArrow("thrust", { origin: { x: 0, y: y - 0.05, z: 0 }, dir: { x: 0, y: 1, z: 0 }, len: 0.35 + u.wishes[0] * 0.85, alpha: 0.8 });
-      scene.setArrow("gravity", { dir: null, len: 0 });
-      scene.setArrow("velocity", { dir: null, len: 0 });
-      scene.setArrow("force", { dir: null, len: 0 });
-      setReadoutThrottled(`电机：${motors.map((v) => `${(v * 100) | 0}%`).join(" / ")}`);
-    }
-
-    scene.render(dt);
-  });
-
-  // Throttle readout updates to ~5 Hz (avoid re-render storms)
-  const readoutRef = useRef({ last: 0, val: "" });
-  function setReadoutThrottled(msg: string) {
-    const now = performance.now();
-    if (msg === readoutRef.current.val && now - readoutRef.current.last < 2000) return;
-    if (now - readoutRef.current.last < 200) return;
-    readoutRef.current = { last: now, val: msg };
-    setReadout(msg);
+  function change<K extends keyof Experiment>(key: K, value: Experiment[K]) {
+    const session = experimentRef.current!;
+    const updated = { ...session.experiment, [key]: value };
+    session.experiment = updated;
+    setExperiment(updated);
   }
 
-  const activeMode = MODES.find((m) => m.key === mode)!;
-  const activeLesson = MODE_LESSONS.find((lesson) => lesson.key === mode)!;
-  const progress = getModeProgress(mode);
-  const nextMode = getNextMode(mode);
+  function selectMode(next: SandboxMode) {
+    if (next === mode) return;
+    sessions.current[mode] = experimentRef.current!;
+    const saved = sessions.current[next];
+    const options = saved?.experiment ?? makeExperiment(next);
+    const session = saved ?? { experiment: options, flight: makeFlightState(options) };
+    experimentRef.current = session;
+    setExperiment(options);
+    setTelemetry(snapshot(session.flight));
+    setAiming(next === "force");
+    setView(next === "force" || next === "mixer" ? "top" : "orbit");
+  }
 
-  const resetMode = () => {
-    if (mode === "hover") {
-      sim.current.hover = { z: 0.3, v: 0 };
-      setThrottle(1);
-    }
-    if (mode === "attitude") {
-      setPitch(0);
-      setRoll(0);
-      setYaw(0);
-    }
-    if (mode === "force") {
-      sim.current.force = { x: 0, z: 0, vx: 0, vz: 0, trailT: 0 };
-      sceneRef.current?.clearTrail();
-      pointer.current.active = false;
-    }
-    if (mode === "pid") {
-      sim.current.pid = { z: 0.12, v: 0, ie: 0, t: 0, gust: 0, gustT: -9, hist: [] };
-      setKp(2.2);
-      setKi(0);
-      setKd(0);
-    }
-    if (mode === "mixer") setWishes([1, 0, 0, 0]);
-    setHasInteracted(false);
-  };
+  function reset(useDefaults: boolean) {
+    const options = useDefaults ? makeExperiment(mode) : experimentRef.current!.experiment;
+    const flight = makeFlightState(options);
+    experimentRef.current = { experiment: options, flight };
+    setExperiment(options);
+    setTelemetry(snapshot(flight));
+    setRunning(true);
+    if (plotRef.current) drawChart(plotRef.current, flight);
+  }
+
+  function pulse(direction: Vec3) {
+    if (!direction[0] && !direction[2]) return;
+    const { flight, experiment } = experimentRef.current!;
+    flight.commandedForce = [direction[0] * experiment.force, 0, direction[2] * experiment.force];
+    flight.forceUntil = flight.time + 0.8;
+    setRunning(true);
+  }
+
+  function aim(event: PointerEvent<HTMLCanvasElement>) {
+    if (!aiming || mode !== "force" || event.button !== 0 || !sceneRef.current) return;
+    pulse(sceneRef.current.aimForce(event.clientX, event.clientY, experimentRef.current!.flight.position));
+  }
+
+  const mix = mode === "mixer" ? mixMotors(experiment.collective, experiment.mixRoll, experiment.mixPitch, experiment.mixYaw) : null;
+  const weight = experiment.mass * GRAVITY;
+  const tiltAcceleration = Math.hypot(telemetry.acceleration[0], telemetry.acceleration[2]);
+  const data = mode === "attitude"
+    ? [["总推力", forceFormat(telemetry.thrust)], ["竖直推力", forceFormat(telemetry.vertical)], ["水平加速度", number(tiltAcceleration) + " m/s²"]]
+    : mode === "force"
+    ? [["外力", forceFormat(telemetry.applied)], ["加速度", number(tiltAcceleration) + " m/s²"], ["水平速度", speedFormat(telemetry.speed)]]
+    : mode === "pid"
+    ? [["目标高度", heightFormat(experiment.target)], ["高度误差", heightFormat(experiment.target - telemetry.height)], ["机体推力", forceFormat(telemetry.thrust)]]
+    : mix
+    ? [["合推力", forceFormat(mix.thrust.reduce((sum, value) => sum + value, 0))], ["滚 / 俯力矩 · N·m", number(mix.rollTorque, 2) + " / " + number(mix.pitchTorque, 2)], ["偏航力矩", number(mix.yawTorque, 2) + " N·m"]]
+    : [["合推力", forceFormat(telemetry.thrust)], ["重力", forceFormat(weight)], ["垂直加速度", number(telemetry.acceleration[1], 2) + " m/s²"]];
+
+  const slider = (key: keyof Experiment, label: string, min: number, max: number, step: number, format = (value: number) => number(value)) =>
+    <Slider label={label} value={Number(experiment[key])} min={min} max={max} step={step} format={format} onChange={(value) => change(key, value)} />;
 
   return (
-    <div className={`${variant === "project" ? "m-0 rounded-none border-0 shadow-none" : "my-8 rounded-2xl border border-white/10 shadow-[0_24px_80px_rgba(0,0,0,0.28)]"} overflow-hidden bg-[#080a09] select-none`}>
-      {/* Header / learning path */}
-      <div className="border-b border-white/10 bg-[linear-gradient(115deg,rgba(188,253,73,0.09),rgba(255,255,255,0.025)_38%,rgba(150,200,255,0.06))] px-4 py-3 sm:px-5">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="inline-block h-2 w-2 rounded-full bg-accent-primary shadow-[0_0_12px_rgba(188,253,73,0.85)]" />
-              <span className="font-mono text-[10px] tracking-[0.18em] text-accent-primary uppercase">FLIGHT LAB / 01</span>
-            </div>
-            <h3 className="mt-1 text-sm font-semibold tracking-wide text-white sm:text-base">四旋翼无人机 · 3D 原理沙盒</h3>
-            <p className="mt-1 text-[11px] text-text-faint">从推力到电机：用五个小实验建立飞控直觉</p>
-          </div>
-          <div className="flex items-center gap-2 font-mono text-[10px] text-text-faint">
-            <span className="rounded-full border border-white/10 bg-black/20 px-2 py-1">{progress.index}/{progress.total} LESSONS</span>
-            <span className="hidden rounded-full border border-white/10 bg-black/20 px-2 py-1 sm:inline-flex">拖拽旋转 · 滚轮缩放</span>
-          </div>
-        </div>
-        <div className="mt-3 grid grid-cols-5 gap-1.5" aria-label="无人机原理学习进度">
-          {MODE_LESSONS.map((lesson, index) => {
-            const isActive = lesson.key === mode;
-            const isPast = index < progress.index - 1;
-            return (
-              <button
-                key={lesson.key}
-                type="button"
-                aria-label={`第 ${index + 1} 课：${lesson.title}`}
-                aria-current={isActive ? "step" : undefined}
-                onClick={() => { setMode(lesson.key); setHasInteracted(false); }}
-                className={`group relative min-w-0 rounded-lg border px-2 py-2 text-left transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary/70 ${
-                  isActive ? "border-accent-primary/60 bg-accent-primary/12 shadow-[inset_0_0_18px_rgba(188,253,73,0.08)]" : "border-white/8 bg-black/15 hover:border-white/20 hover:bg-white/[0.05]"
-                }`}
-              >
-                <span className={`font-mono text-[9px] ${isActive || isPast ? "text-accent-primary" : "text-text-faint"}`}>0{index + 1}</span>
-                <span className={`ml-1 truncate text-[10px] font-medium ${isActive ? "text-white" : "text-text-muted"}`}>{lesson.title}</span>
-                <span className="mt-0.5 block truncate text-[9px] text-text-faint">{lesson.short}</span>
-                {isActive && <span className="absolute inset-x-2 -bottom-px h-px bg-accent-primary shadow-[0_0_8px_rgba(188,253,73,0.9)]" />}
-              </button>
-            );
-          })}
+    <section className={"drone-lab drone-lab--" + variant} aria-label="无人机基础原理交互沙盒">
+      {variant === "article" && <div className="drone-lab__article-title">无人机基础原理 <span>3D 交互沙盒</span></div>}
+      <div className="drone-lab__toolbar">
+        <nav className="drone-lab__mode-nav" aria-label="飞行实验">
+          {LESSONS.map(({ key, label, icon: Icon }, index) => (
+            <button key={key} type="button" aria-label={"第 " + (index + 1) + " 课：" + label} aria-pressed={mode === key} aria-current={mode === key ? "step" : undefined}
+              onClick={() => selectMode(key)}><Icon size={16} aria-hidden="true" />{label}</button>
+          ))}
+        </nav>
+        <div className="drone-lab__actions">
+          <button type="button" onClick={() => setRunning(!running)} aria-label={running ? "暂停仿真" : "继续仿真"} title={running ? "暂停仿真" : "继续仿真"}>
+            {running ? <Pause size={16} aria-hidden="true" /> : <Play size={16} aria-hidden="true" />}<span>{running ? "暂停" : "继续"}</span>
+          </button>
+          <button type="button" onClick={() => reset(true)} aria-label="重置实验" title="重置实验">
+            <RotateCcw size={16} aria-hidden="true" /><span>重置</span>
+          </button>
         </div>
       </div>
 
-      {/* 3D canvas */}
-      <div className="relative">
-        <canvas
-          ref={cvRef}
-          style={variant === "project" ? { height: projectViewportHeight } : undefined}
-          className={`${variant === "project" ? "bg-[#050505]" : "h-[380px] bg-[radial-gradient(circle_at_50%_35%,rgba(62,79,69,0.3),transparent_52%),linear-gradient(180deg,#0b1110,#080a09)]"} w-full touch-none ${mode === "force" ? "cursor-crosshair" : "cursor-grab"}`}
-          aria-label={`无人机三维视图：${activeLesson.observe}`}
-          onPointerDown={(e) => { markInteracted(); if (mode === "force") { e.currentTarget.setPointerCapture(e.pointerId); setPointerForce(e, true); } }}
-          onPointerMove={(e) => { if (mode === "force" && pointer.current.active) setPointerForce(e, true); }}
-          onPointerUp={(e) => { if (mode === "force") setPointerForce(e, false); }}
-          onPointerLeave={(e) => { if (mode === "force") setPointerForce(e, false); }}
-          onPointerCancel={(e) => { if (mode === "force") setPointerForce(e, false); }}
-        />
-        <div className="pointer-events-none absolute inset-x-3 top-3 flex items-start justify-between gap-2">
-          <div className="max-w-[76%] rounded-lg border border-white/10 bg-black/55 px-3 py-2 font-mono text-[11px] text-text-secondary backdrop-blur-md" aria-live="polite">
-          {readout}
-          </div>
-          <div className="hidden rounded-lg border border-white/10 bg-black/45 px-2.5 py-2 text-[9px] leading-relaxed text-text-faint backdrop-blur-md sm:block">
-            <div><span className="mr-1.5 inline-block h-1.5 w-1.5 rounded-full bg-accent-primary" />推力</div>
-            <div><span className="mr-1.5 inline-block h-1.5 w-1.5 rounded-full bg-text-muted" />重力</div>
-            <div><span className="mr-1.5 inline-block h-1.5 w-1.5 rounded-full bg-accent-secondary" />速度</div>
-            <div><span className="mr-1.5 inline-block h-1.5 w-1.5 rounded-full bg-accent-warm" />外力 / 目标</div>
-          </div>
-        </div>
-        <div className="pointer-events-none absolute bottom-3 left-3 right-3 flex items-end justify-between gap-2">
-          <div className="max-w-[85%] rounded-lg border border-white/8 bg-black/45 px-3 py-2 text-[10px] leading-relaxed text-text-muted backdrop-blur-md sm:max-w-[75%]">
-            <span className="mr-1.5 font-mono text-accent-primary">本关观察</span>{activeLesson.observe}
-          </div>
-          <span className="hidden rounded-full border border-white/10 bg-black/45 px-2 py-1 font-mono text-[9px] text-text-faint backdrop-blur-md sm:inline-flex">OGL / REAL-TIME</span>
-        </div>
-      </div>
-
-      {/* Active lesson brief */}
-      <div className="border-y border-white/10 bg-white/[0.025] px-4 py-3 sm:px-5">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="min-w-0">
-            <p className="font-mono text-[10px] tracking-[0.14em] text-accent-primary uppercase">现在动手 · {activeLesson.title}</p>
-            <p className="mt-1 text-xs text-text-secondary"><span className="text-white">{activeLesson.action}</span><span className="mx-2 text-text-faint">·</span>{hasInteracted ? "继续调节，观察反馈" : "调节后看 3D 反馈"}</p>
-          </div>
-          <div className="flex shrink-0 gap-2">
-            <DemoButton onClick={resetMode}>重置本关</DemoButton>
-            {nextMode && <DemoButton primary onClick={() => { setMode(nextMode); setHasInteracted(false); }}>下一关 →</DemoButton>}
-          </div>
-        </div>
-      </div>
-
-      {/* Mode controls */}
-      <div className="px-4 py-4 sm:px-5 sm:py-5">
-        {mode === "hover" && (
-          <div className="flex flex-wrap items-end gap-5">
-            <DemoSlider label="油门 Throttle" value={throttle} min={0} max={1.6} step={0.01}
-              onChange={(v) => { markInteracted(); setThrottle(v); }} format={(v) => `${(v * 100) | 0}%`} />
-            <div className="flex gap-2 pb-1">
-              <DemoButton primary onClick={() => { markInteracted(); setThrottle(1); }}>悬停 = 100%</DemoButton>
-              <DemoButton onClick={() => { markInteracted(); sim.current.hover = { z: 0.06, v: 0 }; }}>回地面</DemoButton>
+      <div className="drone-lab__workbench">
+        <div className="drone-lab__observation">
+          <div className="drone-lab__viewport">
+            <canvas ref={canvasRef} className={aiming ? "is-aiming" : undefined} onPointerDown={aim} aria-label="四旋翼 3D 观测视窗" />
+            {!webgl && <div className="drone-lab__fallback" role="status">当前设备无法显示 3D 视图。参数、力学读数和 PID 曲线仍可使用。</div>}
+            <div className="drone-lab__hud" aria-label="当前读数">
+              <span>{mode === "force" ? "水平速度" : mode === "attitude" || mix ? "合推力" : "当前高度"}</span>
+              <strong>{mode === "force" ? speedFormat(telemetry.speed) : mode === "attitude" || mix ? forceFormat(mix ? mix.thrust.reduce((sum, value) => sum + value, 0) : telemetry.thrust) : heightFormat(telemetry.height)}</strong>
             </div>
-          </div>
-        )}
-        {mode === "attitude" && (
-          <div className="flex flex-wrap items-end gap-5">
-            <DemoSlider label="俯仰 Pitch" value={pitch} min={-30} max={30} step={1} onChange={(v) => { markInteracted(); setPitch(v); }} format={(v) => `${v | 0}°`} />
-            <DemoSlider label="滚转 Roll" value={roll} min={-30} max={30} step={1} onChange={(v) => { markInteracted(); setRoll(v); }} format={(v) => `${v | 0}°`} />
-            <DemoSlider label="偏航 Yaw" value={yaw} min={-2} max={2} step={0.1} onChange={(v) => { markInteracted(); setYaw(v); }}
-              format={(v) => (v === 0 ? "0" : `${v > 0 ? "顺时针" : "逆时针"} ${Math.abs(v).toFixed(1)}`)} />
-            <div className="flex gap-2 pb-1">
-              <DemoButton primary onClick={() => { markInteracted(); setPitch(18); }}>向前飞</DemoButton>
-              <DemoButton onClick={() => { markInteracted(); setPitch(0); setRoll(0); setYaw(0); }}>回正</DemoButton>
-            </div>
-          </div>
-        )}
-        {mode === "force" && (
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <p className="text-xs text-text-muted">
-              按住地面任意处施加一个朝向该点的力；松手后动量保持（牛顿第一定律）。此页签下拖拽不再旋转相机，可用滚轮缩放。
-            </p>
-            <DemoButton onClick={() => {
-              markInteracted();
-              sim.current.force = { x: 0, z: 0, vx: 0, vz: 0, trailT: 0 };
-              sceneRef.current?.clearTrail();
-            }}>重置</DemoButton>
-          </div>
-        )}
-        {mode === "pid" && (
-          <>
-            <canvas ref={plotRef} className="mb-4 h-24 w-full rounded-lg border border-white/10 bg-[#0b0d0c]" />
-            <div className="flex flex-wrap items-end gap-5">
-              <DemoSlider label="Kp 比例（现在）" value={kp} min={0} max={6} step={0.1} onChange={(v) => { markInteracted(); setKp(v); }} format={(v) => v.toFixed(1)} />
-              <DemoSlider label="Ki 积分（过去）" value={ki} min={0} max={3} step={0.05} onChange={(v) => { markInteracted(); setKi(v); }} format={(v) => v.toFixed(2)} />
-              <DemoSlider label="Kd 微分（未来）" value={kd} min={0} max={4} step={0.1} onChange={(v) => { markInteracted(); setKd(v); }} format={(v) => v.toFixed(1)} />
-              <div className="flex flex-wrap gap-2 pb-1">
-                <DemoButton primary onClick={() => { markInteracted(); const s = sim.current.pid; s.gustT = s.t; s.gust = 1.6; }}>来一阵风 🌬</DemoButton>
-                <DemoButton onClick={() => { markInteracted(); sim.current.pid = { z: 0.12, v: 0, ie: 0, t: 0, gust: 0, gustT: -9, hist: [] }; }}>重跑</DemoButton>
-                <DemoButton onClick={() => { markInteracted(); setKp(2.2); setKi(0); setKd(0); }}>只有 P</DemoButton>
-                <DemoButton onClick={() => { markInteracted(); setKp(2.8); setKi(1.2); setKd(2.4); }}>教科书整定 ✨</DemoButton>
+            {webgl && mix && ROTORS.map(({ name }, i) => <span key={name}
+              ref={(element) => { markers.current[i] = element; }}
+              className="drone-lab__motor-marker" aria-hidden="true">{name}</span>)}
+            <div className="drone-lab__viewport-footer">
+              <span>{aiming ? "点选地面方向施力" : "拖拽旋转 · 滚轮或双指缩放"}</span>
+              <div className="drone-lab__camera" aria-label="相机视角">
+                {VIEW_BUTTONS.map(({ view: preset, label, icon: Icon }) => (
+                  <button key={preset} type="button" aria-pressed={preset === view} title={label}
+                    aria-label={label + "视角"} onClick={() => {
+                      setView(preset);
+                      if (preset === view) sceneRef.current?.setView(preset);
+                    }}><Icon size={16} aria-hidden="true" /><span>{label}</span></button>
+                ))}
               </div>
             </div>
-          </>
-        )}
-        {mode === "mixer" && (
-          <div className="grid grid-cols-1 gap-5 md:grid-cols-[200px_1fr]">
-            <div className="grid grid-cols-2 gap-x-4 gap-y-3">
-              {["总距 Throttle", "滚转 Roll", "俯仰 Pitch", "偏航 Yaw"].map((n, i) => (
-                <DemoSlider key={n} label={n} value={wishes[i]} min={i === 0 ? 0 : -1} max={i === 0 ? 1.6 : 1}
-                  step={0.05} onChange={(v) => { markInteracted(); setWishes((w) => w.map((x, k) => (k === i ? v : x))); }}
-                  format={(v) => (i === 0 ? `${(v * 100) | 0}%` : v === 0 ? "0" : `${v > 0 ? "+" : ""}${v.toFixed(2)}`)} />
-              ))}
-            </div>
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[260px] border-collapse font-mono text-[11px]">
-                <thead>
-                  <tr>
-                    <th className="px-2 py-1 text-left text-text-faint">愿望 ╲ 电机</th>
-                    {MOTOR_NAMES.map((n) => <th key={n} className="px-2 py-1 text-center text-accent-secondary">{n}</th>)}
-                  </tr>
-                </thead>
-                <tbody>
-                  {MIX.map((row, i) => (
-                    <tr key={i} className={wishes[i] !== 0 ? "" : "opacity-45"}>
-                      <td className="px-2 py-1 whitespace-nowrap text-text-secondary">
-                        {["Throttle", "Roll", "Pitch", "Yaw"][i]}
-                      </td>
-                      {row.map((sign, j) => {
-                        const c = MIX[i][j] * wishes[i];
-                        const lit = Math.abs(c) > 0.02;
-                        return (
-                          <td key={j} className="px-1 py-1 text-center">
-                            <span className={`inline-flex h-6 w-10 items-center justify-center rounded border tabular-nums ${
-                              !lit ? "border-white/10 text-text-faint"
-                                : c > 0 ? "border-accent-primary/50 bg-accent-primary/15 text-accent-primary"
-                                : "border-[#96c8ff]/50 bg-[#96c8ff]/10 text-[#96c8ff]"
-                            }`}>
-                              {sign > 0 ? "+" : "−"}{lit ? Math.abs(c).toFixed(2) : "·"}
-                            </span>
-                          </td>
-                        );
-                      })}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-              <p className="mt-2 text-[10px] leading-relaxed text-text-faint">
-                绿=加转速，蓝=减转速。3D 里各电机的发光盘颜色实时对应：加速（绿）/减速（蓝）/维持（灰）。
-              </p>
-            </div>
           </div>
-        )}
+          <div className="drone-lab__telemetry" aria-label="飞行数据">
+            {data.map(([label, value]) => <div key={label}><span>{label}</span><strong>{value}</strong></div>)}
+          </div>
+        </div>
+        <aside className="drone-lab__inspector" aria-label={lesson.label + "实验参数"}>
+          <div className="drone-lab__inspector-head">
+            <h3>{lesson.title}</h3>
+            <p>{lesson.hint}</p>
+          </div>
+          <div className="drone-lab__controls">
+            {mode === "hover" && <>
+              {slider("rpm", "旋翼目标转速", 0, 1, 0.002, percent)}
+              {slider("mass", "机身质量", 0.6, 2.4, 0.05, (n) => number(n, 2) + " kg")}
+              <button type="button" className="drone-lab__command" onClick={() => change("rpm", hoverRpm(experiment.mass))}>
+                设为悬停转速 <span>{percent(hoverRpm(experiment.mass))}</span>
+              </button>
+              <div className="drone-lab__pair"><span>实际旋翼转速</span><strong>{percent(telemetry.rpm)}</strong></div>
+            </>}
+            {mode === "attitude" && <>
+              {slider("pitch", "俯仰", -35, 35, 1, angleFormat)}
+              {slider("roll", "滚转", -35, 35, 1, angleFormat)}
+              {slider("yaw", "航向", -180, 180, 1, angleFormat)}
+              <Toggle checked={experiment.compensate} onChange={(value) => change("compensate", value)}>补偿竖直推力</Toggle>
+              <div className="drone-lab__pair"><span>重力</span><strong>{forceFormat(weight)}</strong></div>
+            </>}
+            {mode === "force" && <>
+              {slider("force", "施力大小", 0.5, 7, 0.1, forceFormat)}
+              {slider("mass", "机身质量", 0.6, 2.4, 0.05, (n) => number(n, 2) + " kg")}
+              <Toggle checked={experiment.drag} onChange={(value) => change("drag", value)}>开启空气阻力</Toggle>
+              <button type="button" className="drone-lab__command" onClick={() => pulse([1, 0, 0])}>向右施力 <span>0.8 s</span></button>
+              {webgl && <button type="button" className="drone-lab__command drone-lab__command--outline" onClick={() => setAiming(!aiming)}>
+                {aiming ? "切换为视角旋转" : "切换为点选施力"}
+              </button>}
+            </>}
+            {mode === "pid" && <>
+              <div className="drone-lab__chart">
+                <div><span><i />实际高度</span><span><i />目标高度</span></div>
+                <canvas ref={plotRef} aria-label="最近 12 秒的高度响应曲线" />
+              </div>
+              {slider("target", "目标高度", 0.8, 3.7, 0.1, heightFormat)}
+              <div className="drone-lab__gains">
+                {slider("kp", "Kₚ 比例", 0, 12, 0.2)}
+                {slider("ki", "Kᵢ 积分", 0, 4, 0.1)}
+                {slider("kd", "Kᴅ 微分", 0, 8, 0.2)}
+              </div>
+              <Toggle checked={experiment.bias} onChange={(value) => change("bias", value)}>持续下扰 1.8 N</Toggle>
+              <button type="button" className="drone-lab__command" onClick={() => {
+                const flight = experimentRef.current!.flight;
+                flight.gustUntil = flight.time + 0.45;
+                setRunning(true);
+              }}>施加阵风 <span>0.45 s</span></button>
+              <button type="button" className="drone-lab__command drone-lab__command--outline" onClick={() => reset(false)}>重跑当前参数</button>
+            </>}
+            {mix && <>
+              {slider("collective", "总距", 0, 1, 0.01, percent)}
+              <div className="drone-lab__gains">
+                {slider("mixRoll", "滚转", -0.6, 0.6, 0.01, percent)}
+                {slider("mixPitch", "俯仰", -0.6, 0.6, 0.01, percent)}
+                {slider("mixYaw", "偏航", -0.6, 0.6, 0.01, percent)}
+              </div>
+              <div className="drone-lab__motors" aria-label="各桨推力">
+                {ROTORS.map(({ name, spin }, i) => {
+                  const clipped = mix.raw[i] < 0 || mix.raw[i] > 1;
+                  return <div key={name} className={clipped ? "is-clipped" : undefined}>
+                    <strong>{name} <span>{spin > 0 ? "↻" : "↺"}</span></strong>
+                    <progress max={MAX_THRUST} value={mix.thrust[i]} aria-label={name + " 推力"} />
+                    <output>{clipped ? "限幅 · " : ""}{forceFormat(mix.thrust[i])}</output>
+                  </div>;
+                })}
+              </div>
+            </>}
+          </div>
+          <div className="drone-lab__reference">
+            <code>{lesson.formula}</code>
+            <div>
+              {mode === "attitude" || mix ? <span className="drone-lab__rig">机体定点展示</span> : null}
+              <Toggle checked={vectors} onChange={setVectors}>显示向量</Toggle>
+            </div>
+            {vectors && mode !== "mixer" && <div className="drone-lab__legend">
+              <span className="is-thrust"><i />推力</span><span className="is-gravity"><i />重力</span>
+              {(mode === "force" || mode === "pid") && <span className="is-force"><i />外力</span>}
+              {mode === "force" && <span className="is-velocity"><i />速度</span>}
+            </div>}
+          </div>
+        </aside>
       </div>
-
-      {/* Footer formula */}
-      <div className="border-t border-white/5 px-4 py-2 font-mono text-[11px] text-text-faint">
-        {activeMode.formula}
-      </div>
-    </div>
+    </section>
   );
 }

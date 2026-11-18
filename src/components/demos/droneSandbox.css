@@ -1,0 +1,515 @@
+
+.drone-lab,
+.drone-project {
+  --lab-ink: #29241e;
+  --lab-muted: #6d6258;
+  --lab-faint: #847465;
+  --lab-paper: #f8f5ef;
+  --lab-white: #fffcf6;
+  --lab-line: #ddd5c7;
+  --lab-accent: #ae4528;
+  --lab-accent-ink: #8e3520;
+  --lab-accent-soft: #f3e3d7;
+  --lab-mono: "Geist Mono Variable", "IBM Plex Mono", ui-monospace, monospace;
+  color-scheme: light;
+  color: var(--lab-ink);
+  font-family: "Geist Variable", "Noto Sans SC Variable", system-ui, sans-serif;
+}
+
+.drone-lab {
+  container-type: inline-size;
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--lab-line);
+  border-radius: 16px;
+  background: var(--lab-paper);
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.drone-lab--article { margin-block: 26px; scroll-margin-top: 78px; }
+
+.drone-lab__article-title {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  padding: 18px 21px;
+  color: var(--lab-ink);
+  font-size: 19px;
+  font-weight: 700;
+}
+
+.drone-lab__article-title span {
+  color: var(--lab-muted);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.drone-lab__toolbar,
+.drone-lab__mode-nav,
+.drone-lab__actions,
+.drone-lab__camera {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.drone-lab__toolbar {
+  justify-content: space-between;
+  min-width: 0;
+  padding: 8px 14px;
+  border-bottom: 1px solid var(--lab-line);
+}
+
+.drone-lab--article .drone-lab__toolbar { border-top: 1px solid var(--lab-line); }
+
+.drone-lab button,
+.drone-project__close {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.drone-lab button:focus-visible,
+.drone-lab input:focus-visible,
+.drone-project :is(a, button):focus-visible {
+  outline: 2px solid var(--lab-accent);
+  outline-offset: 2px;
+}
+
+.drone-lab__toolbar button,
+.drone-lab__camera button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 35px;
+  padding: 5px 12px;
+  border-radius: 7px;
+  color: var(--lab-muted);
+  white-space: nowrap;
+  font-size: 13px;
+  line-height: 1.1;
+}
+
+.drone-lab__toolbar button:hover,
+.drone-lab__camera button:hover { background: #ede7dc; color: var(--lab-ink); }
+
+.drone-lab__toolbar button[aria-pressed="true"],
+.drone-lab__camera button[aria-pressed="true"] {
+  background: var(--lab-accent-soft);
+  color: var(--lab-accent-ink);
+  font-weight: 680;
+}
+
+.drone-lab__actions button { padding-inline: 8px; }
+.drone-lab__actions svg { flex: 0 0 auto; }
+
+.drone-lab__workbench {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(260px, 27%);
+  align-items: stretch;
+}
+
+.drone-lab__observation { min-width: 0; }
+
+.drone-lab__viewport {
+  position: relative;
+  isolation: isolate;
+  height: clamp(415px, 64vh, 690px);
+  overflow: hidden;
+  background: #e7e6df;
+}
+
+.drone-lab--article .drone-lab__viewport { height: clamp(390px, 53vh, 525px); }
+
+.drone-lab__viewport canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  cursor: grab;
+  touch-action: none;
+}
+
+.drone-lab__viewport canvas:active { cursor: grabbing; }
+.drone-lab__viewport canvas.is-aiming { cursor: crosshair; }
+
+.drone-lab__hud {
+  position: absolute;
+  z-index: 1;
+  top: 20px;
+  left: 20px;
+  display: grid;
+  gap: 1px;
+  padding: 10px 13px 11px;
+  border: 1px solid #fffdf5b0;
+  border-radius: 10px;
+  background: #fffcf3d9;
+  backdrop-filter: blur(8px);
+  pointer-events: none;
+}
+
+.drone-lab__hud span,
+.drone-lab__telemetry span { color: var(--lab-muted); font-size: 12px; }
+
+.drone-lab__hud strong,
+.drone-lab__telemetry strong {
+  font-family: var(--lab-mono);
+  font-weight: 620;
+  letter-spacing: -0.035em;
+  white-space: nowrap;
+}
+
+.drone-lab__hud strong { font-size: clamp(20px, 3.1vw, 33px); line-height: 1.25; }
+
+.drone-lab__viewport-footer {
+  position: absolute;
+  right: 14px;
+  bottom: 14px;
+  left: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  pointer-events: none;
+}
+
+.drone-lab__viewport-footer > span,
+.drone-lab__camera {
+  padding: 4px;
+  border: 1px solid #fffdf5c4;
+  border-radius: 9px;
+  background: #f9f6eedb;
+  backdrop-filter: blur(8px);
+}
+
+.drone-lab__viewport-footer > span {
+  padding: 7px 9px;
+  font-size: 11px;
+  color: #655c51;
+}
+
+.drone-lab__camera { gap: 2px; pointer-events: auto; }
+.drone-lab__camera button { min-height: 32px; padding-inline: 8px; font-size: 12px; }
+.drone-lab__motor-marker {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 1;
+  padding: 2px 6px;
+  border: 1px solid #e4d6c5;
+  border-radius: 4px;
+  background: #fffaf0ed;
+  color: #2e2a24;
+  font: 600 11px var(--lab-mono);
+  pointer-events: none;
+  will-change: transform;
+}
+
+.drone-lab__fallback {
+  position: absolute;
+  inset: 40% 12% auto;
+  text-align: center;
+  color: var(--lab-muted);
+}
+
+.drone-lab__telemetry {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  min-width: 0;
+  border-top: 1px solid var(--lab-line);
+  background: var(--lab-white);
+}
+
+.drone-lab__telemetry > div {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+  padding: 12px 16px;
+}
+
+.drone-lab__telemetry > div + div { border-left: 1px solid var(--lab-line); }
+.drone-lab__telemetry strong { font-size: clamp(12px, 1.6vw, 19px); }
+
+.drone-lab__inspector {
+  display: flex;
+  flex-direction: column;
+  gap: 19px;
+  min-width: 0;
+  border-left: 1px solid var(--lab-line);
+  padding: 21px 21px 16px;
+  background: var(--lab-paper);
+}
+
+.drone-lab .drone-lab__inspector h3 {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  color: var(--lab-ink);
+  font-size: 20px;
+  line-height: 1.45;
+  letter-spacing: -0.04em;
+  font-weight: 720;
+}
+
+.drone-lab .drone-lab__inspector h3::before,
+.drone-lab .drone-lab__inspector h3::after { content: none; }
+
+.drone-lab .drone-lab__inspector p {
+  margin: 5px 0 0;
+  color: var(--lab-muted);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.drone-lab__controls { display: grid; gap: 11px; align-content: start; }
+.drone-lab__slider { display: grid; gap: 5px; min-width: 0; }
+.drone-lab__slider > span,
+.drone-lab__pair,
+.drone-lab__command {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.drone-lab__slider strong,
+.drone-lab__pair { font-size: 12px; font-weight: 600; }
+.drone-lab__slider output,
+.drone-lab__pair strong,
+.drone-lab__command > span {
+  color: var(--lab-accent-ink);
+  font: 600 12px var(--lab-mono);
+  white-space: nowrap;
+}
+
+.drone-lab__slider input {
+  appearance: auto;
+  width: 100%;
+  height: 19px;
+  margin: 0;
+  accent-color: var(--lab-accent);
+  cursor: pointer;
+}
+
+.drone-lab__toggle {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  width: fit-content;
+  min-height: 25px;
+  color: var(--lab-muted);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.drone-lab__toggle input {
+  appearance: auto;
+  width: 15px;
+  height: 15px;
+  margin: 0;
+  accent-color: var(--lab-accent);
+}
+
+.drone-lab button.drone-lab__command {
+  min-height: 35px;
+  padding: 6px 10px;
+  border: 1px solid #ebceba;
+  border-radius: 7px;
+  background: var(--lab-accent-soft);
+  color: var(--lab-accent-ink);
+  text-align: left;
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.drone-lab button.drone-lab__command:hover { background: #edd8c8; }
+.drone-lab button.drone-lab__command--outline { background: transparent; border-color: var(--lab-line); color: var(--lab-muted); }
+.drone-lab button.drone-lab__command--outline:hover { background: #efe8dc; }
+.drone-lab__pair { color: var(--lab-muted); }
+
+.drone-lab__gains { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.drone-lab__gains .drone-lab__slider > span { flex-wrap: wrap; gap: 0 5px; }
+
+.drone-lab__reference {
+  display: grid;
+  gap: 8px;
+  margin-top: auto;
+  padding-top: 13px;
+  border-top: 1px solid var(--lab-line);
+}
+
+.drone-lab .drone-lab__reference code {
+  display: block;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--lab-accent-ink);
+  font: 550 12px/1.55 var(--lab-mono);
+  white-space: normal;
+}
+
+.drone-lab__reference > div,
+.drone-lab__legend,
+.drone-lab__chart > div {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 5px 13px;
+  color: var(--lab-muted);
+  font-size: 11px;
+}
+
+.drone-lab__reference > div:has(.drone-lab__rig) { justify-content: space-between; }
+
+.drone-lab__legend span,
+.drone-lab__chart span { display: flex; align-items: center; gap: 5px; }
+
+.drone-lab__legend i,
+.drone-lab__chart i {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  flex: 0 0 7px;
+  border-radius: 50%;
+  background: var(--vector-color, #087b64);
+}
+
+.drone-lab__legend .is-gravity { --vector-color: #d15632; }
+.drone-lab__legend .is-force { --vector-color: #9b42ba; }
+.drone-lab__legend .is-velocity { --vector-color: #2866af; }
+
+.drone-lab__chart {
+  padding: 8px 10px 5px;
+  border: 1px solid var(--lab-line);
+  border-radius: 7px;
+  background: var(--lab-white);
+}
+
+.drone-lab__chart span:nth-child(2) { --vector-color: #bc633e; }
+.drone-lab__chart canvas { display: block; width: 100%; height: 88px; margin-top: 4px; }
+
+.drone-lab__motors { display: grid; gap: 5px; color: var(--lab-muted); font: 550 11px var(--lab-mono); }
+.drone-lab__motors > div { display: grid; grid-template-columns: 46px minmax(0, 1fr) 66px; align-items: center; gap: 6px; }
+.drone-lab__motors strong { color: var(--lab-ink); }
+.drone-lab__motors strong span { color: var(--lab-accent-ink); }
+.drone-lab__motors output { text-align: right; }
+.drone-lab__motors progress {
+  appearance: none;
+  width: 100%;
+  height: 5px;
+  border: 0;
+  border-radius: 9px;
+  overflow: hidden;
+  background: #e7ded0;
+  color: #408d7c;
+}
+.drone-lab__motors progress::-webkit-progress-bar { background: #e7ded0; }
+.drone-lab__motors progress::-webkit-progress-value { background: #408d7c; }
+.drone-lab__motors progress::-moz-progress-bar { background: #408d7c; }
+.drone-lab__motors .is-clipped progress::-webkit-progress-value { background: var(--lab-accent); }
+.drone-lab__motors .is-clipped progress::-moz-progress-bar { background: var(--lab-accent); }
+.drone-lab__motors .is-clipped output { color: var(--lab-accent-ink); }
+
+.drone-project {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  overflow: auto;
+  background: #eee8dc;
+}
+
+.drone-project__inner {
+  width: min(100%, 1540px);
+  margin: 0 auto;
+  padding: 0 30px 26px;
+}
+
+.drone-project__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 92px;
+  padding: 12px 0;
+}
+
+.drone-project__header h2 {
+  min-width: 0;
+  margin: 0;
+  color: var(--lab-ink);
+  font-size: clamp(19px, 3vw, 37px);
+  font-weight: 760;
+  letter-spacing: -0.055em;
+  line-height: 1.18;
+}
+
+.drone-project__header h2 span {
+  display: block;
+  margin-top: 4px;
+  color: var(--lab-muted);
+  font-size: clamp(11px, 1.3vw, 14px);
+  font-weight: 550;
+  letter-spacing: 0.025em;
+}
+
+.drone-project__links { display: flex; align-items: center; gap: 7px; }
+.drone-project__links > a,
+.drone-project .drone-project__close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  min-height: 34px;
+  padding: 5px 9px;
+  border: 1px solid #d6cabb;
+  border-radius: 7px;
+  color: var(--lab-muted);
+  text-decoration: none;
+  white-space: nowrap;
+  font-size: 12px;
+}
+.drone-project__links > a:hover,
+.drone-project .drone-project__close:hover { background: var(--lab-paper); color: var(--lab-ink); }
+.drone-project .drone-project__close { width: 34px; padding: 0; }
+
+@media (max-width: 790px) {
+  .drone-project__inner { padding-inline: 14px; }
+  .drone-project__header { min-height: 73px; }
+}
+
+@container (max-width: 680px) {
+  .drone-lab__workbench { grid-template-columns: minmax(0, 1fr); }
+  .drone-lab__inspector { border-top: 1px solid var(--lab-line); border-left: 0; }
+  .drone-lab__viewport, .drone-lab--article .drone-lab__viewport { height: clamp(295px, 58cqw, 445px); }
+}
+
+@media (max-width: 490px) {
+  .drone-project__inner { padding-inline: 9px; }
+  .drone-project__header { min-height: 65px; padding-inline: 3px; }
+  .drone-project__links > a { width: 32px; padding: 0; }
+  .drone-project__links > a > span { display: none; }
+  .drone-lab { border-radius: 12px; }
+  .drone-lab__article-title { padding: 14px 12px; }
+  .drone-lab__toolbar { gap: 3px; padding: 6px 5px; }
+  .drone-lab__mode-nav { gap: 1px; }
+  .drone-lab__toolbar button { min-height: 36px; gap: 3px; padding-inline: 6px; font-size: 12px; }
+  .drone-lab__mode-nav svg { display: none; }
+  .drone-lab__actions { gap: 0; }
+  .drone-lab__actions button { min-width: 32px; }
+  .drone-lab__actions button span { display: none; }
+  .drone-lab__hud { top: 9px; left: 9px; padding: 6px 8px; }
+  .drone-lab__hud span { font-size: 10px; }
+  .drone-lab__viewport-footer { right: 7px; bottom: 7px; left: 7px; }
+  .drone-lab__viewport-footer > span { max-width: 50%; padding: 5px 6px; font-size: 10px; }
+  .drone-lab__camera button { padding-inline: 7px; }
+  .drone-lab__camera button span { display: none; }
+  .drone-lab__telemetry > div { gap: 3px; padding: 9px 6px; }
+  .drone-lab__telemetry span { font-size: 10px; }
+  .drone-lab__telemetry strong { font-size: clamp(10px, 3vw, 13px); }
+  .drone-lab__inspector { gap: 12px; padding: 15px 13px; }
+}

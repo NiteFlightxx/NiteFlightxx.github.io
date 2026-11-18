@@ -96,6 +96,7 @@ const desktopFacts = await evaluate(`(() => {
   return {
     viewport: [innerWidth, innerHeight],
     canvas: rect ? { width: Math.round(rect.width), height: Math.round(rect.height) } : null,
+    grid: getComputedStyle(document.querySelector("#drone-flight-lab .drone-lab__workbench")).gridTemplateColumns,
   };
 })()`);
 
@@ -121,7 +122,7 @@ await writeFile(`${outputPrefix}-mobile.png`, Buffer.from(mobile.data, "base64")
 const facts = await evaluate(`({
   title: document.querySelector("#drone-project-title")?.textContent?.trim(),
   labVisible: Boolean(document.querySelector("#drone-flight-lab")),
-  desktopGrid: getComputedStyle(document.querySelector("#drone-flight-lab > div:last-child")).gridTemplateColumns,
+  mobileGrid: getComputedStyle(document.querySelector("#drone-flight-lab .drone-lab__workbench")).gridTemplateColumns,
   bodyOverflow: document.body.style.overflow,
   activeLesson: document.querySelector('[aria-current="step"]')?.getAttribute("aria-label"),
   viewport: [innerWidth, innerHeight],

@@ -1,58 +1,71 @@
+
 import assert from "node:assert/strict";
 import {
-  MODE_LESSONS,
-  getModeProgress,
-  getNextMode,
-  getRenderDpr,
-  getAttitudeThrustDirection,
-  getMotorVisualState,
-  getDigitalTwinVisualProfile,
-  getProjectViewportHeight,
-  getProjectCameraProfile,
-  getProjectCameraRadius,
+  GRAVITY, MAX_THRUST, STEP, hoverRpm, makeExperiment, makeFlightState, mixMotors, stepFlight, thrustDirection,
 } from "../src/components/demos/droneSandboxLogic.ts";
 
-assert.deepEqual(
-  getModeProgress("hover"),
-  { index: 1, total: 5 },
-  "hover should be the first lesson",
-);
-assert.equal(getNextMode("pid"), "mixer", "PID should advance to mixer");
-assert.equal(getNextMode("mixer"), null, "mixer should be the final lesson");
-assert.equal(MODE_LESSONS[2].key, "force", "lesson order should match the article");
-assert.equal(getRenderDpr(3, false), 1.75, "high-DPI displays should cap render scale");
-assert.equal(getRenderDpr(3, true), 1.25, "reduced motion should use a lower render scale");
-assert.ok(getAttitudeThrustDirection(18, 0, 0).z < -0.3, "nose-down pitch should push toward the nose (-Z)");
-assert.ok(getAttitudeThrustDirection(0, 18, 0).x > 0.3, "right-down roll should push toward +X");
-assert.equal(getMotorVisualState(1.2), "active", "faster motors should use the active visual state");
-assert.equal(getMotorVisualState(0.8), "braking", "slower motors should use the braking visual state");
-assert.equal(getMotorVisualState(1.0), "neutral", "hover motors should use the neutral visual state");
-assert.deepEqual(
-  getDigitalTwinVisualProfile(),
-  {
-    gridFadeStart: 3.4,
-    gridFadeEnd: 11,
-    ghostAlpha: 0.13,
-    calibrationRadius: 2.2,
-    palette: {
-      graphite: "#060606",
-      text: "#f3f4f6",
-      lime: "#bcfd49",
-      ice: "#96c8ff",
-      amber: "#fbbf24",
-      ready: "#bcfd49",
-    },
-  },
-  "the showcase profile should use the website semantic color tokens",
-);
-assert.equal(getProjectViewportHeight(1216, 2529), 760, "desktop viewport should use a large cinematic stage");
-assert.equal(getProjectViewportHeight(844, 390), 410, "mobile viewport should remain compact enough for controls");
-assert.deepEqual(
-  getProjectCameraProfile(),
-  { radius: 4.45, phi: 1.02, theta: 0.72, targetY: 1.1 },
-  "the project camera should frame the drone as the hero object",
-);
-assert.equal(getProjectCameraRadius(1.88), 4.45, "wide stages should keep the cinematic hero framing");
-assert.equal(getProjectCameraRadius(0.95), 5.95, "portrait stages should pull back to keep all four rotors visible");
+function run(experiment, state, seconds) {
+  for (let i = 0; i < seconds / STEP; i++) stepFlight(state, experiment, STEP);
+}
 
-console.log("drone sandbox logic: ok");
+function near(actual, expected, tolerance = 1e-5) {
+  assert.ok(Math.abs(actual - expected) <= tolerance, actual + " is outside tolerance of " + expected);
+}
+
+const hover = makeExperiment("hover");
+const hoverState = makeFlightState(hover);
+run(hover, hoverState, 2);
+near(hoverState.thrust, hover.mass * GRAVITY);
+near(hoverState.velocity[1], 0);
+
+hover.rpm = 0.8;
+stepFlight(hoverState, hover, STEP);
+assert.ok(hoverState.rpm < hover.rpm && hoverState.acceleration[1] > 0, "motor speed gradually approaches the target");
+near(hoverRpm(2.4) ** 2 * 4 * MAX_THRUST, 2.4 * GRAVITY);
+
+const attitude = makeExperiment("attitude");
+const tiltState = makeFlightState(attitude);
+run(attitude, tiltState, 1);
+near(tiltState.verticalThrust, attitude.mass * GRAVITY);
+near(Math.abs(tiltState.acceleration[2]), GRAVITY * Math.tan(attitude.pitch * Math.PI / 180));
+assert.ok(thrustDirection(0, 18, 0)[0] > 0.30);
+assert.ok(thrustDirection(18, 0, 0)[2] < -0.30);
+near(Math.hypot(...thrustDirection(29, -19, 72)), 1);
+attitude.compensate = false;
+run(attitude, tiltState, 2);
+assert.ok(tiltState.verticalThrust < attitude.mass * GRAVITY);
+
+const force = makeExperiment("force");
+const forceState = makeFlightState(force);
+forceState.commandedForce = [3.6, 0, 0];
+forceState.forceUntil = 0.8;
+run(force, forceState, 1);
+near(forceState.velocity[0], 2.4);
+near(forceState.acceleration[0], 0);
+run(force, forceState, 1);
+near(forceState.velocity[0], 2.4);
+force.drag = true;
+run(force, forceState, 1);
+assert.ok(forceState.velocity[0] < 2.4);
+
+const pid = makeExperiment("pid");
+pid.ki = 0;
+const pdState = makeFlightState(pid);
+run(pid, pdState, 18);
+near(pid.target - pdState.position[1], 1.8 / pid.kp, 0.01);
+pid.ki = 2;
+const pidState = makeFlightState(pid);
+run(pid, pidState, 18);
+near(pidState.position[1], pid.target, 0.03);
+assert.ok(pidState.history.length <= 12 / 0.045 + 2);
+
+const pureYaw = mixMotors(0.5, 0, 0, 0.2);
+near(pureYaw.thrust.reduce((total, thrust) => total + thrust, 0), 2 * MAX_THRUST);
+near(pureYaw.rollTorque, 0);
+near(pureYaw.pitchTorque, 0);
+assert.ok(pureYaw.yawTorque > 0);
+const saturated = mixMotors(0.9, 0, 0, 0.6);
+assert.ok(saturated.raw.some((value) => value > 1));
+assert.ok(saturated.thrust.every((value) => value >= 0 && value <= MAX_THRUST));
+
+console.log("Drone sandbox: hover equilibrium, thrust direction, inertia, PID recovery and mixer saturation passed.");
